@@ -1,0 +1,102 @@
+{
+  "id": "foundry.layout.grid",
+  "title": "Grid",
+  "author": "Foundry",
+  "version": "3.0.0",
+  "minimumAPIVersion": 1,
+  "description": "Arrange child parts using Bootstrap CSS Grid utilities.",
+  "group": "Layout",
+  "icon": {
+    "symbol": "square.grid.2x2",
+    "tint": "blue"
+  },
+  "tags": [
+    "Bootstrap",
+    "layout",
+    "grid"
+  ],
+  "assets": [],
+  "libraries": [
+    {
+      "id": "bootstrap",
+      "majorVersion": 6
+    }
+  ],
+  "templates": {
+    "html": "part.html"
+  },
+  "inspector": [
+    {
+      "section": "Grid",
+      "systemImage": "square.grid.2x2",
+      "controls": [
+        {
+          "type": "grid",
+          "id": "grid",
+          "defaults": {
+            "columns": "grid-cols-2"
+          },
+          "allowedOptions": {
+            "columns": [
+              "none",
+              "grid-cols-1",
+              "grid-cols-2",
+              "grid-cols-3",
+              "grid-cols-4",
+              "grid-cols-6"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "section": "Alignment",
+      "systemImage": "align.horizontal.center",
+      "controls": [
+        {
+          "type": "alignment",
+          "id": "alignment"
+        }
+      ]
+    },
+    {
+      "section": "Gap",
+      "systemImage": "arrow.left.and.right",
+      "controls": [
+        {
+          "type": "gap",
+          "id": "gap"
+        }
+      ]
+    },
+    {
+      "section": "Spacing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "spacing",
+          "id": "spacing"
+        }
+      ]
+    },
+    {
+      "section": "Display",
+      "systemImage": "eye",
+      "controls": [
+        {
+          "type": "display",
+          "id": "display",
+          "defaults": {
+            "display": "d-grid"
+          },
+          "allowedOptions": {
+            "display": [
+              "d-grid",
+              "d-none"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

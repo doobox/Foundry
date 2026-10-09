@@ -6,10 +6,14 @@ struct FrameworkSpacingInput<Policy: FrameworkSpacingPolicy>: View {
     let framework: Framework
     let focusNamespace: Namespace.ID
     var unitChoices: [String]? = nil
+    var bootstrapSpacing: Bool = false
+    var bootstrapClassPrefix: String = "p"
 
     @ViewBuilder
     var body: some View {
-        if binding.wrappedValue.isCustom {
+        if bootstrapSpacing {
+            BootstrapSpacingTokenPicker<Policy>(binding: binding, title: title, classPrefix: bootstrapClassPrefix, spacing: framework.spacing)
+        } else if binding.wrappedValue.isCustom {
             FrameworkSpacingCustomInput<Policy>(
                 binding: binding,
                 title: title,

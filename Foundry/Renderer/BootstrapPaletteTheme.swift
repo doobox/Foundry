@@ -1,7 +1,14 @@
 import Foundation
 
-/// A palette supplies a complete Bootstrap theme, never per-component overrides.
+/// Native semantic roles and custom themes share Bootstrap's token contract.
 nonisolated enum BootstrapPaletteTheme {
+    private static let bundledClasses: Set<String> = {
+        let css = BootstrapColourCatalogue.sourceCSS
+        let regex = try! NSRegularExpression(pattern: #"\.([a-z][a-z0-9-]*)\{"#)
+        return Set(regex.matches(in: css, range: NSRange(css.startIndex..., in: css)).compactMap {
+            Range($0.range(at: 1), in: css).map { String(css[$0]) }
+        })
+    }()
     static func paletteID(_ selection: String) -> String {
         if selection.hasPrefix("theme-"), BootstrapColourCatalogue.themeRoles.contains(String(selection.dropFirst(6))) {
             return "framework." + selection.dropFirst(6)
@@ -10,63 +17,54 @@ nonisolated enum BootstrapPaletteTheme {
     }
 
     static func nativeRole(_ palette: ColourPalette) -> String? {
+        if palette.origin == .custom, palette.id.hasPrefix("custom.") {
+            let role = palette.name
+            return validCustomRole(role) ? role : nil
+        }
         let role = String(palette.id.dropFirst("framework.".count))
         return palette.id.hasPrefix("framework.") && BootstrapColourCatalogue.themeRoles.contains(role) ? role : nil
     }
 
-    static func className(for palette: ColourPalette) -> String {
-        if let role = nativeRole(palette) { return "theme-" + role }
-        if palette.origin == .standard, let hue = palette.bootstrapHue,
-           (["black", "white"] + BootstrapColourCatalogue.hues).contains(hue) { return "theme-" + hue }
-        // Reversible CSS-safe identity: independent of display name and collision-free.
-        return "theme-palette-" + palette.id.utf8.map { String(format: "%02x", $0) }.joined()
+    static func validCustomRole(_ name: String) -> Bool {
+        return name.range(of: #"^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$"#, options: .regularExpression) != nil
+            && !(BootstrapColourCatalogue.themeRoles + BootstrapColourCatalogue.hues
+                 + ["black", "white", "body", "reset", "inherit", "transparent", "current", "background", "foreground", "border"]).contains(name)
+            && ["theme", "fg", "fg-emphasis", "fg-contrast", "bg", "bg-subtle", "bg-muted", "border", "border-subtle", "underline", "shadow"]
+                .allSatisfy { !bundledClasses.contains($0 + "-" + name) }
+    }
+
+    static func definitionRole(_ palette: ColourPalette) -> String {
+        palette.origin == .custom ? "primary" : String(palette.id.dropFirst("framework.".count))
+    }
+
+    /// Apply a generated native theme without changing a custom colour's saved identity.
+    static func applying(_ source: ColourPalette, to target: ColourPalette) -> ColourPalette {
+        guard target.origin == .custom, let role = nativeRole(target) else { return source }
+        var result = target
+        try! result.replaceShades(source.shades)
+        result.setLightDefault(source.lightDefaultShade)
+        result.setDarkDefault(source.darkDefaultShade)
+        result.bootstrapHue = source.bootstrapHue
+        result.bootstrapScale = source.bootstrapScale
+        result.bootstrapGeneratedContrast = source.bootstrapGeneratedContrast
+        let sourceRole = definitionRole(source)
+        result.bootstrapTokens = Dictionary(uniqueKeysWithValues: source.bootstrapTokens.map {
+            ($0.key.replacingOccurrences(of: sourceRole + "-", with: role + "-"), $0.value)
+        })
+        return result
+    }
+
+    static func selectablePalettes(in framework: Framework) -> [ColourPalette] {
+        framework.colourPalettes.filter { nativeRole($0) != nil }
+    }
+
+    static func effectivePalette(_ selection: String, in framework: Framework) -> ColourPalette? {
+        selectablePalettes(in: framework).resolvedPalette(id: paletteID(selection))
     }
 
     static func resolve(_ selection: String, framework: Framework) -> String {
-        guard let palette = framework.colourPalettes.resolvedPalette(id: paletteID(selection)) else { return "theme-reset" }
-        return className(for: palette)
-    }
-
-    static func properties(for palette: ColourPalette) -> [(String, String)] {
-        BootstrapColourCatalogue.themeProperties.map { property in
-            var expression = BootstrapColourCatalogue.declarations["--bs-primary-" + property]!
-            for shade in ColourShade.allCases {
-                let colour: String
-                if palette.single {
-                    colour = BootstrapColourCatalogue.declarations["--bs-blue-" + shade.bootstrapLabel]!
-                        .replacingOccurrences(of: BootstrapColourCatalogue.declarations["--bs-blue-500"]!,
-                                              with: palette.cssColour(at: .seven))
-                } else { colour = palette.cssColour(at: shade) }
-                expression = expression.replacingOccurrences(of: BootstrapColourCatalogue.reference(hue: "blue", shade: shade), with: colour)
-            }
-            if property == "contrast" { expression = contrast(for: palette) }
-            return ("--bs-theme-" + property, expression)
-        }
-    }
-
-    private static func contrast(for palette: ColourPalette) -> String {
-        let hex = palette.shades[6].trimmingCharacters(in: CharacterSet(charactersIn: "#"))
-        guard hex.count == 6, let value = UInt32(hex, radix: 16) else { return "var(--bs-white)" }
-        func linear(_ byte: UInt32) -> Double {
-            let x = Double(byte) / 255
-            // Bootstrap's Sass luminance() uses a four-decimal lookup table
-            // for the nonlinear branch and direct division for dark channels.
-            return x < 0.04045 ? x / 12.92 : (pow((x + 0.055) / 1.055, 2.4) * 10_000).rounded() / 10_000
-        }
-        let luminance = 0.2126 * linear((value >> 16) & 255) + 0.7152 * linear((value >> 8) & 255) + 0.0722 * linear(value & 255)
-        // Native equivalent of Bootstrap color-contrast() with its defaults:
-        // light (#fff), dark (#000), #fff, #000; first ratio >= 4.5 wins.
-        // For opaque RGB, at least one of black/white always reaches 4.5, so
-        // the duplicate candidates and highest-ratio fallback are unreachable.
-        // https://github.com/twbs/bootstrap/blob/v6-dev/scss/_functions.scss
-        return 1.05 / (luminance + 0.05) >= 4.5 ? "var(--bs-white)" : "var(--bs-black)"
-    }
-
-    static func css(framework: Framework) -> String {
-        let rules = framework.colourPalettes.filter { nativeRole($0) == nil }.map { palette in
-            let tokens = properties(for: palette).map { "\($0.0):\($0.1)" }.joined(separator: ";")
-            return ".\(className(for: palette)){\(tokens)}"
-        }
-        return "\n@layer helpers{\(rules.joined(separator: "\n"))}"
+        guard let palette = framework.colourPalettes.resolvedPalette(id: paletteID(selection)),
+              let role = nativeRole(palette) else { return "theme-reset" }
+        return "theme-" + role
     }
 }

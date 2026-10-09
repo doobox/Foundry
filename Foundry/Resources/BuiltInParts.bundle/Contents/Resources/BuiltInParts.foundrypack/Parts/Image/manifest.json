@@ -1,0 +1,201 @@
+{
+  "id": "foundry.media.image",
+  "title": "Image",
+  "author": "Foundry",
+  "version": "3.0.0",
+  "minimumAPIVersion": 1,
+  "description": "Responsive images with native Bootstrap sizing and styling.",
+  "group": "Media",
+  "icon": {
+    "symbol": "photo",
+    "tint": "blue"
+  },
+  "tags": [
+    "Bootstrap",
+    "Image"
+  ],
+  "assets": [],
+  "libraries": [
+    {
+      "id": "bootstrap",
+      "majorVersion": 6
+    }
+  ],
+  "templates": {
+    "html": "part.html"
+  },
+  "inspector": [
+    {
+      "section": "Image",
+      "controls": [
+        {
+          "type": "image",
+          "id": "source",
+          "label": "Image",
+          "renditions": [
+            {
+              "id": "small",
+              "maximumDimension": 480
+            },
+            {
+              "id": "medium",
+              "maximumDimension": 960
+            },
+            {
+              "id": "large",
+              "maximumDimension": 1600
+            }
+          ],
+          "focalPoint": true
+        },
+        {
+          "type": "toggle",
+          "id": "decorative",
+          "label": "Decorative",
+          "defaults": {
+            "base": false
+          }
+        },
+        {
+          "type": "select",
+          "id": "loading",
+          "label": "Loading",
+          "defaults": {
+            "base": "lazy"
+          },
+          "options": [
+            {
+              "title": "Lazy",
+              "value": "lazy"
+            },
+            {
+              "title": "Eager",
+              "value": "eager"
+            }
+          ]
+        },
+        {
+          "type": "select",
+          "id": "appearance",
+          "label": "Style",
+          "defaults": {
+            "base": "img-fluid"
+          },
+          "options": [
+            {
+              "title": "Responsive",
+              "value": "img-fluid"
+            },
+            {
+              "title": "Thumbnail",
+              "value": "img-thumbnail"
+            },
+            {
+              "title": "Unstyled",
+              "value": ""
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Sizing",
+      "controls": [
+        {
+          "type": "sizing",
+          "id": "sizing",
+          "excludeControls": [
+            "minWidth",
+            "minHeight",
+            "maxHeight"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Object fit",
+      "controls": [
+        {
+          "type": "objectFit",
+          "id": "objectFit",
+          "visibleWhen": {
+            "any": [
+              {
+                "all": [
+                  {
+                    "id": "sizing.aspectRatio",
+                    "operation": "!=",
+                    "value": "none"
+                  },
+                  {
+                    "id": "sizing.aspectRatio",
+                    "operation": "!=",
+                    "value": "ratio-auto"
+                  }
+                ]
+              },
+              {
+                "all": [
+                  {
+                    "id": "sizing.height",
+                    "operation": "!=",
+                    "value": "none"
+                  },
+                  {
+                    "id": "sizing.height",
+                    "operation": "!=",
+                    "value": "h-auto"
+                  }
+                ]
+              }
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "section": "Borders",
+      "controls": [
+        {
+          "type": "borders",
+          "id": "borders",
+          "excludeControls": [
+            "borderTop",
+            "borderEnd",
+            "borderBottom",
+            "borderStart",
+            "borderX",
+            "borderY"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Spacing",
+      "controls": [
+        {
+          "type": "spacing",
+          "id": "spacing"
+        }
+      ]
+    },
+    {
+      "section": "Display",
+      "controls": [
+        {
+          "type": "display",
+          "id": "display",
+          "allowedOptions": {
+            "display": [
+              "none",
+              "d-inline",
+              "d-block",
+              "d-inline-block",
+              "d-none"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

@@ -45,8 +45,9 @@ struct FrameworkPaddingTests {
 
     @Test func numericValuesFollowFrameworkAndPreserveCustomUnits() throws {
         var framework = Framework.standard
-        framework.spacing.small = 7
+        framework.spacing.custom = [.init(name: "section", value: 1.75)]
         var padding = FrameworkPaddingValue()
+        padding.setAll(.init(token: "section"))
         for unit in PartPackageFrameworkPaddingControl.units {
             var edge = FrameworkPaddingValue.EdgeValue()
             edge.isCustom = true

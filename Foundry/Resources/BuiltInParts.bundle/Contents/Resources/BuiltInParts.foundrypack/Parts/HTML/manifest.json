@@ -1,0 +1,33 @@
+{
+  "id": "foundry.content.html",
+  "title": "HTML",
+  "author": "Foundry",
+  "version": "3.0.0",
+  "minimumAPIVersion": 1,
+  "description": "Your HTML, rendered directly with the site's Bootstrap stylesheet.",
+  "group": "Content",
+  "icon": {
+    "symbol": "chevron.left.forwardslash.chevron.right",
+    "tint": "blue"
+  },
+  "tags": [
+    "Bootstrap",
+    "HTML"
+  ],
+  "assets": [],
+  "libraries": [
+    {
+      "id": "bootstrap",
+      "majorVersion": 6
+    }
+  ],
+  "templates": {
+    "html": "part.html"
+  },
+  "inspector": [
+    {
+      "section": "Content",
+      "controls": []
+    }
+  ]
+}

@@ -16,6 +16,9 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
     /// Native Bootstrap scale; hex shades are previews for the macOS UI.
     var bootstrapHue: String?
     var bootstrapScale: BootstrapColourScale?
+    var bootstrapTokens: [String: BootstrapTokenColour] = [:]
+    /// Generated text colours are separate from manual token overrides.
+    var bootstrapGeneratedContrast: BootstrapTokenColour?
 
     struct Generation: Codable, Equatable, Sendable {
         /// A versioned identifier, not "latest". Existing shades never regenerate on load.
@@ -91,7 +94,7 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
         return copy
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, origin, shades, lightDefaultShade, darkDefaultShade, generation, single, bootstrapHue, bootstrapScale }
+    private enum CodingKeys: String, CodingKey { case id, name, origin, shades, lightDefaultShade, darkDefaultShade, generation, single, bootstrapHue, bootstrapScale, bootstrapTokens, bootstrapGeneratedContrast }
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -110,6 +113,8 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
         single = try values.decodeIfPresent(Bool.self, forKey: .single) ?? false
         bootstrapHue = try values.decodeIfPresent(String.self, forKey: .bootstrapHue)
         bootstrapScale = try values.decodeIfPresent(BootstrapColourScale.self, forKey: .bootstrapScale)
+        bootstrapTokens = try values.decodeIfPresent([String: BootstrapTokenColour].self, forKey: .bootstrapTokens) ?? [:]
+        bootstrapGeneratedContrast = try values.decodeIfPresent(BootstrapTokenColour.self, forKey: .bootstrapGeneratedContrast)
         if let bootstrapHue, !(BootstrapColourCatalogue.hues + ["black", "white"]).contains(bootstrapHue) {
             throw DecodingError.dataCorruptedError(forKey: .bootstrapHue, in: values, debugDescription: "Unknown Bootstrap hue")
         }

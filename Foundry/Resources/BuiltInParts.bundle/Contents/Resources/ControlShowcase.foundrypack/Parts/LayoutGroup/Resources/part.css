@@ -35,7 +35,7 @@
 :instance .fx-copy { margin: 0; padding: 48px 14px 0; color: var(--fx-muted); }
 :instance .fx-badge { display: inline-block; padding: 6px 12px; border-radius: 999px; background: var(--fx-accent); color: #ffffff; font-weight: 600; }
 
-/* Layout last, so its Hidden setting can override an earlier display. */
+/* Apply the remaining positioning and overflow declarations. */
 :instance .fx-placed { display: block; {{ control.layout.css }} }
 
 /* allowedOptions + excludeControls + defaults — the badge is always positioned. */

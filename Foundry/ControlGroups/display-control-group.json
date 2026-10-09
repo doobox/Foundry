@@ -1,0 +1,97 @@
+{
+  "type": "display",
+  "name": "Bootstrap display & visibility",
+  "systemImage": "eye",
+  "controls": [
+    {
+      "type": "select",
+      "id": "display",
+      "label": "Display",
+      "responsive": true,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "d-inline",
+          "value": "d-inline"
+        },
+        {
+          "title": "d-inline-block",
+          "value": "d-inline-block"
+        },
+        {
+          "title": "d-block",
+          "value": "d-block"
+        },
+        {
+          "title": "d-grid",
+          "value": "d-grid"
+        },
+        {
+          "title": "d-inline-grid",
+          "value": "d-inline-grid"
+        },
+        {
+          "title": "d-table",
+          "value": "d-table"
+        },
+        {
+          "title": "d-table-row",
+          "value": "d-table-row"
+        },
+        {
+          "title": "d-table-cell",
+          "value": "d-table-cell"
+        },
+        {
+          "title": "d-flex",
+          "value": "d-flex"
+        },
+        {
+          "title": "d-inline-flex",
+          "value": "d-inline-flex"
+        },
+        {
+          "title": "d-contents",
+          "value": "d-contents"
+        },
+        {
+          "title": "d-flow-root",
+          "value": "d-flow-root"
+        },
+        {
+          "title": "d-none",
+          "value": "d-none"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "visibility",
+      "label": "Visibility",
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "visible",
+          "value": "visible"
+        },
+        {
+          "title": "invisible",
+          "value": "invisible"
+        }
+      ]
+    }
+  ]
+}

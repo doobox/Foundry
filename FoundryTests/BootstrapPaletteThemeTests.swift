@@ -4,72 +4,42 @@ import WebKit
 
 @MainActor
 struct BootstrapPaletteThemeTests {
-    @Test(arguments: [
-        ("#000000", "white"), ("#FFFFFF", "black"),
-        ("#757575", "white"), ("#767676", "white"), ("#777777", "black"),
-        ("#7740FF", "white"), ("#FFC900", "black"), ("#0087FE", "black")
-    ])
-    func contrastUsesBootstrapCandidateOrder(sample: (String, String)) throws {
-        let palette = try ColourPalette(id: "custom.contrast", name: "Contrast", origin: .custom,
-            shades: Array(repeating: sample.0, count: 13), lightDefaultShade: .seven, darkDefaultShade: .seven)
-        let tokens = Dictionary(uniqueKeysWithValues: BootstrapPaletteTheme.properties(for: palette))
-        #expect(tokens["--bs-theme-contrast"] == "var(--bs-\(sample.1))")
-        // #767676 is deliberate: both candidates pass, black has the higher
-        // ratio, but Bootstrap returns white because it is tested first.
-    }
-
-    @Test
-    func everyPaletteHasStableCompleteTheme() throws {
+    @Test func onlySemanticThemesAreAvailable() throws {
         var framework = Framework.standard
-        var custom = try BootstrapColourCatalogue.palette(role: .accent).duplicated()
-        custom.name = "Primary" // Display-name collisions must not replace native themes.
+        let custom = try BootstrapColourCatalogue.palette(role: .accent).duplicated()
         framework.colourPalettes.insert(custom, at: 0)
-        let css = BootstrapPaletteTheme.css(framework: framework)
-        let classes = framework.colourPalettes.map(BootstrapPaletteTheme.className)
-        #expect(Set(classes).count == classes.count)
-        for palette in framework.colourPalettes {
-            let resolved = BootstrapPaletteTheme.resolve(palette.id, framework: framework)
-            #expect(resolved == BootstrapPaletteTheme.className(for: palette))
-            if BootstrapPaletteTheme.nativeRole(palette) == nil {
-                #expect(css.contains(".\(resolved){"))
-                #expect(BootstrapPaletteTheme.properties(for: palette).count == 9)
-            }
+        let palettes = BootstrapPaletteTheme.selectablePalettes(in: framework)
+        #expect(palettes.count == 8)
+        for palette in palettes {
+            #expect(BootstrapPaletteTheme.resolve(palette.id, framework: framework) == "theme-" + (BootstrapPaletteTheme.nativeRole(palette) ?? ""))
         }
-        let original = BootstrapPaletteTheme.className(for: custom)
-        custom.name = "Renamed </style>"
-        #expect(BootstrapPaletteTheme.className(for: custom) == original)
-        #expect(css.contains("Renamed") == false)
-        #expect(BootstrapPaletteTheme.resolve("deleted", framework: framework) == "theme-reset")
+        for excluded in [custom.id, "standard.pink", "framework.background", "missing"] {
+            #expect(BootstrapPaletteTheme.resolve(excluded, framework: framework) == "theme-reset")
+        }
         #expect(BootstrapPaletteTheme.resolve("theme-danger", framework: framework) == "theme-danger")
-        let roundTrip = try JSONDecoder().decode(ColourPalette.self, from: JSONEncoder().encode(custom))
-        #expect(BootstrapPaletteTheme.className(for: roundTrip) == original)
-        try custom.setBootstrapScale(try #require(BootstrapColourScale.native("pink")),
-                                     previews: try #require(BootstrapColourCatalogue.previews.palettes["pink"]))
-        framework.colourPalettes[0] = custom
-        #expect(BootstrapPaletteTheme.className(for: custom) == original)
-        #expect(BootstrapPaletteTheme.css(framework: framework) != css)
-        let black = try #require(framework.colourPalettes.first { $0.id == "standard.black" })
-        let white = try #require(framework.colourPalettes.first { $0.id == "standard.white" })
-        #expect(Dictionary(uniqueKeysWithValues: BootstrapPaletteTheme.properties(for: black))["--bs-theme-contrast"] == "var(--bs-white)")
-        #expect(Dictionary(uniqueKeysWithValues: BootstrapPaletteTheme.properties(for: white))["--bs-theme-contrast"] == "var(--bs-black)")
+        let css = BootstrapColorCSS.export(framework: framework, mode: .both)
+        #expect(css.contains("theme-palette-") == false)
+        #expect(css.contains(".theme-pink") == false)
     }
 
     @Test(.timeLimit(.minutes(1)), arguments: ["canvas", "export"])
-    func customThemeReachesButtonAndBrowser(destination: String) async throws {
+    func editedThemeReachesButtonAndBrowser(destination: String) async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
         var framework = Framework.standard
-        let custom = try BootstrapColourCatalogue.palette(role: .accent).duplicated()
         let primaryIndex = try #require(framework.colourPalettes.firstIndex { $0.id == "framework.primary" })
         framework.colourPalettes[primaryIndex] = BootstrapColourCatalogue.palette(role: .primary, hue: "indigo")
-        framework.colourPalettes.insert(custom, at: 0)
+        framework.colourPalettes[primaryIndex].bootstrapTokens["primary-bg"] = BootstrapTokenColour(
+            light: BootstrapColourScale(base: "oklch(50% 0.15 350)"), dark: BootstrapColourScale(base: "oklch(40% 0.15 350)"))
+        framework.colourPalettes[primaryIndex].bootstrapTokens["primary-contrast"] = BootstrapTokenColour(
+            light: BootstrapColourScale.native("white"), dark: BootstrapColourScale.native("white"))
         var button = PartNode.make(.button)
-        button.setProperty(.init(rawValue: "theme"), value: .choice(custom.id))
+        button.setProperty(.init(rawValue: "theme"), value: .choice("framework.primary"))
         let page = Page(title: "Theme", slug: "index", parts: [button])
         var site = Site(name: "Theme", pages: [page])
         site.framework = framework
         site.appearanceMode = .both
         var replacement = site
-        replacement.replacePartFrameworkReference(custom.id, with: "framework.danger")
+        replacement.replacePartFrameworkReference("framework.primary", with: "framework.danger")
         #expect(replacement.pages[0].parts[0].property(.init(rawValue: "theme")) == "framework.danger")
         let html: String
         if destination == "canvas" {
@@ -81,7 +51,7 @@ struct BootstrapPaletteThemeTests {
             html = document.contents.replacingOccurrences(of: "</head>", with: "<style>\(css)</style></head>")
             #expect(document.contents.contains("data-foundry-") == false)
         }
-        #expect(html.contains("btn btn-solid " + BootstrapPaletteTheme.className(for: custom)))
+        #expect(html.contains("btn btn-solid theme-primary"))
         let browser = PaletteThemeTestBrowser()
         try await browser.load(html)
         let errors = try #require(try await browser.view.evaluateJavaScript("""
@@ -97,8 +67,8 @@ struct BootstrapPaletteThemeTests {
                 for (const variant of ['solid','outline','subtle']) {
                     actual.className=`btn btn-${variant} ${theme}`;
                     reference.className=`btn btn-${variant} theme-primary`;
-                    // Primary is remapped to Indigo; only automatic contrast may differ.
-                    reference.style.setProperty('--bs-theme-contrast',getComputedStyle(actual).getPropertyValue('--bs-theme-contrast'));
+                    reference.style.setProperty('--bs-theme-bg', mode === 'light' ? 'oklch(50% 0.15 350)' : 'oklch(40% 0.15 350)');
+                    reference.style.setProperty('--bs-theme-contrast','oklch(100% 0 0)');
                     for (const state of ['', 'active','disabled']) {
                         if(state){actual.classList.add(state);reference.classList.add(state)}
                         const a=getComputedStyle(actual), b=getComputedStyle(reference);

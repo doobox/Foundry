@@ -33,11 +33,3 @@
 :instance .fx-item { padding: 10px 14px; border-radius: 6px; background: #bfdbfe; color: var(--fx-ink); text-align: center; }
 :instance .fx-item:nth-child(2n) { padding: 18px 22px; background: #93c5fd; }
 :instance .fx-item:nth-child(3n) { padding: 26px 30px; background: #60a5fa; color: #ffffff; }
-
-/* The container rule, then the children rule the docs ask for. */
-:instance .fx-flex { {{ control.flexbox.css }} }
-:instance .fx-flex > * { {{ control.flexbox.childCSS }} }
-
-/* allowedOptions + defaults + excludeControls — same two rules. */
-:instance .fx-toolbar { {{ control.toolbar.css }} }
-:instance .fx-toolbar > * { {{ control.toolbar.childCSS }} }

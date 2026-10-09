@@ -35,7 +35,7 @@ nonisolated enum ResponsiveBreakpoint: String, Codable, CaseIterable, Identifiab
     var minimumWidth: Int? {
         switch self {
         case .mobile: nil
-        case .small: 640
+        case .small: 576
         case .medium: 768
         case .large: 1024
         case .extraLarge: 1280

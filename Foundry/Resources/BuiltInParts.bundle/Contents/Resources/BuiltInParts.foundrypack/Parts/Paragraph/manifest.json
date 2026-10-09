@@ -1,0 +1,64 @@
+{
+  "id": "foundry.content.paragraph",
+  "title": "Paragraph",
+  "author": "Foundry",
+  "version": "3.0.0",
+  "minimumAPIVersion": 1,
+  "description": "Editable paragraph text using Bootstrap typography and spacing.",
+  "group": "Content",
+  "icon": {
+    "symbol": "text.alignleft",
+    "tint": "blue"
+  },
+  "tags": [
+    "Bootstrap",
+    "text",
+    "paragraph"
+  ],
+  "assets": [],
+  "libraries": [
+    {
+      "id": "bootstrap",
+      "majorVersion": 6
+    }
+  ],
+  "templates": {
+    "html": "part.html"
+  },
+  "inspector": [
+    {
+      "section": "Text",
+      "systemImage": "textformat",
+      "controls": [
+        {
+          "type": "typography",
+          "id": "typography",
+          "excludeControls": [
+            "fontFamily",
+            "fontSize",
+            "fontStyle",
+            "fontWeight",
+            "lineHeight",
+            "textDecoration",
+            "textTransform",
+            "wordWrap"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Spacing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "spacing",
+          "id": "spacing"
+        }
+      ]
+    },
+    {
+      "section": "Content",
+      "systemImage": "doc.text"
+    }
+  ]
+}

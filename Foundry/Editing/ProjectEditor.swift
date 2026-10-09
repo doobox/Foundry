@@ -475,10 +475,66 @@ struct ProjectEditor {
             case .textColor: site.framework.colors.text = value
             case .accentColor: site.framework.colors.accent = value
             case .linksColor: site.framework.colors.links = value
-            case .threeExtraSmallSpacing, .doubleExtraSmallSpacing, .extraSmallSpacing,
-                 .smallSpacing, .mediumSpacing, .largeSpacing, .extraLargeSpacing,
-                 .doubleExtraLargeSpacing, .threeExtraLargeSpacing, .fourExtraLargeSpacing: break
             }
+        }
+    }
+
+    func addCustomSpacing() {
+        let used = Set(document.site.framework.spacing.custom.map(\.name))
+        var number = 13
+        while used.contains(String(number)) { number += 1 }
+        mutate(actionName: "Add Spacing Size", impact: .framework) { site in
+            site.framework.spacing.custom.append(.init(name: String(number), value: 4))
+        }
+    }
+
+    @discardableResult
+    func renameCustomSpacing(_ id: UUID, name: String) -> Bool {
+        let tokens = document.site.framework.spacing.custom
+        guard SpacingTokens.validName(name),
+              !tokens.contains(where: { $0.id != id && $0.name == name }),
+              let token = tokens.first(where: { $0.id == id }) else { return false }
+        guard token.name != name else { return true }
+        mutate(actionName: "Rename Spacing Size", impact: .framework) { site in
+            guard let index = site.framework.spacing.custom.firstIndex(where: { $0.id == id }) else { return }
+            site.replacePartSpacingReference(token.name, with: name)
+            site.framework.spacing.custom[index].name = name
+        }
+        return true
+    }
+
+    func setCustomSpacing(_ id: UUID, value: Double) {
+        guard value.isFinite, value >= 0,
+              let token = document.site.framework.spacing.custom.first(where: { $0.id == id }),
+              token.value != value else { return }
+        mutate(actionName: "Edit Bootstrap Spacing", impact: .framework) { site in
+            guard let index = site.framework.spacing.custom.firstIndex(where: { $0.id == id }) else { return }
+            site.framework.spacing.custom[index].value = value
+        }
+    }
+
+    func setBootstrapSpacing(_ step: Int, value: Double) {
+        guard value.isFinite, value >= 0, document.site.framework.spacing.values.indices.contains(step),
+              document.site.framework.spacing.values[step] != value else { return }
+        mutate(actionName: "Edit Bootstrap Spacing", impact: .framework) {
+            $0.framework.spacing.values[step] = value
+        }
+    }
+
+    func resetBootstrapSpacing() {
+        guard document.site.framework.spacing.values != SpacingTokens.multipliers else { return }
+        mutate(actionName: "Reset Bootstrap Spacing", impact: .framework) {
+            $0.framework.spacing.values = SpacingTokens.multipliers
+        }
+    }
+
+    func removeCustomSpacing(_ id: UUID, replacingWith replacement: String) {
+        guard let token = document.site.framework.spacing.custom.first(where: { $0.id == id }),
+              replacement != token.name,
+              document.site.framework.spacing.choices.contains(where: { $0.id == replacement }) else { return }
+        mutate(actionName: "Remove Spacing Size", impact: .framework) { site in
+            site.replacePartSpacingReference(token.name, with: replacement)
+            site.framework.spacing.custom.removeAll { $0.id == id }
         }
     }
 
@@ -510,97 +566,6 @@ struct ProjectEditor {
         guard value.isFinite else { return }
         mutate(actionName: "Edit Framework Container Width", impact: .framework) { site in
             site.framework.screens.update(id) { $0.container.value = value }
-        }
-    }
-
-    func setFrameworkSpacing(_ token: DesignToken, value: Double) {
-        guard value.isFinite, value >= 0 else { return }
-        mutate(actionName: "Edit Framework Spacing", impact: .framework) { site in
-            switch token {
-            case .threeExtraSmallSpacing: site.framework.spacing.threeExtraSmall = value
-            case .doubleExtraSmallSpacing: site.framework.spacing.doubleExtraSmall = value
-            case .extraSmallSpacing: site.framework.spacing.extraSmall = value
-            case .smallSpacing: site.framework.spacing.small = value
-            case .mediumSpacing: site.framework.spacing.medium = value
-            case .largeSpacing: site.framework.spacing.large = value
-            case .extraLargeSpacing: site.framework.spacing.extraLarge = value
-            case .doubleExtraLargeSpacing: site.framework.spacing.doubleExtraLarge = value
-            case .threeExtraLargeSpacing: site.framework.spacing.threeExtraLarge = value
-            case .fourExtraLargeSpacing: site.framework.spacing.fourExtraLarge = value
-            case .backgroundColor, .surfaceColor, .textColor, .accentColor, .linksColor: break
-            }
-        }
-    }
-
-    func resetFrameworkSpacingScale() {
-        mutate(actionName: "Reset Framework Spacing Scale", impact: .framework) { site in
-            guard let source = FrameworkLibrary.shared.frameworks.first(where: { $0.id == site.frameworkSourceID }) else { return }
-            let defaults = source.framework.spacing
-            site.framework.spacing.threeExtraSmall = defaults.threeExtraSmall
-            site.framework.spacing.doubleExtraSmall = defaults.doubleExtraSmall
-            site.framework.spacing.extraSmall = defaults.extraSmall
-            site.framework.spacing.small = defaults.small
-            site.framework.spacing.medium = defaults.medium
-            site.framework.spacing.large = defaults.large
-            site.framework.spacing.extraLarge = defaults.extraLarge
-            site.framework.spacing.doubleExtraLarge = defaults.doubleExtraLarge
-            site.framework.spacing.threeExtraLarge = defaults.threeExtraLarge
-            site.framework.spacing.fourExtraLarge = defaults.fourExtraLarge
-        }
-    }
-
-    @discardableResult
-    func addFrameworkSpacing() -> UUID {
-        let id = UUID()
-        mutate(actionName: "Add Framework Spacing", impact: .framework) { site in
-            let existing = Set(site.framework.spacing.custom.map(\.name))
-            var name = "new"
-            var counter = 1
-            while existing.contains(name) {
-                name = "new\(counter)"
-                counter += 1
-            }
-            site.framework.spacing.custom.append(FrameworkSpacing(id: id, name: name, value: 5))
-        }
-        return id
-    }
-
-    func setFrameworkSpacingName(id: UUID, value: String) {
-        mutate(actionName: "Rename Framework Spacing", impact: .framework) { site in
-            guard let index = site.framework.spacing.custom.firstIndex(where: { $0.id == id }) else { return }
-            site.framework.spacing.custom[index].name = value
-        }
-    }
-
-    func setFrameworkSpacingValue(id: UUID, value: Double) {
-        guard value.isFinite, value >= 0 else { return }
-        mutate(actionName: "Edit Framework Spacing", impact: .framework) { site in
-            guard let index = site.framework.spacing.custom.firstIndex(where: { $0.id == id }) else { return }
-            site.framework.spacing.custom[index].value = value
-        }
-    }
-
-    func removeFrameworkSpacing(id: UUID) {
-        let reference = "custom:\(id.uuidString.lowercased())"
-        mutate(actionName: "Delete Framework Spacing", impact: .framework) { site in
-            guard let removed = site.framework.spacing.custom.first(where: { $0.id == id }) else { return }
-            // Parts keep the deleted value's exact size as a custom length;
-            // token-only selections snap to the closest predefined token.
-            let fallbackIDs = ["3xs", "2xs", "xs", "sm", "md", "lg", "xl", "2xl", "3xl", "4xl"]
-            let fallbackToken = zip(fallbackIDs, DesignToken.spacingTokens).min { lhs, rhs in
-                abs((site.framework.number(for: lhs.1) ?? 0) - removed.value)
-                    < abs((site.framework.number(for: rhs.1) ?? 0) - removed.value)
-            }?.0 ?? "md"
-            site.bakePartFrameworkSpacingReference(
-                reference,
-                amountRem: removed.value * SpacingTokens.baseRem,
-                fallbackToken: fallbackToken
-            )
-            site.framework.spacing.custom.removeAll(where: { $0.id == id })
-            site.projectFrameworkValues.spacing.removeAll(where: { $0.id == id })
-            for index in site.frameworkStates.indices {
-                site.frameworkStates[index].framework.spacing.custom.removeAll(where: { $0.id == id })
-            }
         }
     }
 
@@ -1160,22 +1125,12 @@ struct ProjectEditor {
     }
 
     func selectFramework(_ framework: Framework, sourceID: UUID) {
-        let builtIn = FrameworkLibrary.shared.frameworks.first { $0.id == sourceID && $0.isBuiltIn }
         mutate(actionName: "Select Framework", impact: .framework) { site in
-            let projectScreens = site.framework.screens
-            defer { site.framework.screens = projectScreens }
-            guard site.frameworkSourceID != sourceID || builtIn != nil else { return }
+            guard site.frameworkSourceID != sourceID else { return }
             site.projectFrameworkValues.absorb(site.framework)
             if site.frameworkSourceID != sourceID { site.saveActiveFrameworkState() }
-            let selected: Framework
-            if let builtIn {
-                // Built-ins have no editable project snapshot to restore.
-                site.frameworkStates.removeAll { $0.sourceID == sourceID }
-                selected = builtIn.framework
-            } else {
-                site.projectFrameworkValues.include(framework)
-                selected = site.frameworkStates.first(where: { $0.sourceID == sourceID })?.framework ?? framework
-            }
+            site.projectFrameworkValues.include(framework)
+            let selected = site.frameworkStates.first(where: { $0.sourceID == sourceID })?.framework ?? framework
             site.framework = site.projectFrameworkValues.applied(to: selected)
             site.frameworkSourceID = sourceID
         }
@@ -1183,8 +1138,6 @@ struct ProjectEditor {
 
     func resetFramework(_ framework: Framework, sourceID: UUID) {
         mutate(actionName: "Reset Framework", impact: .framework) { site in
-            let projectScreens = site.framework.screens
-            defer { site.framework.screens = projectScreens }
             site.projectFrameworkValues.absorb(site.framework)
             site.frameworkStates.removeAll { $0.sourceID == sourceID }
             site.framework = site.projectFrameworkValues.applied(to: framework)
@@ -1194,8 +1147,6 @@ struct ProjectEditor {
 
     func didDeleteFramework(sourceID: UUID) {
         mutate(actionName: "Delete Framework", impact: .framework) { site in
-            let projectScreens = site.framework.screens
-            defer { site.framework.screens = projectScreens }
             site.frameworkStates.removeAll { $0.sourceID == sourceID }
             guard site.frameworkSourceID == sourceID else { return }
             site.projectFrameworkValues.absorb(site.framework)
@@ -1207,8 +1158,6 @@ struct ProjectEditor {
 
     func commitFramework(_ framework: Framework, sourceID: UUID) {
         mutate(actionName: "Update Framework Defaults", impact: .framework) { site in
-            let projectScreens = site.framework.screens
-            defer { site.framework.screens = projectScreens }
             let projectColours = site.framework.colourPalettes.filter { $0.origin == .custom }
             site.frameworkStates.removeAll { $0.sourceID == sourceID }
             site.projectFrameworkValues.absorb(framework)

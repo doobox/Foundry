@@ -262,6 +262,23 @@ nonisolated struct PartProperty: Codable, Equatable, Identifiable, Sendable {
             return value
         }
 
+        func replacingSpacingReference(_ reference: String, with replacement: String) -> Value {
+            switch self {
+            case .frameworkSpacing(var value):
+                if value.selection.token == reference { value.selection.token = replacement }
+                return .frameworkSpacing(value)
+            case .frameworkMargin(var value):
+                value.replaceReference(reference, with: replacement)
+                return .frameworkMargin(value)
+            case .frameworkPadding(var value):
+                value.replaceReference(reference, with: replacement)
+                return .frameworkPadding(value)
+            case .array(let values): return .array(values.map { $0.replacingSpacingReference(reference, with: replacement) })
+            case .object(let values): return .object(values.mapValues { $0.replacingSpacingReference(reference, with: replacement) })
+            default: return self
+            }
+        }
+
         func replacingFrameworkReference(_ reference: String, with replacement: String) -> Value {
             switch self {
             case .frameworkSpacing(var value):

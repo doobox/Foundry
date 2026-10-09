@@ -392,14 +392,20 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
     enum Kind: String, Codable, CaseIterable, Hashable, Sendable {
         case background
         case spacing
+        case gap
         case sizing
+        case objectFit
+        case foreground
         case borders
         case effects
         case transitions
         case filters
         case transforms
         case typography
+        case display
+        case alignment
         case flexbox
+        case grid
         case layout
         case reveal
         /// A whole-part destination and its accessible name. Its distinct
@@ -411,6 +417,8 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         /// the placed part, not property controls, so it has no registry
         /// definition and always renders as Foundry's own Advanced section.
         case advanced
+
+        var generatesBootstrapClasses: Bool { [.spacing, .flexbox, .gap, .display, .alignment, .typography, .grid, .sizing, .borders, .objectFit, .foreground].contains(self) }
     }
 
     enum BackgroundStyle: String, Codable, CaseIterable, Hashable, Sendable {

@@ -1,7 +1,7 @@
 {
   "assets": [],
   "author": "Foundry",
-  "description": "Positioning, offsets, stacking, visibility and overflow. Untouched controls emit nothing.",
+  "description": "Positioning, offsets, stacking and overflow. Untouched controls emit nothing.",
   "group": "Control Groups",
   "helpURL": "https://doobox.github.io/foundry-docs/developer/layout-control-group.html",
   "icon": {

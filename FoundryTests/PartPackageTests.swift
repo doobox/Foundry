@@ -1792,61 +1792,19 @@ struct PartPackageTests {
     }
 
     @Test
-    func flexboxGroupComposesItsContainerDeclarations() throws {
-        let json = """
-        {
-        "minimumAPIVersion" : 1,
-        "id" : "com.example.flexbox-values",
-        "title" : "Flexbox Values",
-        "version" : "1.0.0",
-        "inspector" : [{"type" : "flexbox", "id": "flexbox"}],
-        "templates" : {"html" : "part.html"}
-        }
-        """
-        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data(json.utf8))
-
-        // Untouched values fall back to the group's own defaults, so a
-        // template needs no conditionals.
-        var untouched: [String: PartPackageValue] = [:]
-        PartPackageControlGroupCSSResolver.resolve(&untouched, properties: manifest.resolvedProperties)
-        #expect(untouched["flexbox.css"] == .string(
-            "display: flex; flex-direction: column; flex-wrap: nowrap; "
-                + "column-gap: 0; row-gap: 0; align-items: flex-start; "
-                + "align-content: flex-start; justify-content: flex-start;"
-        ))
-
+    func flexboxGroupComposesNativeClasses() throws {
+        let group = PartPackageControlGroup(type: .flexbox, id: "flow")
         var values: [String: PartPackageValue] = [
-            "flexbox.direction": .string("row"),
-            "flexbox.wrap": .string("wrap"),
-            "flexbox.columnGap": .string("var(--foundry-space-md)"),
-            "flexbox.rowGap": .string("24px"),
-            "flexbox.alignItems": .string("stretch"),
-            "flexbox.alignContent": .string("space-between"),
-            "flexbox.justifyContent": .string("center")
+            "flow.wrap": .string("flex-wrap"),
+            "flow.direction": .string("flex-row md:flex-column")
         ]
-        PartPackageControlGroupCSSResolver.resolve(&values, properties: manifest.resolvedProperties)
-        #expect(values["flexbox.css"] == .string(
-            "display: flex; flex-direction: row; flex-wrap: wrap; "
-                + "column-gap: var(--foundry-space-md); row-gap: 24px; align-items: stretch; "
-                + "align-content: space-between; justify-content: center;"
-        ))
-
-        let rendered = PartTemplateRenderer.render(
-            ":instance { {{ control.flexbox.css }} }",
-            context: PartTemplateContext(
-                instanceID: UUID(),
-                packageIdentifier: manifest.identifier,
-                properties: values,
-                slots: [:]
-            )
-        )
-        let composed = values["flexbox.css"]?.stringValue ?? ""
-        #expect(rendered == ":instance { \(composed) }")
-
-        // A part without the group keeps the namespace clear.
-        var unrelated: [String: PartPackageValue] = ["flexbox.direction": .string("row")]
+        PartPackageControlGroupCSSResolver.resolve(&values, properties: group.properties)
+        #expect(values["flow.classes"] == .string("flex-row md:flex-column flex-wrap"))
+        #expect(values["flow.css"] == nil)
+        #expect(values["flow.childCSS"] == nil)
+        var unrelated: [String: PartPackageValue] = ["flow.direction": .string("flex-row")]
         PartPackageControlGroupCSSResolver.resolve(&unrelated, properties: [])
-        #expect(unrelated["flexbox.css"] == nil)
+        #expect(unrelated["flow.classes"] == nil)
     }
 
     /// Every group that maps onto a set of declarations composes them, so the
@@ -1872,36 +1830,10 @@ struct PartPackageTests {
             return values["\(kind).css"]?.stringValue
         }
 
-        // Disabled spacing writes explicit zeros, so switching it off at one
-        // breakpoint resets what a narrower one set.
-        #expect(try composed("spacing", values: [
-            "spacingEnabled": .boolean(true),
-            "frameworkPadding": .string("var(--foundry-space-md)"),
-            "frameworkMargin": .string("0 auto")
-        ]) == "padding: var(--foundry-space-md); margin: 0 auto;")
-        #expect(try composed("spacing", values: [
-            "spacingEnabled": .boolean(false),
-            "frameworkPadding": .string("var(--foundry-space-md)"),
-            "frameworkMargin": .string("0 auto")
-        ]) == "padding: 0; margin: 0;")
+        // Spacing now emits class names, never a legacy CSS block.
+        #expect(try composed("spacing", values: ["padding": .string("pt-5")]) == nil)
 
-        // Style and colour survive being disabled; a zero width is what stops
-        // the border drawing.
-        #expect(try composed("borders", values: [
-            "borderEnabled": .boolean(true),
-            "frameworkBorder.width": .string("var(--foundry-border-width-sm)"),
-            "frameworkBorder.style": .string("dashed"),
-            "frameworkBorderColour": .string("#112233"),
-            "frameworkRadius": .string("var(--foundry-border-radius-md)")
-        ]) == "border-width: var(--foundry-border-width-sm); border-style: dashed; "
-            + "border-color: #112233; border-radius: var(--foundry-border-radius-md);")
-        #expect(try composed("borders", values: [
-            "borderEnabled": .boolean(false),
-            "frameworkBorder.width": .string("var(--foundry-border-width-sm)"),
-            "frameworkBorder.style": .string("dashed"),
-            "frameworkBorderColour": .string("#112233"),
-            "frameworkRadius": .string("var(--foundry-border-radius-md)")
-        ]) == "border-width: 0; border-style: dashed; border-color: #112233; border-radius: 0;")
+        #expect(try composed("borders", values: ["border": .string("border")]) == nil)
 
         // Shadow emits its selected value while enabled and an explicit reset
         // while disabled.
@@ -1919,74 +1851,20 @@ struct PartPackageTests {
         #expect(try composed("layout", values: ["isolation": .string("isolate")]) == "")
         #expect(try composed("layout", values: [
             "position": .string("none"), "zIndexMode": .string("none"),
-            "offsets": .string("none"), "hidden": .boolean(false),
-            "visibility": .string("default"), "overflow": .string("none")
+            "offsets": .string("none"), "overflow": .string("none")
         ]) == "")
         #expect(try composed("layout", values: [
             "position": .string("sticky"), "zIndexMode": .string("custom"), "zIndex": .number(3),
             "offsets": .string("uniform"), "offset": .string("var(--foundry-space-sm)"),
-            "hidden": .boolean(true), "visibility": .string("hidden"),
             "overflow": .string("auto")
         ]) == "position: sticky; z-index: 3; inset: var(--foundry-space-sm); "
-            + "display: none; visibility: hidden; overflow: auto;")
+            + "overflow: auto;")
 
         // Reveal and Advanced style nothing, so they compose nothing.
         #expect(try composed("reveal", values: ["revealEnabled": .boolean(true)]) == nil)
         #expect(try composed("advanced", values: [:]) == nil)
 
-        // Sizing's filling modes use the `stretch` family rather than a
-        // percentage, so a part carrying horizontal margins cannot overflow
-        // its parent. The rail leads and each cap overrides it in turn.
-        let fills = "width: -webkit-fill-available; width: -moz-available; width: stretch;"
-        #expect(try composed("sizing", values: [
-            "widthMode": .string("auto"), "heightMode": .string("auto"),
-            "minWidth": .string("0"), "maxWidth": .string("none"),
-            "minHeight": .string("0"), "maxHeight": .string("none")
-        ]) == "max-width: 100%; width: auto; flex-grow: 0; height: auto; aspect-ratio: auto; min-width: 0; min-height: 0; max-height: none;")
-        #expect(try composed("sizing", values: [
-            "widthMode": .string("full"), "heightMode": .string("fill"),
-            "minWidth": .string("0"), "maxWidth": .string("none"),
-            "minHeight": .string("0"), "maxHeight": .string("none")
-        ]) == "max-width: 100%; \(fills) flex-grow: 1; height: auto; aspect-ratio: auto; min-width: 0; min-height: 0; max-height: none;")
-        #expect(try composed("sizing", values: [
-            "widthMode": .string("custom"), "customWidth": .number(640),
-            "heightMode": .string("custom"), "customHeight": .number(400),
-            "minWidth": .string("0"), "maxWidth": .string("none"),
-            "minHeight": .string("0"), "maxHeight": .string("none")
-        ]) == "max-width: 100%; \(fills) max-width: min(100%, 640px); flex-grow: 0; height: 400px; "
-            + "aspect-ratio: auto; min-width: 0; min-height: 0; max-height: none;")
-        #expect(try composed("sizing", values: [
-            "widthMode": .string("breakpoint"), "heightMode": .string("viewport"),
-            "minWidth": .string("0"), "maxWidth": .string("none"),
-            "minHeight": .string("var(--foundry-space-xl)"), "maxHeight": .string("none")
-        ]) == "max-width: 100%; \(fills) max-width: min(100%, var(--foundry-container-width)); "
-            + "flex-grow: 0; height: auto; min-height: max(100svh, var(--foundry-space-xl)); aspect-ratio: auto; min-width: 0; max-height: none;")
-        // Screen escapes the rail; an author's maximum still caps it, and
-        // wins over both because it is written last.
-        #expect(try composed("sizing", values: [
-            "widthMode": .string("screen"), "heightMode": .string("auto"),
-            "minWidth": .string("0"), "maxWidth": .string("var(--foundry-space-4xl)"),
-            "minHeight": .string("0"), "maxHeight": .string("48rem")
-        ]) == "max-width: 100%; width: 100svw; max-width: none; flex-grow: 0; height: auto; aspect-ratio: auto; min-width: 0; "
-            + "max-width: min(100%, var(--foundry-space-4xl)); min-height: 0; max-height: 48rem;")
-        // A ratio shapes the part only while its height follows the content;
-        // a custom ratio composes its two numbers.
-        #expect(try composed("sizing", values: [
-            "widthMode": .string("auto"), "heightMode": .string("auto"), "aspectRatio": .string("16 / 9"),
-            "minWidth": .string("0"), "maxWidth": .string("none"),
-            "minHeight": .string("0"), "maxHeight": .string("none")
-        ]) == "max-width: 100%; width: auto; flex-grow: 0; height: auto; aspect-ratio: 16 / 9; min-width: 0; min-height: 0; max-height: none;")
-        #expect(try composed("sizing", values: [
-            "widthMode": .string("auto"), "heightMode": .string("auto"), "aspectRatio": .string("custom"),
-            "aspectRatioWidth": .number(5), "aspectRatioHeight": .number(2),
-            "minWidth": .string("0"), "maxWidth": .string("none"),
-            "minHeight": .string("0"), "maxHeight": .string("none")
-        ]) == "max-width: 100%; width: auto; flex-grow: 0; height: auto; aspect-ratio: 5 / 2; min-width: 0; min-height: 0; max-height: none;")
-        #expect(try composed("sizing", values: [
-            "widthMode": .string("auto"), "heightMode": .string("custom"), "customHeight": .number(300), "aspectRatio": .string("16 / 9"),
-            "minWidth": .string("0"), "maxWidth": .string("none"),
-            "minHeight": .string("0"), "maxHeight": .string("none")
-        ]) == "max-width: 100%; width: auto; flex-grow: 0; height: 300px; aspect-ratio: auto; min-width: 0; min-height: 0; max-height: none;")
+        #expect(try composed("sizing", values: ["width": .string("w-50")]) == nil)
     }
 
     /// Custom controls with familiar IDs must not implicitly acquire group output.
@@ -2058,10 +1936,10 @@ struct PartPackageTests {
 
     @Test @MainActor
     func namedSizingGroupsRemainIndependentThroughSaveAndRender() throws {
-        let entries = #"{"type":"sizing","id":"sectionSize","excludeControls":["widthMode","minWidth","maxWidth"],"defaults":{"customHeight":500}}, {"type":"sizing","id":"contentSize","allowedOptions":{"widthMode":["full","custom"]},"defaults":{"widthMode":"custom","customWidth":400}}"#
+        let entries = #"{"type":"sizing","id":"sectionSize","excludeControls":["width","minWidth","maxWidth"],"defaults":{"height":"vh-100"}}, {"type":"sizing","id":"contentSize","allowedOptions":{"width":["w-50","w-100"]},"defaults":{"width":"w-50"}}"#
         let url = try makePackage(manifest: manifest(withInspectorEntries: entries),
-            template: #"<section class="{{ part.class }}" {{ part.attributes }}><div class="content">{{ childArea("content") }}</div></section>"#,
-            additionalFiles: ["part.css": ":instance { {{ control.sectionSize.css }} } :instance > .content { {{ control.contentSize.css }} }"])
+            template: #"<section class="{{ part.class }} {{ control.sectionSize.classes }}" {{ part.attributes }}><div class="{{ control.contentSize.classes }}">{{ childArea("content") }}</div></section>"#,
+            additionalFiles: ["part.css": ""])
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
         try package.preparePayload()
@@ -2069,21 +1947,17 @@ struct PartPackageTests {
         defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
         let roundTrip = try JSONDecoder().decode(PartPackageManifest.self, from: JSONEncoder().encode(package.manifest))
         #expect(roundTrip.resolvedProperties == package.manifest.resolvedProperties)
-        #expect(roundTrip.resolvedProperties.contains { $0.id == "sectionSize.widthMode" } == false)
+        #expect(roundTrip.resolvedProperties.contains { $0.id == "sectionSize.width" } == false)
         var node = PartNode(type: .init(rawValue: package.manifest.identifier))
-        let contentWidth = PartProperty.Key(rawValue: "contentSize.customWidth")
-        node.setResponsiveProperty(contentWidth, value: .number(640), at: .medium)
+        let contentWidth = PartProperty.Key(rawValue: "contentSize.width")
+        node.setProperty(contentWidth, value: .choice("w-100"))
         let restored = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(node))
-        #expect(restored.propertyValue(contentWidth, at: .medium) == .number(640))
-        let custom = try #require(roundTrip.resolvedProperties.first { $0.id == "contentSize.customWidth" })
-        #expect(PartPackageVisibilityEvaluator.isVisible(custom.visibleWhen, for: restored, at: .mobile))
+        #expect(restored.propertyValue(contentWidth) == .choice("w-100"))
         let site = Site(name: "Named sizing", pages: [Page(title: "Home", slug: "index", parts: [restored])])
         let export = StaticSiteRenderer().render(site: site)
-        #expect(export.files.contains { $0.contents.contains("max-width: min(100%, 400px)") })
-        #expect(export.files.contains { $0.contents.contains("max-width: min(100%, 640px)") })
-        let canvas = HTMLPageRenderer(site: site)
-        #expect(canvas.render(page: site.pages[0], language: "en", framework: site.framework, assets: [:], breakpoint: .mobile).contains("max-width: min(100%, 400px)"))
-        #expect(canvas.render(page: site.pages[0], language: "en", framework: site.framework, assets: [:], breakpoint: .medium).contains("max-width: min(100%, 640px)"))
+        let html = try #require(export.file(at: "index.html")?.contents)
+        #expect(html.contains("vh-100"))
+        #expect(html.contains(#"<div class="w-100">"#))
     }
 
     @Test(arguments: PartPackageControlGroup.Kind.allCases)
@@ -2124,7 +1998,7 @@ struct PartPackageTests {
     @Test
     func namedGroupRejectsOmittedTemplateControlAndNamespaceCollision() throws {
         for (entries, template) in [
-            (#"{"type":"sizing","id":"panel","excludeControls":["widthMode"]}"#, "{{ control.panel.widthMode }}"),
+            (#"{"type":"sizing","id":"panel","excludeControls":["width"]}"#, "{{ control.panel.width }}"),
             (#"{"type":"sizing","id":"panel"},{"type":"number","id":"panel","defaults":{"base":1}}"#, "")
         ] {
             let url = try makePackage(manifest: manifest(withInspectorEntries: entries), template: "<section class=\"{{ part.class }}\" {{ part.attributes }}>\(template){{ childArea(\"content\") }}</section>")
@@ -2134,7 +2008,7 @@ struct PartPackageTests {
                 try package.preparePayload()
                 Issue.record("Expected a namespace or omitted-control validation error")
             } catch PartPackageLoadingError.invalid(let diagnostics) {
-                #expect(diagnostics.contains { $0.message.contains("Unknown property 'panel.widthMode'") || $0.message.contains("conflicts with a control group namespace") })
+                #expect(diagnostics.contains { $0.message.contains("Unknown property 'panel.width'") || $0.message.contains("conflicts with a control group namespace") })
             }
         }
     }
@@ -2150,7 +2024,7 @@ struct PartPackageTests {
         "title" : "Omitted CSS",
         "version" : "1.0.0",
         "inspector" : [
-            {"type" : "spacing", "id": "spacing", "excludeControls" : ["frameworkMargin"]},
+            {"type" : "spacing", "id": "spacing", "excludeControls" : ["margin"]},
             {"type" : "effects", "id": "effects", "excludeControls" : ["frameworkShadow"]}
         ],
         "templates" : {"html" : "part.html"}
@@ -2159,12 +2033,12 @@ struct PartPackageTests {
         let data = Data(json.utf8)
         let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
         var values: [String: PartPackageValue] = [
-            "spacing.spacingEnabled": .boolean(true),
-            "spacing.frameworkPadding": .string("12px"),
+            "spacing.padding": .string("pt-5 pb-5"),
             "effects.effectsEnabled": .boolean(true)
         ]
         PartPackageControlGroupCSSResolver.resolve(&values, properties: manifest.resolvedProperties)
-        #expect(values["spacing.css"] == .string("padding: 12px;"))
+        #expect(values["spacing.classes"] == .string("pt-5 pb-5"))
+        #expect(values["spacing.css"] == nil)
         #expect(values["effects.css"] == .string(""))
         #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
     }
@@ -2222,12 +2096,15 @@ struct PartPackageTests {
     @Test
     func sharedPropertyControlGroupsInjectPropertiesWithoutCSSOrHTML() throws {
         for (kind, expectedIDs) in [
-            ("spacing", ["spacingEnabled", "frameworkMargin", "frameworkPadding"]),
-            ("sizing", ["widthMode", "customWidth", "heightMode", "customHeight", "aspectRatio", "aspectRatioWidth", "aspectRatioHeight", "minWidth", "maxWidth", "minHeight", "maxHeight"]),
-            ("borders", ["borderEnabled", "frameworkBorder", "frameworkBorderColour", "frameworkRadius"]),
+            ("spacing", ["margin", "padding"]),
+            ("gap", ["gap", "rowGap", "columnGap"]),
+            ("sizing", ["width", "height", "minWidth", "maxWidth", "minHeight", "maxHeight", "aspectRatio"]),
+            ("borders", ["border", "borderTop", "borderEnd", "borderBottom", "borderStart", "borderX", "borderY", "width", "radius"]),
             ("effects", ["effectsEnabled", "frameworkShadow"]),
-            ("layout", ["position", "zIndexMode", "zIndex", "offsets", "offset", "offsetEdges", "hidden", "visibility", "overflow"]),
-            ("flexbox", ["direction", "wrap", "columnGap", "rowGap", "alignItems", "alignContent", "justifyContent"])
+            ("layout", ["position", "zIndexMode", "zIndex", "offsets", "offset", "offsetEdges", "overflow"]),
+            ("display", ["display", "visibility"]),
+            ("alignment", ["justifyContent", "justifyItems", "alignItems", "alignContent", "placeItems"]),
+            ("flexbox", ["direction", "wrap"])
         ] {
             let json = """
             {
@@ -2249,34 +2126,13 @@ struct PartPackageTests {
     }
 
     @Test
-    func flexboxChildCSSCanTargetAnInnerContainer() throws {
-        let json = """
-        {
-        "minimumAPIVersion" : 1,
-        "id" : "com.example.flexbox-child-rule",
-        "title" : "Flexbox Child Rule",
-        "version" : "1.0.0",
-        "inspector" : [{"type" : "flexbox", "id": "flexbox"}],
-        "templates" : {"html" : "part.html"}
-        }
-        """
-        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data(json.utf8))
-        let instanceID = UUID()
-        var values: [String: PartPackageValue] = [:]
-        PartPackageControlGroupCSSResolver.resolve(&values, properties: manifest.resolvedProperties)
-        #expect(manifest.controlGroupCSS.isEmpty)
-        #expect(values["flexbox.childCSS"] == .string("min-width: 0;"))
-        let css = PartTemplateRenderer.render(
-            ":instance > .content > * { {{ control.flexbox.childCSS }} }",
-            context: .init(instanceID: instanceID, packageIdentifier: manifest.identifier, properties: values, slots: [:])
-        )
-        let scoped = PartTemplateRenderer.scopedCSS(
-            css,
-            packageIdentifier: manifest.identifier,
-            instanceID: instanceID
-        )
-        #expect(scoped == "[data-foundry-id=\"\(instanceID.uuidString)\"] > .content > * { min-width: 0; }")
-        let url = try makePackage(manifest: json, template: "<section {{ part.attributes }}><div class=\"content\"></div></section>", additionalFiles: ["part.css": ":instance > .content > * { {{ control.flexbox.childCSS }} }"])
+    func flexboxClassesCanTargetAnInnerContainer() throws {
+        let json = #"""
+        {"minimumAPIVersion":1,"id":"com.example.flexbox-inner","title":"Flexbox","version":"1.0.0",
+         "inspector":[{"type":"flexbox","id":"flow"}],"templates":{"html":"part.html"}}
+        """#
+        let url = try makePackage(manifest: json,
+            template: #"<section {{ part.attributes }}><div class="{{ control.flow.classes }}"></div></section>"#)
         defer { try? FileManager.default.removeItem(at: url) }
         try PartPackageLoader.load(from: url).preparePayload()
     }
@@ -2294,7 +2150,7 @@ struct PartPackageTests {
              "options" : [{"value" : "block", "title" : "Block"}, {"value" : "flex", "title" : "Flex"}],
              "defaults" : {"base" : "block"}},
             {"type" : "flexbox", "id": "flexbox", "visibleWhen" : {"id" : "layout", "value" : "flex"},
-             "defaults" : {"wrap" : "wrap"}},
+             "defaults" : {"wrap" : "flex-wrap"}},
             {"type" : "spacing", "id": "spacing", "visibleWhen" : {"id" : "layout", "value" : "flex"}}
         ],
         "templates" : {"html" : "part.html"}
@@ -2304,20 +2160,17 @@ struct PartPackageTests {
         #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
         let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
 
-        // Every flexbox control inherits the reference's gate verbatim…
+        // Independent groups use only the part's explicit visibility gate.
+        let combined = PartPackageVisibilityCondition(id: "layout", value: .string("flex"))
         let direction = try #require(manifest.resolvedProperties.first { $0.id == "flexbox.direction" })
-        #expect(direction.visibleWhen == .init(id: "layout", value: .string("flex")))
+        #expect(direction.visibleWhen == combined)
         let wrap = try #require(manifest.resolvedProperties.first { $0.id == "flexbox.wrap" })
-        #expect(wrap.defaultValue == .string("wrap"))
-        #expect(wrap.visibleWhen == .init(id: "layout", value: .string("flex")))
+        #expect(wrap.defaultValue == .string("flex-wrap"))
+        #expect(wrap.visibleWhen == combined)
 
-        // …and a control with its own condition combines both: the padding
-        // field needs the gate AND its group's enable toggle.
-        let padding = try #require(manifest.resolvedProperties.first { $0.id == "spacing.frameworkPadding" })
-        #expect(padding.visibleWhen == .init(all: [
-            .init(id: "layout", value: .string("flex")),
-            .init(id: "spacing.spacingEnabled", value: .boolean(true))
-        ]))
+        // Spacing has no internal display condition, so only the outer gate applies.
+        let padding = try #require(manifest.resolvedProperties.first { $0.id == "spacing.padding" })
+        #expect(padding.visibleWhen == .init(id: "layout", value: .string("flex")))
     }
 
     @Test
@@ -2428,14 +2281,14 @@ struct PartPackageTests {
         "id" : "com.example.omit-one-group",
         "title" : "Omit One Group",
         "version" : "1.0.0",
-        "inspector" : [{"type" : "flexbox", "id": "flexbox", "excludeControls" : ["alignContent"]}],
+        "inspector" : [{"type" : "alignment", "id": "alignment", "excludeControls" : ["alignContent"]}],
         "templates" : {"html" : "part.html"}
         }
         """
         let flexbox = try JSONDecoder().decode(PartPackageManifest.self, from: Data(omitsOne.utf8))
         let flexboxIDs = Set(flexbox.resolvedProperties.map(\.id))
-        #expect(!flexboxIDs.contains("flexbox.alignContent"))
-        #expect(flexboxIDs.isSuperset(of: ["flexbox.direction", "flexbox.wrap", "flexbox.columnGap", "flexbox.rowGap", "flexbox.alignItems", "flexbox.justifyContent"]))
+        #expect(flexboxIDs.contains("alignment.alignContent") == false)
+        #expect(flexboxIDs == ["alignment.justifyContent", "alignment.justifyItems", "alignment.alignItems", "alignment.placeItems"])
         #expect(try PartPackageManifestSchema.diagnostics(for: Data(omitsOne.utf8)).isEmpty)
     }
 
@@ -2569,7 +2422,7 @@ struct PartPackageTests {
         let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
 
         #expect(manifest.resolvedProperties.map(\.id) == [
-            "before", "borders.borderEnabled", "borders.frameworkBorder", "borders.frameworkBorderColour", "borders.frameworkRadius", "after"
+            "before", "borders.border", "borders.borderTop", "borders.borderEnd", "borders.borderBottom", "borders.borderStart", "borders.borderX", "borders.borderY", "borders.width", "borders.radius", "after"
         ])
         #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
     }
@@ -6367,68 +6220,20 @@ struct PartPackageTests {
     }
 
     @Test @MainActor
-    func paragraphUsesUnifiedCustomColorWithOptInCapabilities() throws {
-        _ = PartPackageCatalog.shared
-        let properties = PartType.paragraph.definition.properties
-        let color = try #require(properties.first(where: { $0.key.rawValue == "textColor" }))
-        let alignment = try #require(properties.first(where: { $0.key.rawValue == "textAlignment" }))
-        #expect(!properties.contains { ["textSize", "typeface"].contains($0.key.rawValue) })
-        let textDecoration = try #require(properties.first(where: { $0.key.rawValue == "textDecoration" }))
-
-        #expect(color.defaultValue == .packageColor(.init(
-            source: FrameworkColorRole.foreground.rawValue,
-            customColor: "#000000",
-            opacity: 1
-        )))
-        if case .packageColor(let frameworkValues, let opacity, _, _) = color.control {
-            #expect(frameworkValues)
-            #expect(opacity)
-        } else {
-            Issue.record("Paragraph should use the package colour control")
-        }
-        #expect(!properties.contains { $0.key.rawValue.hasPrefix("textColor") && $0.key != color.key })
-        #expect(alignment.defaultValue == .choice("start"))
+    func paragraphUsesBootstrapTypographyAndSpacing() async throws {
+        await PartPackageCatalog.shared.waitUntilLoaded()
+        let definition = PartType.paragraph.definition
+        let alignment = try #require(definition.properties.first { $0.key.rawValue == "typography.textAlignment" })
+        #expect(alignment.defaultValue == .choice("none"))
         #expect(alignment.isResponsive)
-        if case .textAlignment = alignment.control {} else {
-            Issue.record("Paragraph should use the specialised text-alignment control")
-        }
-        #expect(textDecoration.defaultValue == .choice("none"))
-        #expect(textDecoration.isResponsive)
-        if case .choice(let choices) = textDecoration.control {
-            #expect(choices.map(\.value) == ["none", "underline", "overline", "line-through"])
-        } else {
-            Issue.record("Paragraph should use a select control for text decoration")
-        }
-        #expect(
-            PartType.paragraph.definition.package?.css.contains(
-                "text-align: {{ control.textAlignment }}"
-            ) == true
-        )
-        let sizeEnabled = try #require(properties.first(where: { $0.key.rawValue == "sizeEnabled" }))
-        #expect(sizeEnabled.defaultValue == .boolean(false))
-        let fontSize = try #require(properties.first(where: { $0.key.rawValue == "fontSize" }))
-        #expect(fontSize.defaultValue == .choice("base"))
-        #expect(fontSize.isResponsive)
-        #expect(
-            PartType.paragraph.definition.package?.css.contains(
-                "line-height: {{ control.fontSize.lineHeight }}"
-            ) == true
-        )
-        #expect(
-            PartType.paragraph.definition.package?.css.contains(
-                "text-decoration-line: {{ control.textDecoration }}"
-            ) == true
-        )
-
+        #expect(alignment.presentation == .segmented)
+        #expect(definition.package?.css.isEmpty == true)
         var paragraph = PartNode.make(.paragraph)
-        var site = Site(name: "Line height", pages: [Page(title: "Home", slug: "index", parts: [paragraph])])
-
-
-
-        paragraph.setProperty(.init(rawValue: "textDecoration"), value: .choice("underline"))
-        site.pages[0].parts = [paragraph]
-        let underlinedHTML = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
-        #expect(underlinedHTML.contains("text-decoration-line: underline"))
+        paragraph.setProperty(.init(rawValue: "content"), value: .string("A plain paragraph."))
+        let site = Site(name: "Paragraph", pages: [Page(title: "Home", slug: "index", parts: [paragraph])])
+        let html = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
+        #expect(html.contains("<p>A plain paragraph.</p>"))
+        #expect(html.contains("data-foundry-") == false)
     }
 
     @Test @MainActor

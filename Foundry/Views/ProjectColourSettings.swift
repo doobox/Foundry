@@ -30,7 +30,7 @@ struct ProjectColourSettings: View {
                         Text("This colour is in use. Choose a replacement. Each part’s currently selected shade will be kept.")
                         Picker("Replace with", selection: $replacement) {
                             Text("Choose a colour").tag("")
-                            ForEach(document.site.framework.colourPalettes.filter { $0.id != palette.id }) { value in
+                            ForEach(BootstrapPaletteTheme.selectablePalettes(in: document.site.framework).filter { $0.id != palette.id }) { value in
                                 Text("\(value.name) — \(String(describing: value.origin).capitalized)").tag(value.id)
                             }
                         }

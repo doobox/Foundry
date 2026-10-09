@@ -1,0 +1,182 @@
+{
+  "type": "alignment",
+  "name": "Bootstrap alignment",
+  "systemImage": "align.horizontal.center",
+  "controls": [
+    {
+      "type": "select",
+      "id": "justifyContent",
+      "label": "Justify content",
+      "responsive": true,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "justify-content-start",
+          "value": "justify-content-start"
+        },
+        {
+          "title": "justify-content-end",
+          "value": "justify-content-end"
+        },
+        {
+          "title": "justify-content-center",
+          "value": "justify-content-center"
+        },
+        {
+          "title": "justify-content-between",
+          "value": "justify-content-between"
+        },
+        {
+          "title": "justify-content-around",
+          "value": "justify-content-around"
+        },
+        {
+          "title": "justify-content-evenly",
+          "value": "justify-content-evenly"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "justifyItems",
+      "label": "Justify items",
+      "responsive": true,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "justify-items-start",
+          "value": "justify-items-start"
+        },
+        {
+          "title": "justify-items-end",
+          "value": "justify-items-end"
+        },
+        {
+          "title": "justify-items-center",
+          "value": "justify-items-center"
+        },
+        {
+          "title": "justify-items-stretch",
+          "value": "justify-items-stretch"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "alignItems",
+      "label": "Align items",
+      "responsive": true,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "align-items-start",
+          "value": "align-items-start"
+        },
+        {
+          "title": "align-items-end",
+          "value": "align-items-end"
+        },
+        {
+          "title": "align-items-center",
+          "value": "align-items-center"
+        },
+        {
+          "title": "align-items-baseline",
+          "value": "align-items-baseline"
+        },
+        {
+          "title": "align-items-stretch",
+          "value": "align-items-stretch"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "alignContent",
+      "label": "Align content",
+      "responsive": true,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "align-content-start",
+          "value": "align-content-start"
+        },
+        {
+          "title": "align-content-end",
+          "value": "align-content-end"
+        },
+        {
+          "title": "align-content-center",
+          "value": "align-content-center"
+        },
+        {
+          "title": "align-content-between",
+          "value": "align-content-between"
+        },
+        {
+          "title": "align-content-around",
+          "value": "align-content-around"
+        },
+        {
+          "title": "align-content-stretch",
+          "value": "align-content-stretch"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "placeItems",
+      "label": "Place items",
+      "responsive": true,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "place-items-start",
+          "value": "place-items-start"
+        },
+        {
+          "title": "place-items-end",
+          "value": "place-items-end"
+        },
+        {
+          "title": "place-items-center",
+          "value": "place-items-center"
+        },
+        {
+          "title": "place-items-stretch",
+          "value": "place-items-stretch"
+        }
+      ]
+    }
+  ]
+}

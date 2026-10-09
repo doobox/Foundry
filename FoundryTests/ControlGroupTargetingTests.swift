@@ -204,13 +204,15 @@ struct ControlGroupTargetingTests {
     }
 
     @Test
-    func flexboxChildOutputIsExplicitAndNamespaced() {
+    func flexboxClassOutputIsExplicitAndNamespaced() {
         let first = PartPackageControlGroup(type: .flexbox, id: "outer")
         let second = PartPackageControlGroup(type: .flexbox, id: "inner")
         var values: [String: PartPackageValue] = [:]
         PartPackageControlGroupCSSResolver.resolve(&values, properties: first.properties + second.properties)
         #expect(first.css.isEmpty)
-        #expect(values["outer.childCSS"] == .string("min-width: 0;"))
-        #expect(values["inner.childCSS"] == .string("min-width: 0;"))
+        #expect(values["outer.classes"] == .string(""))
+        #expect(values["inner.classes"] == .string(""))
+        #expect(values["outer.childCSS"] == nil)
+        #expect(values["inner.childCSS"] == nil)
     }
 }

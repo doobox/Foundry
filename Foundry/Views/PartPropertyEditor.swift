@@ -79,11 +79,17 @@ struct PartPropertyEditor: View {
                !isDateControl,
                !isNoteControl,
                !isLinkControl {
-                VStack(alignment: .leading, spacing: 4) {
-                    editorControl
+                // Keep the control's GridRow directly in the inspector grid.
+                // A stack here detaches its label and field from their columns.
+                editorControl
+                GridRow {
+                    Color.clear
+                        .gridCellUnsizedAxes([.horizontal, .vertical])
                     Text(subtitle)
                         .font(.caption)
                         .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .gridCellUnsizedAxes(.horizontal)
                 }
             } else {
                 editorControl
@@ -267,12 +273,14 @@ struct PartPropertyEditor: View {
                         if case .frameworkSpacing(let value) = displayPart.propertyValue(definition.key) { return value.selection }
                         if case .frameworkSpacing(let value) = definition.defaultValue { return value.selection }
                         return FrameworkPaddingValue.EdgeValue()
-                    }, set: { setProperty(.frameworkSpacing(.init(selection: $0))) }), title: definition.label.isEmpty ? "Spacing" : definition.label, framework: framework, focusNamespace: frameworkSpacingFocusNamespace)
+                    }, set: { setProperty(.frameworkSpacing(.init(selection: $0))) }), title: definition.label.isEmpty ? "Spacing" : definition.label, framework: framework, focusNamespace: frameworkSpacingFocusNamespace, bootstrapSpacing: bootstrapGapPrefix != nil, bootstrapClassPrefix: bootstrapGapPrefix ?? "gap")
 
-                    FrameworkModeToggle(usesFrameworkTokens: !singleSpacingSelection.isCustom) {
-                        var value = FrameworkSingleSpacingValue(selection: singleSpacingSelection)
-                        value.setUsesFrameworkTokens(singleSpacingSelection.isCustom)
-                        setProperty(.frameworkSpacing(value))
+                    if bootstrapGapPrefix == nil {
+                        FrameworkModeToggle(usesFrameworkTokens: !singleSpacingSelection.isCustom) {
+                            var value = FrameworkSingleSpacingValue(selection: singleSpacingSelection)
+                            value.setUsesFrameworkTokens(singleSpacingSelection.isCustom)
+                            setProperty(.frameworkSpacing(value))
+                        }
                     }
                 }
             }
@@ -296,6 +304,7 @@ struct PartPropertyEditor: View {
                 .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Radius")
         case .frameworkMargin:
             FrameworkMarginPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator,
+                bootstrapSpacing: isBootstrapSpacing,
                 value: Binding(get: {
                     if case .frameworkMargin(let value) = displayPart.propertyValue(definition.key) { return value }
                     if case .frameworkMargin(let value) = definition.defaultValue { return value }
@@ -304,6 +313,7 @@ struct PartPropertyEditor: View {
                 .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Margin")
         case .frameworkPadding:
             FrameworkPaddingPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator,
+                bootstrapSpacing: isBootstrapSpacing,
                 value: Binding(get: {
                     if case .frameworkPadding(let value) = displayPart.propertyValue(definition.key) { return value }
                     if case .frameworkPadding(let value) = definition.defaultValue { return value }
@@ -875,7 +885,13 @@ struct PartPropertyEditor: View {
 
     private func stringBinding(as kind: StringValueKind) -> Binding<String> {
         Binding(
-            get: { displayPart.property(definition.key) },
+            get: {
+                let value = displayPart.property(definition.key)
+                if part.type == .container && definition.key.rawValue == "width" {
+                    return BootstrapLayout.containerClass(value, screens: framework.screens)
+                }
+                return value
+            },
             set: { newValue in
                 if backgroundInspectorContext?.localID == "backgroundMode", newValue == "hover" {
                     replaceVideoBackgroundStyleForHover()
@@ -891,6 +907,13 @@ struct PartPropertyEditor: View {
     private func choicesForCurrentContext(
         _ choices: [PartPropertyChoice]
     ) -> [PartPropertyChoice] {
+        let custom = BootstrapCustomTokenClasses.choices(existing: choices.map(\.value), framework: framework)
+        let choices = choices + custom.enumerated().map { index, value in
+            PartPropertyChoice(value: value, label: value, separatorBefore: index == 0)
+        }
+        if part.type == .container && definition.key.rawValue == "width" {
+            return choices.filter { BootstrapLayout.allowsContainerClass($0.value, screens: framework.screens) }
+        }
         guard let context = backgroundInspectorContext else { return choices }
         return context.choices(choices, mode: displayPart.property(context.modeKey))
     }
@@ -1466,8 +1489,21 @@ struct PartPropertyEditor: View {
         }
     }
 
+    private var isBootstrapSpacing: Bool {
+        part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.controlGroupSource?.type == .spacing
+    }
+
+    private var bootstrapGapPrefix: String? {
+        guard let source = part.type.definition.package?.manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource,
+              source.type == .gap else { return nil }
+        return BootstrapControlGroupClasses.gapPrefix(source.localID)
+    }
+
     private var displayPart: PartNode {
         var resolved = part.resolved(at: breakpoint, screens: framework.screens)
+        if part.type.definition.package?.manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource?.type.generatesBootstrapClasses == true {
+            resolved.setProperty(definition.key, value: part.propertyValue(definition.key, at: breakpoint, screens: framework.screens))
+        }
         guard let record = collectionRecord?.wrappedValue else { return resolved }
         for field in collectionDefinitions {
             resolved.setProperty(

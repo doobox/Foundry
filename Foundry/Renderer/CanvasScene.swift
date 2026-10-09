@@ -18,6 +18,15 @@ nonisolated struct CanvasScene: Sendable {
     let breakpoint: ResponsiveBreakpoint
     let examinedInstanceCount: Int
 
+    private static func retainUtilityOverrides(in node: inout PartNode) {
+        // Ordinary controls are already resolved for this viewport. Bootstrap
+        // utility groups retain base values and need overrides to emit classes.
+        let keys = Set(node.type.definition.package?.manifest.resolvedProperties
+            .filter { $0.controlGroupSource?.type.generatesBootstrapClasses == true }.map(\.id) ?? [])
+        node.responsiveOverrides = node.responsiveOverrides?.filter { keys.contains($0.key.rawValue) }
+        if node.responsiveOverrides?.isEmpty == true { node.responsiveOverrides = nil }
+    }
+
     static func render(renderer: HTMLPageRenderer, page: Page, language: String,
                        framework: Framework, assets: ProjectAssetContents,
                        breakpoint: ResponsiveBreakpoint, packageRevision: Int,
@@ -67,7 +76,7 @@ nonisolated struct CanvasScene: Sendable {
                     try Task.checkCancellation()
                     guard let oldInput = inputs[id], let old = artifacts[id] else { continue }
                     var own = source.resolved(at: breakpoint, screens: framework.screens)
-                    own.responsiveOverrides = nil
+                    retainUtilityOverrides(in: &own)
                     own.children = oldInput.node.children
                     let input = CanvasSceneInput(node: own, globalID: oldInput.globalID,
                         parentID: oldInput.parentID, slot: oldInput.slot, dropZone: oldInput.dropZone)
@@ -157,7 +166,7 @@ nonisolated struct CanvasScene: Sendable {
                 if !isConfirmed {
                     examinedCount += 1
                     var own = source.resolved(at: breakpoint, screens: framework.screens)
-                    own.responsiveOverrides = nil
+                    retainUtilityOverrides(in: &own)
                     own.children = source.children.map { child in
                         var identity = PartNode(id: child.id, type: child.type)
                         identity.slotID = child.slotID

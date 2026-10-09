@@ -1,0 +1,73 @@
+{
+  "type": "grid",
+  "name": "Bootstrap grid",
+  "systemImage": "square.grid.2x2",
+  "controls": [
+    {
+      "type": "select",
+      "id": "columns",
+      "label": "Columns",
+      "responsive": true,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "grid-cols-1",
+          "value": "grid-cols-1"
+        },
+        {
+          "title": "grid-cols-2",
+          "value": "grid-cols-2"
+        },
+        {
+          "title": "grid-cols-3",
+          "value": "grid-cols-3"
+        },
+        {
+          "title": "grid-cols-4",
+          "value": "grid-cols-4"
+        },
+        {
+          "title": "grid-cols-6",
+          "value": "grid-cols-6"
+        },
+        {
+          "title": "grid-cols-subgrid",
+          "value": "grid-cols-subgrid"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "autoFlow",
+      "label": "Auto flow",
+      "responsive": true,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "grid-auto-flow-row",
+          "value": "grid-auto-flow-row"
+        },
+        {
+          "title": "grid-auto-flow-column",
+          "value": "grid-auto-flow-column"
+        },
+        {
+          "title": "grid-auto-flow-dense",
+          "value": "grid-auto-flow-dense"
+        }
+      ]
+    }
+  ]
+}

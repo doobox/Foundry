@@ -390,13 +390,16 @@ nonisolated struct PartColorChannels {
             "saturation": .number(hsl.saturation),
             "lightness": .number(hsl.lightness),
             "relativeLuminance": .number(relativeLuminance),
-            // The raw ratio comparison picks black on saturated mid colours
-            // such as #007AFF, where every designer reaches for white. White
-            // wins whenever it clears WCAG's 3:1 large-text bar instead.
-            "contrastColor": .string(contrastRatio(withLuminance: 1) >= 3 ? "#FFFFFF" : "#000000"),
+            "contrastColor": .string(preferredContrastColor),
             "contrastRatioWithBlack": .number(contrastRatio(withLuminance: 0)),
             "contrastRatioWithWhite": .number(contrastRatio(withLuminance: 1))
         ]
+    }
+
+    /// Shared visual preference for API values and generated Bootstrap themes.
+    /// Prefer white at 3:1; this does not imply 4.5:1 normal-text compliance.
+    var preferredContrastColor: String {
+        contrastRatio(withLuminance: 1) >= 3 ? "#FFFFFF" : "#000000"
     }
 
     func hex(includesOpacity: Bool, includesHash: Bool) -> String {

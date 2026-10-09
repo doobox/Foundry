@@ -35,6 +35,8 @@
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
 				Info.plist,
+				Resources/BootstrapCompiler.bundle,
+				Resources/BootstrapLayouts.bundle,
 			);
 			target = E357BDF33040F1AB001258F5 /* Foundry */;
 		};

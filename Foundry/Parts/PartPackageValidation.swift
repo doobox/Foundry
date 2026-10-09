@@ -346,6 +346,9 @@ nonisolated enum PartPackageValidator {
         // Dividers and notes carry no value, so a template has nothing to read.
         var propertyIDs = Set(manifest.resolvedProperties.filter { !$0.control.type.permitsOmittedID }.map(\.id))
         let namedGroupNamespaces = Set(manifest.controlGroups.compactMap(\.id))
+        for group in manifest.controlGroups where group.type.generatesBootstrapClasses {
+            propertyIDs.insert(group.namespace + ".classes")
+        }
         for namespace in PartPackageControlGroupCSSResolver.composedNamespaces(for: manifest.resolvedProperties) {
             propertyIDs.insert(namespace + ".css")
         }
@@ -353,9 +356,6 @@ nonisolated enum PartPackageValidator {
             for field in ["css", "color", "image", "position", "size", "repeat", "video", "hover", "hover.selector"] {
                 propertyIDs.insert(group.namespace + "." + field)
             }
-        }
-        for group in manifest.controlGroups where group.type == .flexbox {
-            propertyIDs.insert(group.namespace + ".childCSS")
         }
         for group in manifest.controlGroups where group.type == .filters || group.type == .transforms {
             propertyIDs.insert(group.namespace + ".hover")
@@ -365,7 +365,12 @@ nonisolated enum PartPackageValidator {
         let childPickerIDs = Set(manifest.slots.map(\.id))
 
         if requiresEditorAttributes {
-            if let issue = template.partRootStructureIssue {
+            // A raw HTML part can retain a selectable root only in the canvas.
+            // Validate that editor tree, without imposing its wrapper on output.
+            let editorStructure = template.replacingOccurrences(
+                of: #"\{\{\s*if canvas\s*\}\}(<[^>]+>)\{\{\s*endif\s*\}\}"#,
+                with: "$1", options: .regularExpression)
+            if let issue = editorStructure.partRootStructureIssue {
                 diagnostics.append(templateDiagnostic(
                     templateLocation,
                     template: template,
@@ -373,7 +378,7 @@ nonisolated enum PartPackageValidator {
                     message: issue.message
                 ))
             }
-            let rootTag = template.firstRootOpeningTag ?? ""
+            let rootTag = editorStructure.firstRootOpeningTag ?? ""
             if !rootTag.matches(#"\{\{\s*part\.attributes\s*\}\}"#) {
                 diagnostics.append(.init(
                     severity: .error,
@@ -1200,8 +1205,8 @@ nonisolated enum PartPackageValidator {
             }
         case .themeColor:
             guard case .string(let value) = defaultValue,
-                  ColourPaletteDefaults.make().contains(where: { $0.id == BootstrapPaletteTheme.paletteID(value) }) else {
-                diagnostics.append(.init(severity: .error, location: location, message: "A themeColor default must identify a built-in colour palette."))
+                  BootstrapPaletteTheme.selectablePalettes(in: .standard).contains(where: { $0.id == BootstrapPaletteTheme.paletteID(value) }) else {
+                diagnostics.append(.init(severity: .error, location: location, message: "A themeColor default must identify one of Bootstrap's eight semantic themes."))
                 return
             }
         case .select:

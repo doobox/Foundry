@@ -13,13 +13,18 @@ nonisolated enum BootstrapColorCSS {
 
     private static func build(framework: Framework, colorScheme: String) -> String {
         var declarations: [String] = []
-        for role in FrameworkColorRole.allCases {
-            let palette = framework.colourPalettes.resolvedPalette(id: "framework." + role.rawValue)
+        let palettes = FrameworkColorRole.allCases.map { role in
+            framework.colourPalettes.resolvedPalette(id: "framework." + role.rawValue)
                 ?? BootstrapColourCatalogue.palette(role: role)
-            let originalHue = BootstrapColourCatalogue.defaultHue(for: role.rawValue)
-            for token in BootstrapColourCatalogue.tokens(for: role.rawValue) {
+        } + framework.colourPalettes.filter { $0.origin == .custom && BootstrapPaletteTheme.nativeRole($0) != nil }
+        for palette in palettes {
+            let definition = BootstrapPaletteTheme.definitionRole(palette)
+            let role = BootstrapPaletteTheme.nativeRole(palette) ?? definition
+            let originalHue = BootstrapColourCatalogue.defaultHue(for: definition)
+            for sourceToken in BootstrapColourCatalogue.tokens(for: definition) {
+                let token = palette.origin == .custom ? sourceToken.replacingOccurrences(of: definition + "-", with: role + "-") : sourceToken
                 let name = "--bs-" + token
-                guard var expression = BootstrapColourCatalogue.declarations[name] else {
+                guard var expression = BootstrapColourCatalogue.declarations["--bs-" + sourceToken] else {
                     preconditionFailure("Bundled Bootstrap is missing \(name)")
                 }
                 for shade in ColourShade.allCases {
@@ -27,11 +32,40 @@ nonisolated enum BootstrapColorCSS {
                         of: BootstrapColourCatalogue.reference(hue: originalHue, shade: shade),
                         with: palette.cssColour(at: shade))
                 }
+                if token == role + "-contrast", let generated = palette.bootstrapGeneratedContrast {
+                    expression = generated.expression(default: expression)
+                }
+                if let override = palette.bootstrapTokens[token] {
+                    expression = override.expression(default: expression)
+                }
                 declarations.append("\(name):\(expression)")
             }
         }
         return "/* Bootstrap 6 framework colours */\n:root,:host{\(declarations.joined(separator: ";"))}\n"
             + ":root:not([data-bs-theme]),:host:not([data-bs-theme]){color-scheme:\(colorScheme); }"
-            + BootstrapPaletteTheme.css(framework: framework)
+            + palettes.filter { $0.origin == .custom }.map(customClasses).joined()
+            + "@layer utilities{" + BootstrapColourCatalogue.themeRoles.map {
+                ".underline-\($0){--bs-underline-color:var(--bs-\($0)-fg);text-decoration-color:var(--bs-underline-color)}"
+            }.joined() + "}"
+    }
+
+    private static func customClasses(_ palette: ColourPalette) -> String {
+        guard let role = BootstrapPaletteTheme.nativeRole(palette) else { return "" }
+        let mappings = BootstrapColourCatalogue.themeProperties.map {
+            "--bs-theme-\($0):var(--bs-\(role)-\($0))"
+        }.joined(separator: ";")
+        // Same composition variables and cascade layers as the bundled utility definitions.
+        let utilities: [(String, String, String, String)] = [
+            ("fg", "fg", "color", "fg"), ("fg-emphasis", "fg", "color", "fg-emphasis"),
+            ("fg-contrast", "fg", "color", "contrast"),
+            ("bg", "bg", "background-color", "bg"), ("bg-subtle", "bg", "background-color", "bg-subtle"),
+            ("bg-muted", "bg", "background-color", "bg-muted"),
+            ("border", "bc", "border-color", "bg"), ("border-subtle", "bc", "border-color", "border"),
+            ("underline", "underline-color", "text-decoration-color", "fg")
+        ]
+        let rules = utilities.map { name, variable, property, token in
+            ".\(name)-\(role){--bs-\(variable):var(--bs-\(role)-\(token));\(property):var(--bs-\(variable))}"
+        }.joined()
+        return "@layer helpers{.theme-\(role){\(mappings)}}@layer utilities{\(rules).shadow-\(role){--bs-sc:var(--bs-\(role)-base)}}"
     }
 }

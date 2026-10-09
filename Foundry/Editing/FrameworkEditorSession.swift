@@ -10,7 +10,8 @@ final class FrameworkEditorSession {
     private var colourEditRevision: UInt64?
 
     var canEditFramework: Bool {
-        !FrameworkLibrary.shared.frameworks.contains { $0.id == document.site.frameworkSourceID && $0.isBuiltIn }
+        // Edits belong to this project, never to the installed framework bundle.
+        true
     }
 
     func colourIsInUse(_ id: String) -> Bool {
@@ -53,6 +54,11 @@ final class FrameworkEditorSession {
     init(document: FoundryDocument, undoManager: UndoManager?) {
         self.document = document
         editor = ProjectEditor(document: document, undoManager: undoManager)
+        if document.site.hasNamedThemeOverrides {
+            ProjectEditor(document: document, undoManager: nil).mutate(actionName: "Convert Theme Colours", impact: .framework) {
+                $0.foldNamedThemeOverrides()
+            }
+        }
     }
 
     var hasUncommittedFontPreview: Bool {

@@ -1,0 +1,117 @@
+{
+  "id": "foundry.media.svg",
+  "title": "SVG",
+  "author": "Foundry",
+  "version": "3.0.0",
+  "minimumAPIVersion": 1,
+  "description": "Inline SVG artwork with Bootstrap sizing and theme colour.",
+  "group": "Media",
+  "icon": {
+    "symbol": "scribble.variable",
+    "tint": "blue"
+  },
+  "tags": [
+    "Bootstrap",
+    "SVG"
+  ],
+  "assets": [],
+  "libraries": [
+    {
+      "id": "bootstrap",
+      "majorVersion": 6
+    }
+  ],
+  "templates": {
+    "html": "part.html"
+  },
+  "inspector": [
+    {
+      "section": "SVG",
+      "controls": [
+        {
+          "type": "svg",
+          "id": "source",
+          "label": "SVG"
+        }
+      ]
+    },
+    {
+      "section": "Colour",
+      "controls": [
+        {
+          "type": "foreground",
+          "id": "foreground"
+        },
+        {
+          "type": "toggle",
+          "id": "fillEnabled",
+          "label": "Override fill",
+          "presentation": "switch",
+          "defaults": {
+            "base": false
+          },
+          "visibleWhen": {
+            "id": "foreground.enabled",
+            "value": true
+          },
+          "tooltip": "Recolours existing fill with the selected theme colour. Unpainted areas and clipping/mask geometry stay unchanged."
+        },
+        {
+          "type": "toggle",
+          "id": "strokeEnabled",
+          "label": "Override stroke",
+          "presentation": "switch",
+          "defaults": {
+            "base": false
+          },
+          "visibleWhen": {
+            "id": "foreground.enabled",
+            "value": true
+          },
+          "tooltip": "Recolours existing stroke with the selected theme colour. Unpainted areas and clipping/mask geometry stay unchanged."
+        }
+      ]
+    },
+    {
+      "section": "Sizing",
+      "controls": [
+        {
+          "type": "sizing",
+          "id": "sizing",
+          "excludeControls": [
+            "minWidth",
+            "minHeight",
+            "maxHeight"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Spacing",
+      "controls": [
+        {
+          "type": "spacing",
+          "id": "spacing"
+        }
+      ]
+    },
+    {
+      "section": "Display",
+      "controls": [
+        {
+          "type": "display",
+          "id": "display",
+          "allowedOptions": {
+            "display": [
+              "none",
+              "d-inline",
+              "d-block",
+              "d-inline-block",
+              "d-none"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

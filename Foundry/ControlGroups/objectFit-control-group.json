@@ -1,0 +1,42 @@
+{
+  "type": "objectFit",
+  "name": "Bootstrap object fit",
+  "systemImage": "arrow.up.left.and.arrow.down.right",
+  "controls": [
+    {
+      "type": "select",
+      "id": "fit",
+      "label": "Fit",
+      "responsive": true,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "object-fit-contain",
+          "value": "object-fit-contain"
+        },
+        {
+          "title": "object-fit-cover",
+          "value": "object-fit-cover"
+        },
+        {
+          "title": "object-fit-fill",
+          "value": "object-fit-fill"
+        },
+        {
+          "title": "object-fit-scale",
+          "value": "object-fit-scale"
+        },
+        {
+          "title": "object-fit-none",
+          "value": "object-fit-none"
+        }
+      ]
+    }
+  ]
+}

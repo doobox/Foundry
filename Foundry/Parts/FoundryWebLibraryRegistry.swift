@@ -203,7 +203,7 @@ nonisolated enum FoundryWebLibraryRegistry {
 
     private static func stylesheetResource(for requirement: PartPackageLibraryRequirement) -> String? {
         switch requirement {
-        case bootstrapRequirement: "bootstrap-6.0.0-alpha.1.min.css"
+        case bootstrapRequirement: "bootstrap-6.0.0-alpha.1-live.min.css"
         case glightboxRequirement: "glightbox.min.css"
         default: nil
         }

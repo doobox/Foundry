@@ -15,8 +15,27 @@
       "systemImage": "rectangle.3.group",
       "controls": [
         {
+          "type": "display",
+          "id": "display",
+          "defaults": {
+            "display": "d-flex"
+          }
+        },
+        {
           "type": "flexbox",
           "id": "flexbox"
+        },
+        {
+          "type": "alignment",
+          "id": "alignment",
+          "excludeControls": [
+            "justifyItems",
+            "placeItems"
+          ]
+        },
+        {
+          "type": "gap",
+          "id": "gap"
         }
       ]
     },
@@ -26,24 +45,21 @@
       "controls": [
         {
           "type": "note",
-          "body": "allowedOptions limits Direction to Row and Column; defaults starts it as a wrapping row; excludeControls: [\"alignContent\"] removes the wrapped-line alignment control and its value."
+          "body": "allowedOptions limits Direction to flex-row and flex-column; defaults starts it as a wrapping row. The alignment group omits grid-only choices."
         },
         {
           "type": "flexbox",
           "id": "toolbar",
           "allowedOptions": {
             "direction": [
-              "row",
-              "column"
+              "flex-row",
+              "flex-column"
             ]
           },
           "defaults": {
-            "direction": "row",
-            "wrap": "wrap"
-          },
-          "excludeControls": [
-            "alignContent"
-          ]
+            "direction": "flex-row",
+            "wrap": "flex-wrap"
+          }
         }
       ]
     },
@@ -67,5 +83,11 @@
     "html": "part.html"
   },
   "title": "Flexbox group",
-  "version": "1.0.0"
+  "version": "3.0.0",
+  "libraries": [
+    {
+      "id": "bootstrap",
+      "majorVersion": 6
+    }
+  ]
 }

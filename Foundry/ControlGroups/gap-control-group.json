@@ -1,0 +1,34 @@
+{
+  "type": "gap",
+  "name": "Bootstrap gap",
+  "systemImage": "arrow.left.and.right",
+  "controls": [
+    {
+      "type": "frameworkSpacing",
+      "id": "gap",
+      "label": "Gap",
+      "responsive": true,
+      "defaults": {
+        "base": "none"
+      }
+    },
+    {
+      "type": "frameworkSpacing",
+      "id": "rowGap",
+      "label": "Row gap",
+      "responsive": true,
+      "defaults": {
+        "base": "none"
+      }
+    },
+    {
+      "type": "frameworkSpacing",
+      "id": "columnGap",
+      "label": "Column gap",
+      "responsive": true,
+      "defaults": {
+        "base": "none"
+      }
+    }
+  ]
+}

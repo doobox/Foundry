@@ -32,9 +32,3 @@
 :instance .fx-frame { display: flow-root; border: 1px dashed var(--fx-muted); border-radius: 8px; background: repeating-linear-gradient(-45deg, #f1f5f9 0 6px, #ffffff 6px 12px); }
 :instance .fx-target { border-radius: 6px; background: #bfdbfe; color: var(--fx-ink); font-size: 13px; }
 :instance .fx-inner { padding: 12px 14px; border-radius: 4px; background: #ffffff; text-align: center; }
-
-/* The group's padding and margin, on the tinted box. */
-:instance .fx-spaced { {{ control.spacing.css }} }
-
-/* excludeControls: ["frameworkMargin"] — the same output, padding only. */
-:instance .fx-inset { {{ control.inset.css }} }

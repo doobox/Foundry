@@ -14,9 +14,6 @@ nonisolated struct Framework: Codable, Equatable, Sendable {
     var savedSettings: Framework {
         var settings = self
         settings.colourPalettes = fixedFrameworkColourPalettes
-        // Breakpoints and container widths belong to the project. Keep a neutral
-        // value in reusable bundles; applying a framework preserves project screens.
-        settings.screens = .standard
         return settings
     }
 
@@ -42,9 +39,20 @@ nonisolated struct Framework: Codable, Equatable, Sendable {
         }
     }
     var spacing: SpacingTokens
+    var bootstrapTokens = BootstrapEditorTokens()
     var shadows: ShadowTokens
     var typography: TypographyTokens
-    var screens: ScreenTokens
+    private var storedScreens: ScreenTokens
+    private var archivedScreens: ScreenTokens? = nil
+    var screens: ScreenTokens {
+        get { BootstrapLayout.normalized(storedScreens) }
+        set {
+            if archivedScreens == nil && storedScreens != BootstrapLayout.normalized(storedScreens) {
+                archivedScreens = storedScreens
+            }
+            storedScreens = newValue
+        }
+    }
     var borderWidths: FrameworkDimensionTokens
     var borderRadii: FrameworkDimensionTokens
     var zIndexes: FrameworkDimensionTokens
@@ -62,14 +70,14 @@ nonisolated struct Framework: Codable, Equatable, Sendable {
         self.spacing = spacing
         self.shadows = shadows
         self.typography = typography
-        self.screens = screens
+        self.storedScreens = screens
         self.borderWidths = borderWidths
         self.borderRadii = borderRadii
         self.zIndexes = zIndexes
     }
 
     enum CodingKeys: String, CodingKey {
-        case colors, colourPalettes, spacing, shadows, typography, screens, borderWidths, borderRadii, zIndexes
+        case colors, colourPalettes, spacing, shadows, typography, screens, archivedScreens, borderWidths, borderRadii, zIndexes, bootstrapTokens
     }
 
     init(from decoder: Decoder) throws {
@@ -86,9 +94,11 @@ nonisolated struct Framework: Codable, Equatable, Sendable {
             colourPalettes = ColourPaletteDefaults.make()
         }
         spacing = try container.decode(SpacingTokens.self, forKey: .spacing)
+        bootstrapTokens = try container.decodeIfPresent(BootstrapEditorTokens.self, forKey: .bootstrapTokens) ?? .init()
         shadows = try container.decodeIfPresent(ShadowTokens.self, forKey: .shadows) ?? .standard
         typography = try container.decode(TypographyTokens.self, forKey: .typography)
-        screens = try container.decode(ScreenTokens.self, forKey: .screens)
+        storedScreens = try container.decode(ScreenTokens.self, forKey: .screens)
+        archivedScreens = try container.decodeIfPresent(ScreenTokens.self, forKey: .archivedScreens)
         borderWidths = try container.decodeIfPresent(FrameworkDimensionTokens.self, forKey: .borderWidths) ?? .standardBorderWidths
         borderRadii = try container.decodeIfPresent(FrameworkDimensionTokens.self, forKey: .borderRadii) ?? .standardBorderRadii
         zIndexes = try container.decodeIfPresent(FrameworkDimensionTokens.self, forKey: .zIndexes) ?? .standardZIndexes
@@ -98,9 +108,11 @@ nonisolated struct Framework: Codable, Equatable, Sendable {
         var values = encoder.container(keyedBy: CodingKeys.self)
         try values.encode(colourPalettes, forKey: .colourPalettes)
         try values.encode(spacing, forKey: .spacing)
+        try values.encode(bootstrapTokens, forKey: .bootstrapTokens)
         try values.encode(shadows, forKey: .shadows)
         try values.encode(typography, forKey: .typography)
-        try values.encode(screens, forKey: .screens)
+        try values.encode(storedScreens, forKey: .screens)
+        try values.encodeIfPresent(archivedScreens, forKey: .archivedScreens)
         try values.encode(borderWidths, forKey: .borderWidths)
         try values.encode(borderRadii, forKey: .borderRadii)
         try values.encode(zIndexes, forKey: .zIndexes)
@@ -109,9 +121,9 @@ nonisolated struct Framework: Codable, Equatable, Sendable {
     static let standard = Framework(
         spacing: .standard,
         typography: .init(
-            bodyFont: .system(family: "system-ui", weights: [400, 500, 600, 700]),
-            headingFont: .system(family: "system-ui", weights: [500, 600, 700, 800]),
-            monospacedFont: .system(family: "ui-monospace", weights: [400, 500, 600, 700]),
+            bodyFont: .system(family: BootstrapColourCatalogue.declarations["--bs-body-font-family"]!, weights: [400, 500, 600, 700]),
+            headingFont: .system(family: "inherit", weights: [500, 600, 700, 800]),
+            monospacedFont: .system(family: BootstrapColourCatalogue.declarations["--bs-font-mono"]!, weights: [400, 500, 600, 700]),
             customFonts: [],
             customFontSizes: []
         )
@@ -237,11 +249,11 @@ nonisolated struct FrameworkScreen: Codable, Equatable, Identifiable, Sendable {
 nonisolated struct ScreenTokens: Codable, Equatable, Sendable {
     static let standard = ScreenTokens(screens: [
         .init(id: .mobile, isEnabled: true, minimumWidth: 0, container: .init(value: 0, unit: .auto)),
-        .init(id: .small, isEnabled: true, minimumWidth: 640, container: .init(value: 640, unit: .auto)),
-        .init(id: .medium, isEnabled: true, minimumWidth: 768, container: .init(value: 768, unit: .auto)),
-        .init(id: .large, isEnabled: true, minimumWidth: 1024, container: .init(value: 1024, unit: .auto)),
-        .init(id: .extraLarge, isEnabled: true, minimumWidth: 1280, container: .init(value: 1280, unit: .auto)),
-        .init(id: .doubleExtraLarge, isEnabled: true, minimumWidth: 1536, container: .init(value: 1536, unit: .auto))
+        .init(id: .small, isEnabled: true, minimumWidth: 576, container: .init(value: 540, unit: .pixels)),
+        .init(id: .medium, isEnabled: true, minimumWidth: 768, container: .init(value: 720, unit: .pixels)),
+        .init(id: .large, isEnabled: true, minimumWidth: 1024, container: .init(value: 960, unit: .pixels)),
+        .init(id: .extraLarge, isEnabled: false, minimumWidth: 1280, container: .init(value: 1200, unit: .pixels)),
+        .init(id: .doubleExtraLarge, isEnabled: false, minimumWidth: 1536, container: .init(value: 1440, unit: .pixels))
     ])
 
     var screens: [FrameworkScreen]
@@ -262,7 +274,7 @@ nonisolated struct ScreenTokens: Codable, Equatable, Sendable {
 
     func canvasWidth(for screen: FrameworkScreen) -> Double {
         guard screen.id == .mobile else { return screen.minimumWidth }
-        let nextMinimum = enabledScreens.first(where: { $0.id != .mobile })?.minimumWidth ?? 640
+        let nextMinimum = enabledScreens.first(where: { $0.id != .mobile })?.minimumWidth ?? 576
         return max(320, min(390, nextMinimum - 1))
     }
 
@@ -356,120 +368,6 @@ nonisolated enum FrameworkColorRole: String, Codable, CaseIterable, Identifiable
     var id: String { rawValue }
     var title: String { rawValue.capitalized }
 
-}
-
-nonisolated struct SpacingTokens: Codable, Equatable, Sendable {
-    static let baseRem = 0.25
-    static let standard = SpacingTokens(
-        threeExtraSmall: 1,
-        doubleExtraSmall: 2,
-        extraSmall: 3,
-        small: 4,
-        medium: 6,
-        large: 8,
-        extraLarge: 12,
-        doubleExtraLarge: 16,
-        threeExtraLarge: 24,
-        fourExtraLarge: 32
-    )
-
-    var threeExtraSmall: Double
-    var doubleExtraSmall: Double
-    var extraSmall: Double
-    var small: Double
-    var medium: Double
-    var large: Double
-    var extraLarge: Double
-    var doubleExtraLarge: Double
-    var threeExtraLarge: Double
-    var fourExtraLarge: Double
-    var custom: [FrameworkSpacing]
-
-    init(
-        threeExtraSmall: Double = 1,
-        doubleExtraSmall: Double = 2,
-        extraSmall: Double = 3,
-        small: Double,
-        medium: Double,
-        large: Double,
-        extraLarge: Double = 12,
-        doubleExtraLarge: Double = 16,
-        threeExtraLarge: Double = 24,
-        fourExtraLarge: Double = 32,
-        custom: [FrameworkSpacing] = []
-    ) {
-        self.threeExtraSmall = threeExtraSmall
-        self.doubleExtraSmall = doubleExtraSmall
-        self.extraSmall = extraSmall
-        self.small = small
-        self.medium = medium
-        self.large = large
-        self.extraLarge = extraLarge
-        self.doubleExtraLarge = doubleExtraLarge
-        self.threeExtraLarge = threeExtraLarge
-        self.fourExtraLarge = fourExtraLarge
-        self.custom = custom
-    }
-
-    enum CodingKeys: String, CodingKey {
-        case threeExtraSmall
-        case doubleExtraSmall
-        case extraSmall
-        case small
-        case medium
-        case large
-        case extraLarge
-        case doubleExtraLarge
-        case threeExtraLarge
-        case fourExtraLarge
-        case custom
-    }
-
-    init(from decoder: Decoder) throws {
-        let container = try decoder.container(keyedBy: CodingKeys.self)
-        threeExtraSmall = try container.decode(Double.self, forKey: .threeExtraSmall)
-        doubleExtraSmall = try container.decode(Double.self, forKey: .doubleExtraSmall)
-        extraSmall = try container.decode(Double.self, forKey: .extraSmall)
-        small = try container.decode(Double.self, forKey: .small)
-        medium = try container.decode(Double.self, forKey: .medium)
-        large = try container.decode(Double.self, forKey: .large)
-        extraLarge = try container.decode(Double.self, forKey: .extraLarge)
-        doubleExtraLarge = try container.decode(Double.self, forKey: .doubleExtraLarge)
-        threeExtraLarge = try container.decode(Double.self, forKey: .threeExtraLarge)
-        fourExtraLarge = try container.decode(Double.self, forKey: .fourExtraLarge)
-        custom = try container.decode([FrameworkSpacing].self, forKey: .custom)
-    }
-
-    func matchesPredefinedScale(of other: SpacingTokens) -> Bool {
-        threeExtraSmall == other.threeExtraSmall &&
-            doubleExtraSmall == other.doubleExtraSmall &&
-            extraSmall == other.extraSmall &&
-            small == other.small &&
-            medium == other.medium &&
-            large == other.large &&
-            extraLarge == other.extraLarge &&
-            doubleExtraLarge == other.doubleExtraLarge &&
-            threeExtraLarge == other.threeExtraLarge &&
-            fourExtraLarge == other.fourExtraLarge
-    }
-
-    var usesStandardPredefinedScale: Bool { matchesPredefinedScale(of: .standard) }
-}
-
-nonisolated struct FrameworkSpacing: Codable, Equatable, Identifiable, Sendable {
-    let id: UUID
-    var name: String
-    var value: Double
-
-    init(id: UUID = UUID(), name: String, value: Double) {
-        self.id = id
-        self.name = name
-        self.value = value
-    }
-
-    var cssVariable: String {
-        "--foundry-space-custom-\(id.uuidString.lowercased())"
-    }
 }
 
 nonisolated struct ShadowTokens: Codable, Equatable, Sendable {
@@ -823,30 +721,7 @@ nonisolated extension Framework {
     }
 
     var spacingChoices: [PartPropertyChoice] {
-        let predefined: [(String, String, Double)] = [
-            ("3xs", "3XS", spacing.threeExtraSmall),
-            ("2xs", "2XS", spacing.doubleExtraSmall),
-            ("xs", "XS", spacing.extraSmall),
-            ("sm", "SM", spacing.small),
-            ("md", "MD", spacing.medium),
-            ("lg", "LG", spacing.large),
-            ("xl", "XL", spacing.extraLarge),
-            ("2xl", "2XL", spacing.doubleExtraLarge),
-            ("3xl", "3XL", spacing.threeExtraLarge),
-            ("4xl", "4XL", spacing.fourExtraLarge)
-        ]
-        return predefined.map { id, title, _ in
-            return .init(
-                value: id,
-                label: title
-            )
-        } + spacing.custom.enumerated().map { index, item in
-            return .init(
-                value: "custom:\(item.id.uuidString.lowercased())",
-                label: item.name,
-                separatorBefore: index == 0
-            )
-        }
+        spacing.choices.map { .init(value: $0.id, label: $0.label) }
     }
 
     var shadowChoices: [PartPropertyChoice] {
@@ -911,16 +786,7 @@ nonisolated extension Framework {
     }
 
     func spacingCSSVariable(for reference: String) -> String? {
-        let predefined = Set(["3xs", "2xs", "xs", "sm", "md", "lg", "xl", "2xl", "3xl", "4xl"])
-        if predefined.contains(reference) {
-            return "var(--foundry-space-\(reference))"
-        }
-        guard reference.hasPrefix("custom:"),
-              let id = UUID(uuidString: String(reference.dropFirst("custom:".count))),
-              let spacing = spacing.custom.first(where: { $0.id == id }) else {
-            return nil
-        }
-        return "var(\(spacing.cssVariable))"
+        spacing.choices.first { $0.id == reference }?.css
     }
 
     func fontSizeCSSVariable(for reference: String) -> String {
@@ -936,13 +802,6 @@ nonisolated extension Framework {
     var fontSizeCSSVariables: String {
         typography.fontSizes.map {
             "--foundry-font-size-\($0.id):\($0.size)rem;--foundry-font-size-\($0.id)-line-height:\($0.lineHeight);"
-        }.joined()
-    }
-
-    var spacingCSSVariables: String {
-        let predefined = "--foundry-spacing-base:\(SpacingTokens.baseRem)rem;--foundry-space-3xs:calc(var(--foundry-spacing-base) * \(spacing.threeExtraSmall));--foundry-space-2xs:calc(var(--foundry-spacing-base) * \(spacing.doubleExtraSmall));--foundry-space-xs:calc(var(--foundry-spacing-base) * \(spacing.extraSmall));--foundry-space-sm:calc(var(--foundry-spacing-base) * \(spacing.small));--foundry-space-md:calc(var(--foundry-spacing-base) * \(spacing.medium));--foundry-space-lg:calc(var(--foundry-spacing-base) * \(spacing.large));--foundry-space-xl:calc(var(--foundry-spacing-base) * \(spacing.extraLarge));--foundry-space-2xl:calc(var(--foundry-spacing-base) * \(spacing.doubleExtraLarge));--foundry-space-3xl:calc(var(--foundry-spacing-base) * \(spacing.threeExtraLarge));--foundry-space-4xl:calc(var(--foundry-spacing-base) * \(spacing.fourExtraLarge));"
-        return predefined + spacing.custom.map {
-            "\($0.cssVariable):calc(var(--foundry-spacing-base) * \($0.value));"
         }.joined()
     }
 
@@ -1024,27 +883,11 @@ nonisolated extension Framework {
         case .textColor: colors.text
         case .accentColor: colors.accent
         case .linksColor: colors.links
-        case .threeExtraSmallSpacing, .doubleExtraSmallSpacing, .extraSmallSpacing,
-             .smallSpacing, .mediumSpacing, .largeSpacing, .extraLargeSpacing,
-             .doubleExtraLargeSpacing, .threeExtraLargeSpacing, .fourExtraLargeSpacing: nil
         }
     }
 
-    func number(for token: DesignToken) -> Double? {
-        switch token {
-        case .threeExtraSmallSpacing: spacing.threeExtraSmall
-        case .doubleExtraSmallSpacing: spacing.doubleExtraSmall
-        case .extraSmallSpacing: spacing.extraSmall
-        case .smallSpacing: spacing.small
-        case .mediumSpacing: spacing.medium
-        case .largeSpacing: spacing.large
-        case .extraLargeSpacing: spacing.extraLarge
-        case .doubleExtraLargeSpacing: spacing.doubleExtraLarge
-        case .threeExtraLargeSpacing: spacing.threeExtraLarge
-        case .fourExtraLargeSpacing: spacing.fourExtraLarge
-        case .backgroundColor, .surfaceColor, .textColor, .accentColor, .linksColor: nil
-        }
-    }
+    func number(for token: DesignToken) -> Double? { nil }
+
 }
 
 nonisolated enum FrameworkFontCSSDestination: Sendable {

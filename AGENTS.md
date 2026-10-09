@@ -12,7 +12,7 @@ Canvas editing identifiers and metadata must stay out of plain preview/export
 markup. Preview and export share the clean Bootstrap output contract. Retain
 output hooks only for authored styling or runtime behaviour that needs them.
 The old Foundry CSS generator and old built-in parts are removed; do not restore
-compatibility CSS. The baseline built-ins are Button and Container.
+compatibility CSS. The baseline built-ins are Button, Container, Flex, Grid, Paragraph, HTML, SVG and Image.
 Inspector controls should select
 Bootstrap themes, variants, sizes and tokens; avoid parallel Foundry styling
 defaults or unconditional CSS that overrides Bootstrap's component states.

@@ -1,7 +1,7 @@
 {
   "assets": [],
   "author": "Foundry",
-  "description": "Padding inside an element and margin outside it, from the framework scale or custom lengths.",
+  "description": "Bootstrap padding and margin using linked edge controls.",
   "group": "Control Groups",
   "helpURL": "https://doobox.github.io/foundry-docs/developer/spacing-control-group.html",
   "icon": {
@@ -25,19 +25,11 @@
       "systemImage": "rectangle.inset.filled",
       "controls": [
         {
-          "type": "note",
-          "body": "excludeControls: [\"frameworkMargin\"] removes the margin control and its template value, so the composed CSS contains padding alone. defaults switches it on with md padding."
-        },
-        {
           "type": "spacing",
           "id": "inset",
           "excludeControls": [
-            "frameworkMargin"
-          ],
-          "defaults": {
-            "spacingEnabled": true,
-            "frameworkPadding": "md"
-          }
+            "margin"
+          ]
         }
       ]
     },
@@ -61,5 +53,11 @@
     "html": "part.html"
   },
   "title": "Spacing group",
-  "version": "1.0.0"
+  "version": "2.0.0",
+  "libraries": [
+    {
+      "id": "bootstrap",
+      "majorVersion": 6
+    }
+  ]
 }

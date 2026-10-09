@@ -164,6 +164,9 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             }
             .unavailable { padding: 16px; border: 2px dashed #C33; color: #922; background: #FFF5F5; }
             \(FoundryWebLibraryRegistry.canvasCSS(for: PartArtifactPlan(page: page).packages))
+          </style>
+          <style data-foundry-framework-styles>
+            \(BootstrapThemeCSS.render(framework: framework))
             \(BootstrapColorCSS.canvas(framework: framework, appearance: appearance))
           </style>
         \(instanceStyleElements(for: page, framework: framework, assets: assets, breakpoint: breakpoint))
@@ -639,6 +642,9 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         let manifestPropertiesByID = partDefinition.package?.renderDefinition.propertiesByID ?? [:]
         var values: [String: PartPackageValue] = Dictionary(uniqueKeysWithValues: definitions.map { definition in
             let value = node.storedPropertyValue(definition.key) ?? definition.defaultValue
+            if let classes = BootstrapControlGroupClasses.resolve(node: node, key: definition.key, framework: framework) {
+                return (definition.key.rawValue, .string(classes))
+            }
             if case .frameworkBorderWidth(let width) = value {
                 return (definition.key.rawValue, PartPackageFrameworkBorderWidthControl.resolved(width, framework: framework))
             }
@@ -723,6 +729,9 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             }
             if case .themeColor = definition.control {
                 return (definition.key.rawValue, .string(BootstrapPaletteTheme.resolve(node.property(definition.key), framework: framework)))
+            }
+            if node.type == .container && definition.key.rawValue == "width" {
+                return (definition.key.rawValue, .string(BootstrapLayout.containerClass(node.property(definition.key), screens: framework.screens)))
             }
             if case .frameworkFontSize = definition.control {
 

@@ -26,5 +26,3 @@
 :instance .fx-values { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 6px 18px; margin: 0; font-size: 13px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; }
 :instance .fx-values dt { margin: 0; color: var(--fx-muted); }
 :instance .fx-values dd { margin: 0; overflow-wrap: anywhere; }
-
-:instance .fx-styled { {{ control.typography.css }} }

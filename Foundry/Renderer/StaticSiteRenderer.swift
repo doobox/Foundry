@@ -638,6 +638,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             exportedSource: { "../" + site.publishedPath(for: $0) }
         ))
         \(FoundryWebLibraryRegistry.exportCSS(for: sitePackages))
+        \(BootstrapThemeCSS.render(framework: framework))
         \(BootstrapColorCSS.export(framework: framework, mode: site.appearanceMode))
         \(sitePackageStyles(for: site))
         """
@@ -953,6 +954,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let manifestProperties = partDefinition.package?.renderDefinition.properties ?? []
         var values: [String: PartPackageValue] = Dictionary(uniqueKeysWithValues: definitions.map { definition in
             let value = node.storedPropertyValue(definition.key) ?? definition.defaultValue
+            if let classes = BootstrapControlGroupClasses.resolve(node: node, key: definition.key, framework: framework) {
+                return (definition.key.rawValue, .string(classes))
+            }
             if case .frameworkBorderWidth(let width) = value {
                 return (definition.key.rawValue, PartPackageFrameworkBorderWidthControl.resolved(width, framework: framework))
             }
@@ -1039,6 +1043,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             }
             if case .themeColor = definition.control {
                 return (definition.key.rawValue, .string(BootstrapPaletteTheme.resolve(node.property(definition.key), framework: framework)))
+            }
+            if node.type == .container && definition.key.rawValue == "width" {
+                return (definition.key.rawValue, .string(BootstrapLayout.containerClass(node.property(definition.key), screens: framework.screens)))
             }
             if case .frameworkFontSize = definition.control {
 

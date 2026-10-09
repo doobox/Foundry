@@ -144,7 +144,7 @@ struct FrameworkEditorPresentationTests {
         framework.typography.customFontSizes = [
             .init(id: "user-layout-card-title", title: "Card title", size: 1.375, lineHeight: 1.25)
         ]
-        framework.spacing.custom = [.init(name: "Editorial gap", value: 7.5)]
+        framework.spacing = .standard
         framework.typography.customFonts = [
             .init(name: "Editorial", font: .system(family: "Georgia", weights: [400, 700]))
         ]

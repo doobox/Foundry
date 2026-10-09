@@ -2177,7 +2177,9 @@ private struct FixedCanvasColumn<Content: View>: View {
             }
             .frame(minWidth: 0, maxWidth: .infinity, maxHeight: .infinity)
         }
-
+        .onChange(of: screens) { old, value in
+            viewportWidth = CanvasBreakpointPreference.viewportWidth(afterChanging: old, to: value, currentWidth: viewportWidth)
+        }
         .overlay(alignment: .leading) {
             SideDockTarget(title: "Dock Left", isTargeted: leadingTargeted)
                 .dropDestination(for: WorkspacePanelDragPayload.self) { values, _ in

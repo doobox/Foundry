@@ -1,114 +1,373 @@
 {
+  "type": "typography",
+  "name": "Bootstrap typography",
+  "systemImage": "textformat",
   "controls": [
     {
+      "type": "select",
+      "id": "fontFamily",
+      "label": "Family",
+      "responsive": false,
       "defaults": {
-        "base": {
-          "family": "body",
-          "size": "base",
-          "style": "normal",
-          "weight": 400
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "font-body",
+          "value": "font-body"
+        },
+        {
+          "title": "font-monospace",
+          "value": "font-monospace"
         }
-      },
-      "id": "font",
-      "label": "Font",
-      "responsive": true,
-      "showsSize": true,
-      "showsStyle": true,
-      "showsWeight": true,
-      "type": "frameworkFont"
+      ]
     },
     {
+      "type": "select",
+      "id": "fontSize",
+      "label": "Font size",
+      "responsive": false,
       "defaults": {
-        "base": false
+        "base": "none"
       },
-      "id": "customColorEnabled",
-      "label": "Custom Colour",
-      "presentation": "switch",
-      "responsive": true,
-      "type": "toggle"
-    },
-    {
-      "allowsCustom": true,
-      "defaults": {
-        "base": {
-          "palette": "foreground"
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "fs-xs",
+          "value": "fs-xs"
+        },
+        {
+          "title": "fs-sm",
+          "value": "fs-sm"
+        },
+        {
+          "title": "fs-md",
+          "value": "fs-md"
+        },
+        {
+          "title": "fs-lg",
+          "value": "fs-lg"
+        },
+        {
+          "title": "fs-xl",
+          "value": "fs-xl"
+        },
+        {
+          "title": "fs-2xl",
+          "value": "fs-2xl"
+        },
+        {
+          "title": "fs-3xl",
+          "value": "fs-3xl"
+        },
+        {
+          "title": "fs-4xl",
+          "value": "fs-4xl"
+        },
+        {
+          "title": "fs-5xl",
+          "value": "fs-5xl"
+        },
+        {
+          "title": "fs-6xl",
+          "value": "fs-6xl"
         }
-      },
-      "id": "textColor",
-      "label": "Colour",
-      "opacity": true,
-      "responsive": true,
-      "type": "frameworkColor",
-      "visibleWhen": {
-        "id": "customColorEnabled",
-        "value": true
-      }
+      ]
     },
     {
+      "type": "select",
+      "id": "textSize",
+      "label": "Text size",
+      "responsive": false,
       "defaults": {
-        "base": "start"
+        "base": "none"
       },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "text-xs",
+          "value": "text-xs"
+        },
+        {
+          "title": "text-sm",
+          "value": "text-sm"
+        },
+        {
+          "title": "text-md",
+          "value": "text-md"
+        },
+        {
+          "title": "text-lg",
+          "value": "text-lg"
+        },
+        {
+          "title": "text-xl",
+          "value": "text-xl"
+        },
+        {
+          "title": "text-2xl",
+          "value": "text-2xl"
+        },
+        {
+          "title": "text-3xl",
+          "value": "text-3xl"
+        },
+        {
+          "title": "text-4xl",
+          "value": "text-4xl"
+        },
+        {
+          "title": "text-5xl",
+          "value": "text-5xl"
+        },
+        {
+          "title": "text-6xl",
+          "value": "text-6xl"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "fontStyle",
+      "label": "Style",
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "fst-normal",
+          "value": "fst-normal"
+        },
+        {
+          "title": "fst-italic",
+          "value": "fst-italic"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "fontWeight",
+      "label": "Weight",
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "fw-lighter",
+          "value": "fw-lighter"
+        },
+        {
+          "title": "fw-light",
+          "value": "fw-light"
+        },
+        {
+          "title": "fw-normal",
+          "value": "fw-normal"
+        },
+        {
+          "title": "fw-medium",
+          "value": "fw-medium"
+        },
+        {
+          "title": "fw-semibold",
+          "value": "fw-semibold"
+        },
+        {
+          "title": "fw-bold",
+          "value": "fw-bold"
+        },
+        {
+          "title": "fw-bolder",
+          "value": "fw-bolder"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "lineHeight",
+      "label": "Line height",
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "lh-1",
+          "value": "lh-1"
+        },
+        {
+          "title": "lh-sm",
+          "value": "lh-sm"
+        },
+        {
+          "title": "lh-md",
+          "value": "lh-md"
+        },
+        {
+          "title": "lh-lg",
+          "value": "lh-lg"
+        }
+      ]
+    },
+    {
+      "type": "select",
       "id": "textAlignment",
       "label": "Alignment",
       "responsive": true,
-      "type": "textAlignment"
-    },
-    {
       "defaults": {
         "base": "none"
       },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none",
+          "systemImage": "arrow.uturn.backward"
+        },
+        {
+          "title": "text-start",
+          "value": "text-start",
+          "systemImage": "text.alignleft"
+        },
+        {
+          "title": "text-center",
+          "value": "text-center",
+          "systemImage": "text.aligncenter"
+        },
+        {
+          "title": "text-end",
+          "value": "text-end",
+          "systemImage": "text.alignright"
+        }
+      ],
+      "presentation": "segmented"
+    },
+    {
+      "type": "select",
       "id": "textDecoration",
       "label": "Decoration",
-      "options": [
-        {
-          "title": "None",
-          "value": "none"
-        },
-        {
-          "title": "Underline",
-          "value": "underline"
-        },
-        {
-          "title": "Overline",
-          "value": "overline"
-        },
-        {
-          "title": "Line Through",
-          "value": "line-through"
-        }
-      ],
-      "responsive": true,
-      "type": "select"
-    },
-    {
+      "responsive": false,
       "defaults": {
         "base": "none"
       },
-      "id": "textTransform",
-      "label": "Capitalisation",
       "options": [
         {
-          "title": "None",
+          "title": "Inherit",
           "value": "none"
         },
         {
-          "title": "Uppercase",
-          "value": "uppercase"
+          "title": "text-decoration-none",
+          "value": "text-decoration-none"
         },
         {
-          "title": "Lowercase",
-          "value": "lowercase"
+          "title": "text-decoration-underline",
+          "value": "text-decoration-underline"
         },
         {
-          "title": "Capitalize",
-          "value": "capitalize"
+          "title": "text-decoration-line-through",
+          "value": "text-decoration-line-through"
         }
-      ],
-      "responsive": true,
-      "type": "select"
+      ]
+    },
+    {
+      "type": "select",
+      "id": "textTransform",
+      "label": "Capitalisation",
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "text-lowercase",
+          "value": "text-lowercase"
+        },
+        {
+          "title": "text-uppercase",
+          "value": "text-uppercase"
+        },
+        {
+          "title": "text-capitalize",
+          "value": "text-capitalize"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "textWrap",
+      "label": "Wrapping",
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "text-wrap",
+          "value": "text-wrap"
+        },
+        {
+          "title": "text-nowrap",
+          "value": "text-nowrap"
+        },
+        {
+          "title": "text-balance",
+          "value": "text-balance"
+        },
+        {
+          "title": "text-pretty",
+          "value": "text-pretty"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "wordWrap",
+      "label": "Word breaking",
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "text-break",
+          "value": "text-break"
+        }
+      ]
     }
-  ],
-  "name": "Typography",
-  "systemImage": "textformat",
-  "type": "typography"
+  ]
 }

@@ -1,224 +1,65 @@
 {
+  "type": "flexbox",
+  "name": "Bootstrap flexbox",
+  "systemImage": "rectangle.3.group",
   "controls": [
     {
-      "defaults": {
-        "base": "column"
-      },
+      "type": "select",
       "id": "direction",
       "label": "Direction",
+      "responsive": true,
+      "defaults": {
+        "base": "none"
+      },
       "options": [
         {
-          "title": "Vertical",
-          "value": "column"
+          "title": "Inherit",
+          "value": "none"
         },
         {
-          "title": "Horizontal",
-          "value": "row"
+          "title": "flex-row",
+          "value": "flex-row"
         },
         {
-          "title": "Vertical Reverse",
-          "value": "column-reverse"
+          "title": "flex-column",
+          "value": "flex-column"
         },
         {
-          "title": "Horizontal Reverse",
-          "value": "row-reverse"
+          "title": "flex-row-reverse",
+          "value": "flex-row-reverse"
+        },
+        {
+          "title": "flex-column-reverse",
+          "value": "flex-column-reverse"
         }
-      ],
-      "responsive": true,
-      "tooltip": "Vertical stacks items from top to bottom. Horizontal places them side by side. Reverse changes visual order without changing reading or keyboard order.",
-      "type": "select"
+      ]
     },
     {
-      "defaults": {
-        "base": "nowrap"
-      },
+      "type": "select",
       "id": "wrap",
-      "label": "Wrapping",
-      "options": [
-        {
-          "title": "Don't Wrap",
-          "value": "nowrap"
-        },
-        {
-          "title": "Wrap",
-          "value": "wrap"
-        },
-        {
-          "title": "Wrap in Reverse",
-          "value": "wrap-reverse"
-        }
-      ],
+      "label": "Wrap",
       "responsive": true,
-      "tooltip": "Let items flow onto new lines when they no longer fit.",
-      "type": "select"
-    },
-    {
       "defaults": {
-        "base": "md"
-      },
-      "id": "columnGap",
-      "label": "Horizontal Gap",
-      "responsive": true,
-      "type": "frameworkSpacing",
-      "visibleWhen": {
-        "any": [
-          {
-            "id": "direction",
-            "value": "row"
-          },
-          {
-            "id": "direction",
-            "value": "row-reverse"
-          },
-          {
-            "id": "wrap",
-            "operation": "!=",
-            "value": "nowrap"
-          }
-        ]
-      }
-    },
-    {
-      "defaults": {
-        "base": "md"
-      },
-      "id": "rowGap",
-      "label": "Vertical Gap",
-      "responsive": true,
-      "type": "frameworkSpacing",
-      "visibleWhen": {
-        "any": [
-          {
-            "id": "direction",
-            "value": "column"
-          },
-          {
-            "id": "direction",
-            "value": "column-reverse"
-          },
-          {
-            "id": "wrap",
-            "operation": "!=",
-            "value": "nowrap"
-          }
-        ]
-      }
-    },
-    {
-      "defaults": {
-        "base": "flex-start"
-      },
-      "id": "alignItems",
-      "label": "Item Alignment",
-      "options": [
-        {
-          "title": "Start",
-          "value": "flex-start"
-        },
-        {
-          "title": "Centre",
-          "value": "center"
-        },
-        {
-          "title": "End",
-          "value": "flex-end"
-        },
-        {
-          "title": "Stretch",
-          "value": "stretch"
-        },
-        {
-          "title": "Baseline",
-          "value": "baseline"
-        }
-      ],
-      "responsive": true,
-      "tooltip": "Positions items across the direction of flow. Stretch makes their boxes fill the available cross-axis space.",
-      "type": "select"
-    },
-    {
-      "defaults": {
-        "base": "flex-start"
-      },
-      "id": "alignContent",
-      "label": "Wrapped Lines",
-      "visibleWhen": {
-        "id": "wrap",
-        "operation": "!=",
-        "value": "nowrap"
+        "base": "none"
       },
       "options": [
         {
-          "title": "Start",
-          "value": "flex-start"
+          "title": "Inherit",
+          "value": "none"
         },
         {
-          "title": "Centre",
-          "value": "center"
+          "title": "flex-nowrap",
+          "value": "flex-nowrap"
         },
         {
-          "title": "End",
-          "value": "flex-end"
+          "title": "flex-wrap",
+          "value": "flex-wrap"
         },
         {
-          "title": "Stretch",
-          "value": "stretch"
-        },
-        {
-          "title": "Space Between",
-          "value": "space-between"
-        },
-        {
-          "title": "Space Around",
-          "value": "space-around"
-        },
-        {
-          "title": "Space Evenly",
-          "value": "space-evenly"
+          "title": "flex-wrap-reverse",
+          "value": "flex-wrap-reverse"
         }
-      ],
-      "responsive": true,
-      "tooltip": "Positions or distributes the lines created by wrapping. Single-line layouts are unaffected.",
-      "type": "select"
-    },
-    {
-      "defaults": {
-        "base": "flex-start"
-      },
-      "id": "justifyContent",
-      "label": "Distribution",
-      "options": [
-        {
-          "title": "Start",
-          "value": "flex-start"
-        },
-        {
-          "title": "Centre",
-          "value": "center"
-        },
-        {
-          "title": "End",
-          "value": "flex-end"
-        },
-        {
-          "title": "Space Between",
-          "value": "space-between"
-        },
-        {
-          "title": "Space Around",
-          "value": "space-around"
-        },
-        {
-          "title": "Space Evenly",
-          "value": "space-evenly"
-        }
-      ],
-      "responsive": true,
-      "tooltip": "Distributes the items along the direction of flow.",
-      "type": "select"
+      ]
     }
-  ],
-  "name": "Flexbox",
-  "systemImage": "rectangle.3.group",
-  "type": "flexbox"
+  ]
 }

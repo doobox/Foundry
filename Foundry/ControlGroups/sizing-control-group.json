@@ -1,240 +1,300 @@
 {
+  "type": "sizing",
+  "name": "Bootstrap sizing",
+  "systemImage": "arrow.up.left.and.arrow.down.right",
   "controls": [
     {
-      "defaults": {
-        "base": "auto"
-      },
-      "id": "widthMode",
+      "type": "select",
+      "id": "width",
       "label": "Width",
-      "options": [
-        {
-          "title": "Auto",
-          "value": "auto"
-        },
-        {
-          "title": "Full",
-          "value": "full"
-        },
-        {
-          "title": "Screen",
-          "value": "screen"
-        },
-        {
-          "title": "Site width",
-          "value": "breakpoint"
-        },
-        {
-          "title": "Custom",
-          "value": "custom"
-        }
-      ],
-      "responsive": true,
-      "type": "select"
-    },
-    {
-      "defaults": {
-        "base": 320
-      },
-      "id": "customWidth",
-      "label": "Custom width",
-      "maximum": 10000,
-      "minimum": 0,
-      "responsive": true,
-      "step": 1,
-      "type": "number",
-      "units": "px",
-      "valueAvailability": "whenVisible",
-      "visibleWhen": {
-        "id": "widthMode",
-        "value": "custom"
-      }
-    },
-    {
-      "defaults": {
-        "base": "auto"
-      },
-      "id": "heightMode",
-      "label": "Height",
-      "tooltip": "Fill remaining space grows along the parent's flex direction: vertically in a column, horizontally in a row. It has no effect outside a flex layout.",
-      "options": [
-        {
-          "title": "Fit content",
-          "value": "auto"
-        },
-        {
-          "title": "Fill remaining space",
-          "value": "fill"
-        },
-        {
-          "title": "At least viewport height",
-          "value": "viewport"
-        },
-        {
-          "title": "Custom",
-          "value": "custom"
-        }
-      ],
-      "responsive": true,
-      "type": "select"
-    },
-    {
-      "defaults": {
-        "base": 400
-      },
-      "id": "customHeight",
-      "label": "Custom height",
-      "maximum": 10000,
-      "minimum": 0,
-      "responsive": true,
-      "step": 1,
-      "type": "number",
-      "units": "px",
-      "valueAvailability": "whenVisible",
-      "visibleWhen": {
-        "id": "heightMode",
-        "value": "custom"
-      }
-    },
-    {
+      "responsive": false,
       "defaults": {
         "base": "none"
       },
-      "id": "aspectRatio",
-      "label": "Aspect ratio",
-      "tooltip": "Fixes the shape of the part while its width changes. Available when Height is Fit content.",
       "options": [
         {
-          "title": "None",
+          "title": "Inherit",
           "value": "none"
         },
         {
-          "title": "Square 1:1",
-          "value": "1 / 1"
+          "title": "w-1",
+          "value": "w-1"
         },
         {
-          "title": "4:3",
-          "value": "4 / 3"
+          "title": "w-2",
+          "value": "w-2"
         },
         {
-          "title": "3:2",
-          "value": "3 / 2"
+          "title": "w-3",
+          "value": "w-3"
         },
         {
-          "title": "16:9",
-          "value": "16 / 9"
+          "title": "w-4",
+          "value": "w-4"
         },
         {
-          "title": "21:9",
-          "value": "21 / 9"
+          "title": "w-5",
+          "value": "w-5"
         },
         {
-          "title": "Custom",
-          "value": "custom"
+          "title": "w-6",
+          "value": "w-6"
+        },
+        {
+          "title": "w-7",
+          "value": "w-7"
+        },
+        {
+          "title": "w-8",
+          "value": "w-8"
+        },
+        {
+          "title": "w-9",
+          "value": "w-9"
+        },
+        {
+          "title": "w-10",
+          "value": "w-10"
+        },
+        {
+          "title": "w-11",
+          "value": "w-11"
+        },
+        {
+          "title": "w-12",
+          "value": "w-12"
+        },
+        {
+          "title": "w-25",
+          "value": "w-25"
+        },
+        {
+          "title": "w-50",
+          "value": "w-50"
+        },
+        {
+          "title": "w-75",
+          "value": "w-75"
+        },
+        {
+          "title": "w-100",
+          "value": "w-100"
+        },
+        {
+          "title": "w-auto",
+          "value": "w-auto"
+        },
+        {
+          "title": "w-min",
+          "value": "w-min"
+        },
+        {
+          "title": "w-max",
+          "value": "w-max"
+        },
+        {
+          "title": "w-fit",
+          "value": "w-fit"
+        },
+        {
+          "title": "vw-100",
+          "value": "vw-100"
+        },
+        {
+          "title": "dvw-100",
+          "value": "dvw-100"
         }
-      ],
-      "responsive": true,
+      ]
+    },
+    {
       "type": "select",
-      "visibleWhen": {
-        "id": "heightMode",
-        "value": "auto"
-      }
-    },
-    {
-      "defaults": {
-        "base": 4
-      },
-      "id": "aspectRatioWidth",
-      "label": "Ratio width",
-      "maximum": 1000,
-      "minimum": 1,
-      "responsive": true,
-      "step": 1,
-      "type": "number",
-      "valueAvailability": "whenVisible",
-      "visibleWhen": {
-        "all": [
-          {
-            "id": "heightMode",
-            "value": "auto"
-          },
-          {
-            "id": "aspectRatio",
-            "value": "custom"
-          }
-        ]
-      }
-    },
-    {
-      "defaults": {
-        "base": 3
-      },
-      "id": "aspectRatioHeight",
-      "label": "Ratio height",
-      "maximum": 1000,
-      "minimum": 1,
-      "responsive": true,
-      "step": 1,
-      "type": "number",
-      "valueAvailability": "whenVisible",
-      "visibleWhen": {
-        "all": [
-          {
-            "id": "heightMode",
-            "value": "auto"
-          },
-          {
-            "id": "aspectRatio",
-            "value": "custom"
-          }
-        ]
-      }
-    },
-    {
+      "id": "height",
+      "label": "Height",
+      "responsive": false,
       "defaults": {
         "base": "none"
       },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "h-25",
+          "value": "h-25"
+        },
+        {
+          "title": "h-50",
+          "value": "h-50"
+        },
+        {
+          "title": "h-75",
+          "value": "h-75"
+        },
+        {
+          "title": "h-100",
+          "value": "h-100"
+        },
+        {
+          "title": "h-auto",
+          "value": "h-auto"
+        },
+        {
+          "title": "h-min",
+          "value": "h-min"
+        },
+        {
+          "title": "h-max",
+          "value": "h-max"
+        },
+        {
+          "title": "h-fit",
+          "value": "h-fit"
+        },
+        {
+          "title": "vh-100",
+          "value": "vh-100"
+        },
+        {
+          "title": "dvh-100",
+          "value": "dvh-100"
+        }
+      ]
+    },
+    {
+      "type": "select",
       "id": "minWidth",
       "label": "Min width",
-      "noneValue": "0",
-      "responsive": true,
-      "tooltip": "None leaves it unconstrained.",
-      "type": "frameworkSpacing"
-    },
-    {
+      "responsive": false,
       "defaults": {
         "base": "none"
       },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "min-w-0",
+          "value": "min-w-0"
+        },
+        {
+          "title": "min-w-100",
+          "value": "min-w-100"
+        },
+        {
+          "title": "min-vw-100",
+          "value": "min-vw-100"
+        },
+        {
+          "title": "min-dvw-100",
+          "value": "min-dvw-100"
+        }
+      ]
+    },
+    {
+      "type": "select",
       "id": "maxWidth",
       "label": "Max width",
-      "noneValue": "none",
-      "responsive": true,
-      "tooltip": "Limits the chosen width without enlarging it. None removes this additional limit; the width mode still applies.",
-      "type": "frameworkSpacing"
-    },
-    {
+      "responsive": false,
       "defaults": {
         "base": "none"
       },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "max-w-100",
+          "value": "max-w-100"
+        }
+      ]
+    },
+    {
+      "type": "select",
       "id": "minHeight",
       "label": "Min height",
-      "noneValue": "0",
-      "responsive": true,
-      "tooltip": "None leaves it unconstrained.",
-      "type": "frameworkSpacing"
-    },
-    {
+      "responsive": false,
       "defaults": {
         "base": "none"
       },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "min-h-0",
+          "value": "min-h-0"
+        },
+        {
+          "title": "min-h-100",
+          "value": "min-h-100"
+        },
+        {
+          "title": "min-vh-100",
+          "value": "min-vh-100"
+        },
+        {
+          "title": "min-dvh-100",
+          "value": "min-dvh-100"
+        }
+      ]
+    },
+    {
+      "type": "select",
       "id": "maxHeight",
       "label": "Max height",
-      "noneValue": "none",
-      "responsive": true,
-      "tooltip": "None removes the limit.",
-      "type": "frameworkSpacing"
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "max-h-100",
+          "value": "max-h-100"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "aspectRatio",
+      "label": "Aspect ratio",
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "ratio-auto",
+          "value": "ratio-auto"
+        },
+        {
+          "title": "ratio-1x1",
+          "value": "ratio-1x1"
+        },
+        {
+          "title": "ratio-4x3",
+          "value": "ratio-4x3"
+        },
+        {
+          "title": "ratio-16x9",
+          "value": "ratio-16x9"
+        },
+        {
+          "title": "ratio-21x9",
+          "value": "ratio-21x9"
+        }
+      ]
     }
-  ],
-  "name": "Sizing",
-  "systemImage": "arrow.up.left.and.arrow.down.right",
-  "type": "sizing"
+  ]
 }

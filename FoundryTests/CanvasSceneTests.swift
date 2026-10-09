@@ -5,6 +5,66 @@ import WebKit
 
 @MainActor
 struct CanvasSceneTests {
+    @Test(.timeLimit(.minutes(1)), arguments: [false, true])
+    func spacingOverridesSurviveSceneRenderingAndLiveEdits(localUpdate: Bool) async throws {
+        await PartPackageCatalog.shared.waitUntilLoaded()
+        var node = PartNode.make(.container)
+        node.anchor = "responsive-spacing"
+        let key = PartProperty.Key(rawValue: "spacing.margin")
+        var margin = FrameworkMarginValue()
+        margin.setAll(.init(token: "1"))
+        node.setProperty(key, value: .frameworkMargin(margin))
+        margin.setAll(.init(token: "5"))
+        node.setResponsiveProperty(key, value: .frameworkMargin(margin), at: .medium)
+        var page = Page(title: "Spacing", slug: "index", parts: [node])
+        func render(_ previous: CanvasScene?, impact: ProjectMutationImpact? = nil) throws -> (scene: CanvasScene, result: CanvasRenderResult) {
+            try CanvasScene.render(renderer: HTMLPageRenderer(), page: page, language: "en", framework: .standard,
+                assets: [:], breakpoint: .medium, packageRevision: 0, previous: previous, consecutiveImpact: impact)
+        }
+        let initial = try render(nil)
+        #expect(initial.scene.artifacts[node.id]?.html.contains("md:m-5") == true)
+        try verifyFreshMarkup(initial.scene, page: page, breakpoint: .medium)
+        let configuration = WKWebViewConfiguration()
+        configuration.userContentController.addUserScript(.init(source: WebCanvasView.Coordinator.interactionScript,
+            injectionTime: .atDocumentEnd, forMainFrameOnly: true, in: .defaultClient))
+        let web = WKWebView(frame: CGRect(x: 0, y: 0, width: 800, height: 600), configuration: configuration)
+        defer { web.stopLoading() }
+        guard case .page(let html) = initial.result else { Issue.record("Missing initial page"); return }
+        web.loadHTMLString(html, baseURL: nil)
+        var ready = false
+        for _ in 0..<200 {
+            ready = (try? await web.callAsyncJavaScript("return typeof window.foundryApplyScene === 'function' && !!document.getElementById('responsive-spacing')",
+                arguments: [:], in: nil, contentWorld: .defaultClient)) as? Bool == true
+            if ready { break }
+            try await Task.sleep(for: .milliseconds(25))
+        }
+        try #require(ready)
+        #expect(try await web.evaluateJavaScript("getComputedStyle(document.getElementById('responsive-spacing')).marginTop") as? String == "16px")
+        var previous = initial.scene
+        for (index, token) in ["12", "1"].enumerated() {
+            if index == 0 {
+                margin.setAll(.init(token: token))
+                page.parts[0].setResponsiveProperty(key, value: .frameworkMargin(margin), at: .medium)
+            } else {
+                page.parts[0].removeResponsiveOverride(key, at: .medium)
+            }
+            let changed = try render(previous, impact: localUpdate ? .partProperty(partID: node.id, propertyKey: key) : nil)
+            #expect(changed.scene.renderedInstanceCount == 1)
+            try verifyFreshMarkup(changed.scene, page: page, breakpoint: .medium)
+            guard case .scene(let update) = changed.result else { Issue.record("Expected live scene update"); return }
+            #expect(update.html[node.id.uuidString]?.contains("md:m-12") == (index == 0))
+            let applied = try await web.callAsyncJavaScript(
+                "return window.foundryApplyScene(html, styles, removed, roots, revision, styleMoves, childMoves)",
+                arguments: ["html": update.html, "styles": update.styles, "removed": update.removed,
+                    "roots": update.roots as Any? ?? NSNull(), "revision": index + 1,
+                    "styleMoves": update.styleMoves, "childMoves": update.childMoves],
+                in: nil, contentWorld: .defaultClient)
+            try #require(applied as? Bool == true)
+            #expect(try await web.evaluateJavaScript("getComputedStyle(document.getElementById('responsive-spacing')).marginTop") as? String == (index == 0 ? "48px" : "4px"))
+            previous = changed.scene
+        }
+    }
+
     private func fixture() throws -> LoadedPartPackage {
         let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data("""
         {"minimumAPIVersion":1,"id":"test.scene.\(UUID().uuidString.lowercased())","title":"Scene",

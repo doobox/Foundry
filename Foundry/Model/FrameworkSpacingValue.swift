@@ -23,18 +23,9 @@ nonisolated extension FrameworkSpacingPolicy {
     static var linksByDefault: Bool { true }
     static var units: [String] { ["px", "rem", "em", "%"] }
     static var frameworkUnit: String { "rem" }
-    static var tokens: [String] { ["none", "3xs", "2xs", "xs", "sm", "md", "lg", "xl", "2xl", "3xl", "4xl"] + (allowsAutoAndNegative ? ["auto"] : []) }
+    static var tokens: [String] { ["none"] + (0...12).map(String.init) + (allowsAutoAndNegative ? ["auto"] : []) }
     static func choices(in framework: Framework) -> [FrameworkEdgeChoice] {
-        let spacing = framework.spacing
-        let multipliers = [spacing.threeExtraSmall, spacing.doubleExtraSmall, spacing.extraSmall,
-                           spacing.small, spacing.medium, spacing.large, spacing.extraLarge,
-                           spacing.doubleExtraLarge, spacing.threeExtraLarge,
-                           spacing.fourExtraLarge] + spacing.custom.map(\.value)
-        return zip(framework.spacingChoices, multipliers).map {
-            FrameworkEdgeChoice(id: $0.0.value, label: $0.0.label,
-                            amount: $0.1 * SpacingTokens.baseRem,
-                            css: framework.spacingCSSVariable(for: $0.0.value) ?? "0")
-        }
+        framework.spacing.choices
     }
 }
 nonisolated enum BorderWidthPolicy: FrameworkSpacingPolicy {
@@ -83,7 +74,7 @@ typealias FrameworkMarginValue = FrameworkSpacingValue<MarginPolicy>
 /// Persisted four-edge spacing selection and inspector linking state.
 nonisolated struct FrameworkSpacingValue<Policy: FrameworkSpacingPolicy>: Codable, Equatable, Sendable {
     struct EdgeValue: Codable, Equatable, Sendable {
-        var token = "sm"
+        var token = "none"
         var isCustom = false
         var amount = 0.0
         var unit = "px"

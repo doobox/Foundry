@@ -1,14 +1,14 @@
 <article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
     <p class="fx-kicker">Control group · typography</p>
     <h2>Typography group</h2>
-    <p class="fx-lede">Framework-aware font, size, colour, alignment, decoration and capitalisation composed into one CSS-ready value.</p>
+    <p class="fx-lede">Bootstrap typography utilities composed into native classes.</p>
 
     <section class="fx-form">
         <h3>Typography</h3>
-        <p>Change the responsive text controls in the Inspector.</p>
-        <p class="fx-target fx-styled">The quick brown fox jumps over the lazy dog.</p>
+        <p>Change typography in the Inspector; only text alignment has responsive variants.</p>
+        <p class="fx-target fx-styled {{ control.typography.classes }}">The quick brown fox jumps over the lazy dog.</p>
         <dl class="fx-values">
-            <dt>control.typography.css</dt><dd>{{ control.typography.css }}</dd>
+            <dt>control.typography.classes</dt><dd>{{ control.typography.classes }}</dd>
         </dl>
     </section>
 </article>

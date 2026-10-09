@@ -54,7 +54,6 @@ nonisolated enum PageExtensionPreference: String, Codable, CaseIterable, Sendabl
 }
 
 nonisolated struct ProjectFrameworkValues: Codable, Equatable, Sendable {
-    var spacing: [FrameworkSpacing] = []
     var fonts: [FrameworkCustomFont] = []
     var fontSizes: [FrameworkFontSize] = []
     var shadows: [FrameworkShadow] = []
@@ -62,16 +61,16 @@ nonisolated struct ProjectFrameworkValues: Codable, Equatable, Sendable {
     var borderWidths: [FrameworkCustomDimension] = []
     var borderRadii: [FrameworkCustomDimension] = []
     var zIndexes: [FrameworkCustomDimension] = []
+    var spacing: [CustomSpacingToken] = []
 
     private enum CodingKeys: String, CodingKey {
-        case spacing, fonts, fontSizes, shadows, colours, borderWidths, borderRadii, zIndexes
+        case fonts, fontSizes, shadows, colours, borderWidths, borderRadii, zIndexes, spacing
     }
 
     init() {}
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        spacing = try container.decodeIfPresent([FrameworkSpacing].self, forKey: .spacing) ?? []
         fonts = try container.decodeIfPresent([FrameworkCustomFont].self, forKey: .fonts) ?? []
         fontSizes = try container.decodeIfPresent([FrameworkFontSize].self, forKey: .fontSizes) ?? []
         shadows = try container.decodeIfPresent([FrameworkShadow].self, forKey: .shadows) ?? []
@@ -79,10 +78,10 @@ nonisolated struct ProjectFrameworkValues: Codable, Equatable, Sendable {
         borderWidths = try container.decodeIfPresent([FrameworkCustomDimension].self, forKey: .borderWidths) ?? []
         borderRadii = try container.decodeIfPresent([FrameworkCustomDimension].self, forKey: .borderRadii) ?? []
         zIndexes = try container.decodeIfPresent([FrameworkCustomDimension].self, forKey: .zIndexes) ?? []
+        spacing = try container.decodeIfPresent([CustomSpacingToken].self, forKey: .spacing) ?? []
     }
 
     mutating func absorb(_ framework: Framework) {
-        spacing = framework.spacing.custom
         fonts = framework.typography.customFonts
         fontSizes = framework.typography.customFontSizes
         shadows = framework.shadows.custom
@@ -90,10 +89,12 @@ nonisolated struct ProjectFrameworkValues: Codable, Equatable, Sendable {
         borderWidths = framework.borderWidths.custom
         borderRadii = framework.borderRadii.custom
         zIndexes = framework.zIndexes.custom
+        spacing = framework.spacing.custom
     }
 
     mutating func include(_ framework: Framework) {
-        Self.mergeKeepingExisting(framework.spacing.custom, into: &spacing, id: \.id)
+        let names = Set(spacing.map(\.name))
+        Self.mergeKeepingExisting(framework.spacing.custom.filter { !names.contains($0.name) }, into: &spacing, id: \.id)
         Self.mergeKeepingExisting(framework.typography.customFonts, into: &fonts, id: \.id)
         Self.mergeKeepingExisting(framework.typography.customFontSizes, into: &fontSizes, id: \.id)
         Self.mergeKeepingExisting(framework.shadows.custom, into: &shadows, id: \.id)
@@ -104,7 +105,7 @@ nonisolated struct ProjectFrameworkValues: Codable, Equatable, Sendable {
 
     func applied(to framework: Framework) -> Framework {
         var result = framework
-        Self.mergeReplacingExisting(spacing, into: &result.spacing.custom, id: \.id)
+        result.spacing.custom = spacing
         Self.mergeReplacingExisting(fonts, into: &result.typography.customFonts, id: \.id)
         Self.mergeReplacingExisting(fontSizes, into: &result.typography.customFontSizes, id: \.id)
         Self.mergeReplacingExisting(shadows, into: &result.shadows.custom, id: \.id)
@@ -304,6 +305,16 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         } else {
             frameworkStates.append(state)
         }
+    }
+
+    mutating func replacePartSpacingReference(_ reference: String, with replacement: String) {
+        for pageIndex in pages.indices {
+            for partIndex in pages[pageIndex].parts.indices {
+                pages[pageIndex].parts[partIndex].replaceSpacingReference(reference, with: replacement)
+            }
+        }
+        globalPartLibrary.updateAllDefinitions { $0.root.replaceSpacingReference(reference, with: replacement) }
+        projectTemplateLibrary.updateAllDefinitions { $0.root.replaceSpacingReference(reference, with: replacement) }
     }
 
     mutating func replacePartFrameworkReference(_ reference: String, with replacement: String) {
@@ -611,6 +622,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
                 definition.name = "Stack Item"
             }
         }
+        foldNamedThemeOverrides()
     }
 
     static func starter() -> Site {

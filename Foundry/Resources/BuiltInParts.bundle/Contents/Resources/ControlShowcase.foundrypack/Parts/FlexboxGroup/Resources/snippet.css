@@ -1,2 +1,1 @@
-:instance { {{ control.flexbox.css }} }
-:instance > * { {{ control.flexbox.childCSS }} }
+/* Flexbox and gap now emit .classes for placement in HTML, not CSS declarations. */

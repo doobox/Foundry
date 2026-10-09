@@ -1,7 +1,7 @@
 {
   "assets": [],
   "author": "Foundry",
-  "description": "Responsive framework typography composed into a reusable CSS declaration block.",
+  "description": "Reusable native Bootstrap typography utilities.",
   "group": "Control Groups",
   "helpURL": "https://doobox.github.io/foundry-docs/developer/control-groups.html",
   "icon": {
@@ -40,5 +40,11 @@
     "html": "part.html"
   },
   "title": "Typography group",
-  "version": "1.0.0"
+  "version": "2.0.0",
+  "libraries": [
+    {
+      "id": "bootstrap",
+      "majorVersion": 6
+    }
+  ]
 }

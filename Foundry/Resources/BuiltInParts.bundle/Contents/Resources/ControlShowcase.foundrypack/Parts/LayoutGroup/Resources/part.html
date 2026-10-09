@@ -1,12 +1,12 @@
 <article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
     <p class="fx-kicker">Control group · layout</p>
     <h2>Layout group</h2>
-    <p class="fx-lede">Position, offsets, z-index, display, visibility and overflow. Each control has a sentinel — <code>none</code> or <code>default</code> — that emits nothing, so an untouched group composes an empty string.</p>
+    <p class="fx-lede">Position, offsets, z-index and overflow. Each control has a sentinel — <code>none</code> or <code>default</code> — that emits nothing, so an untouched group composes an empty string.</p>
 
     <section class="fx-form">
         <h3>Layout</h3>
         <p>The full group. The dashed stage is positioned, so Absolute offsets are measured from it; the box has more text than fits, so Overflow is visible too.</p>
-        <div class="fx-demo fx-stage"><div class="fx-target fx-placed"><strong>Layout box</strong> This box has a fixed height and more text than fits inside it, so choosing Hidden, Scroll or Auto for Overflow changes what you see. Hidden removes it from the flow; Visibility keeps its space.</div><div class="fx-ghost">Sibling</div></div>
+        <div class="fx-demo fx-stage"><div class="fx-target fx-placed"><strong>Layout box</strong> This box has a fixed height and more text than fits inside it, so choosing Hidden, Scroll or Auto for Overflow changes what you see. Display and visibility are now a separate Bootstrap group.</div><div class="fx-ghost">Sibling</div></div>
         <dl class="fx-values">
             <dt>control.layout.css</dt><dd>{{ control.layout.css }}</dd>
             <dt>control.layout.position</dt><dd>{{ control.layout.position }}</dd>
@@ -25,8 +25,6 @@
             <dt>control.layout.offsetEdges.left</dt><dd>{{ control.layout.offsetEdges.left }}</dd>
             <dt>control.layout.offsetEdges.values.top</dt><dd>{{ control.layout.offsetEdges.values.top }}</dd>
             <dt>control.layout.offsetEdges.units.top</dt><dd>{{ control.layout.offsetEdges.units.top }}</dd>
-            <dt>control.layout.hidden</dt><dd>{{ control.layout.hidden }}</dd>
-            <dt>control.layout.visibility</dt><dd>{{ control.layout.visibility }}</dd>
             <dt>control.layout.overflow</dt><dd>{{ control.layout.overflow }}</dd>
         </dl>
     </section>
@@ -41,8 +39,6 @@
             <dt>control.badge.offsets</dt><dd>{{ control.badge.offsets }}</dd>
             <dt>control.badge.offset</dt><dd>{{ control.badge.offset }}</dd>
             <dt>control.badge.offsetEdges</dt><dd>{{ control.badge.offsetEdges }}</dd>
-            <dt>control.badge.hidden</dt><dd>{{ control.badge.hidden }}</dd>
-            <dt>control.badge.visibility</dt><dd>{{ control.badge.visibility }}</dd>
             <dt>control.badge.overflow</dt><dd>{{ control.badge.overflow }}</dd>
         </dl>
     </section>

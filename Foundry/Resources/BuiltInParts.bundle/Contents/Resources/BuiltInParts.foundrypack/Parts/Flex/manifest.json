@@ -1,0 +1,93 @@
+{
+  "id": "foundry.layout.flex",
+  "title": "Flex",
+  "author": "Foundry",
+  "version": "3.0.0",
+  "minimumAPIVersion": 1,
+  "description": "Arrange child parts in Bootstrap flex rows or columns.",
+  "group": "Layout",
+  "icon": {
+    "symbol": "rectangle.3.group",
+    "tint": "blue"
+  },
+  "tags": [
+    "Bootstrap",
+    "layout",
+    "flex"
+  ],
+  "assets": [],
+  "libraries": [
+    {
+      "id": "bootstrap",
+      "majorVersion": 6
+    }
+  ],
+  "templates": {
+    "html": "part.html"
+  },
+  "inspector": [
+    {
+      "section": "Flex",
+      "systemImage": "rectangle.3.group",
+      "controls": [
+        {
+          "type": "flexbox",
+          "id": "flexbox"
+        }
+      ]
+    },
+    {
+      "section": "Alignment",
+      "systemImage": "align.horizontal.center",
+      "controls": [
+        {
+          "type": "alignment",
+          "id": "alignment",
+          "excludeControls": [
+            "justifyItems",
+            "placeItems"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Gap",
+      "systemImage": "arrow.left.and.right",
+      "controls": [
+        {
+          "type": "gap",
+          "id": "gap"
+        }
+      ]
+    },
+    {
+      "section": "Spacing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "spacing",
+          "id": "spacing"
+        }
+      ]
+    },
+    {
+      "section": "Display",
+      "systemImage": "eye",
+      "controls": [
+        {
+          "type": "display",
+          "id": "display",
+          "defaults": {
+            "display": "d-flex"
+          },
+          "allowedOptions": {
+            "display": [
+              "d-flex",
+              "d-none"
+            ]
+          }
+        }
+      ]
+    }
+  ]
+}

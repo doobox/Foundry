@@ -5,33 +5,27 @@ import Testing
 @MainActor
 struct FrameworkEditingTests {
     @Test
-    func frameworkChangesPreserveProjectBreakpoints() throws {
+    func frameworkChangesUseTheSelectedFrameworkLayout() throws {
         let document = FoundryDocument()
         let editor = ProjectEditor(document: document, undoManager: nil)
-        var screens = document.site.framework.screens
-        screens.update(.medium) { $0.minimumWidth = 850; $0.container = .init(value: 90, unit: .percent) }
-        screens.update(.large) { $0.isEnabled = false }
-        document.site.framework.screens = screens
+        var framework = Framework.standard
+        framework.screens.update(.medium) { $0.minimumWidth = 850; $0.container.value = 750 }
         let customID = UUID()
-        editor.selectFramework(.standard, sourceID: customID)
-        #expect(document.site.framework.screens == screens)
-        editor.selectFramework(FrameworkBundleStore.systemFramework, sourceID: FrameworkBundleStore.systemFrameworkID)
-        #expect(document.site.framework.screens == screens)
-        editor.selectFramework(.standard, sourceID: customID)
-        #expect(document.site.framework.screens == screens)
-        editor.resetFramework(.standard, sourceID: customID)
-        #expect(document.site.framework.screens == screens)
-        editor.commitFramework(.standard, sourceID: customID)
-        #expect(document.site.framework.screens == screens)
-        editor.didDeleteFramework(sourceID: customID)
-        #expect(document.site.framework.screens == screens)
-        #expect(document.site.framework.savedSettings.screens == .standard)
+        editor.selectFramework(framework, sourceID: customID)
+        #expect(document.site.framework.screens == framework.screens)
+        editor.selectFramework(.standard, sourceID: UUID())
+        #expect(document.site.framework.screens == .standard)
+        editor.selectFramework(framework, sourceID: customID)
+        #expect(document.site.framework.screens == framework.screens)
+        #expect(document.site.framework.savedSettings.screens == framework.screens)
         let decoded = try JSONDecoder().decode(Site.self, from: JSONEncoder().encode(document.site))
-        #expect(decoded.framework.screens == screens)
+        #expect(decoded.framework.screens == framework.screens)
+        editor.resetFramework(.standard, sourceID: customID)
+        #expect(document.site.framework.screens == .standard)
     }
 
     @Test
-    func selectingBuiltInDiscardsEditedSnapshotIncludingWhenAlreadyActive() throws {
+    func selectingBuiltInRestoresProjectEditsIncludingWhenAlreadyActive() throws {
         let document = FoundryDocument()
         let editor = ProjectEditor(document: document, undoManager: nil)
         let defaults = FrameworkBundleStore.systemFramework
@@ -42,19 +36,19 @@ struct FrameworkEditingTests {
         document.site.framework = modified
         editor.selectFramework(defaults, sourceID: UUID())
         editor.selectFramework(defaults, sourceID: FrameworkBundleStore.systemFrameworkID)
-        #expect(document.site.framework.savedSettings == defaults.savedSettings)
+        #expect(document.site.framework.savedSettings == modified.savedSettings)
         #expect(document.site.framework.colourPalettes.contains(custom))
-        #expect(!document.site.frameworkStates.contains { $0.sourceID == FrameworkBundleStore.systemFrameworkID })
+        #expect(document.site.frameworkStates.contains { $0.sourceID == FrameworkBundleStore.systemFrameworkID })
         document.site.framework.typography.headingFont.family = "Georgia"
         editor.selectFramework(modified, sourceID: FrameworkBundleStore.systemFrameworkID)
-        #expect(document.site.framework.savedSettings == defaults.savedSettings)
+        #expect(document.site.framework.savedSettings == modified.savedSettings)
     }
 
     @Test
-    func frameworkEditingPermissionFollowsBuiltInIdentity() {
+    func frameworkEditingIsProjectLocalForEverySource() {
         let document = FoundryDocument()
         let session = FrameworkEditorSession(document: document, undoManager: nil)
-        #expect(!session.canEditFramework)
+        #expect(session.canEditFramework)
         document.site.frameworkSourceID = UUID()
         #expect(session.canEditFramework)
     }
@@ -67,13 +61,13 @@ struct FrameworkEditingTests {
         let session = FrameworkEditorSession(document: document, undoManager: undo)
         let sourceID = document.site.frameworkSourceID
         let original = document.site.framework.screens
-        #expect(!session.canEditFramework)
+        #expect(session.canEditFramework)
         undo.beginUndoGrouping()
         session.editor.setFrameworkScreenEnabled(.medium, value: false)
         undo.endUndoGrouping()
         #expect(!document.site.framework.screens.screen(.medium).isEnabled)
         #expect(document.site.frameworkSourceID == sourceID)
-        #expect(!session.canEditFramework)
+        #expect(session.canEditFramework)
         let saved = try FoundryDocument.decoder.decode(Site.self, from: FoundryDocument.encoder.encode(document.site))
         #expect(!saved.framework.screens.screen(.medium).isEnabled)
         let fresh = FoundryDocument()
@@ -85,7 +79,7 @@ struct FrameworkEditingTests {
     }
 
     @Test
-    func breakpointDimensionsAreProjectLocalForEveryFramework() throws {
+    func breakpointDimensionsAreSavedFrameworkSettings() throws {
         let builtIn = try #require(FrameworkBundleStore.builtInFrameworks().first)
         let document = FoundryDocument()
         document.site.framework = builtIn.framework
@@ -97,13 +91,13 @@ struct FrameworkEditingTests {
         editor.setFrameworkScreenContainerWidth(.mobile, value: 92)
         #expect(document.site.framework.screens.screen(.medium).minimumWidth == 820)
         #expect(document.site.framework.screens.screen(.mobile).container.value == 92)
-        #expect(!builtIn.hasModifiedSettings(in: document.site.framework))
+        #expect(builtIn.hasModifiedSettings(in: document.site.framework))
         let savedProject = try FoundryDocument.decoder.decode(Site.self, from: FoundryDocument.encoder.encode(document.site))
         #expect(savedProject.framework.screens == document.site.framework.screens)
         #expect(try FrameworkBundleStore.load(from: builtIn.bundleURL).framework.screens == builtIn.framework.screens)
         let custom = SavedFramework(metadata: builtIn.metadata, framework: builtIn.framework, bundleURL: builtIn.bundleURL, resources: builtIn.resources, isBuiltIn: false)
-        #expect(!custom.hasModifiedSettings(in: document.site.framework))
-        #expect(document.site.framework.savedSettings.screens == .standard)
+        #expect(custom.hasModifiedSettings(in: document.site.framework))
+        #expect(document.site.framework.savedSettings.screens == document.site.framework.screens)
     }
 
     @Test
@@ -355,22 +349,18 @@ struct FrameworkEditingTests {
         var alternateFramework = systemFramework
         alternateFramework.colors.accent = "#112233"
 
-        let customSpacingID = editor.addFrameworkSpacing()
         editor.setFrameworkColor(.accentColor, value: "#AABBCC")
         editor.selectFramework(alternateFramework, sourceID: alternateID)
 
         #expect(document.site.framework.colors.accent == "#112233")
-        #expect(document.site.framework.spacing.custom.contains { $0.id == customSpacingID })
 
         editor.setFrameworkColor(.accentColor, value: "#445566")
         editor.selectFramework(systemFramework, sourceID: FrameworkBundleStore.systemFrameworkID)
 
         #expect(document.site.framework.colors.accent == systemFramework.colors.accent)
-        #expect(document.site.framework.spacing.custom.contains { $0.id == customSpacingID })
 
         editor.selectFramework(alternateFramework, sourceID: alternateID)
         #expect(document.site.framework.colors.accent == "#445566")
-        #expect(document.site.framework.spacing.custom.contains { $0.id == customSpacingID })
     }
 
     @Test
@@ -466,74 +456,6 @@ struct FrameworkEditingTests {
 
         undoManager.redo()
         #expect(document.site.framework.colors.accent == "#112233")
-    }
-
-    @Test
-    func customSpacingsCanBeAddedEditedPersistedAndRemoved() throws {
-        let document = FoundryDocument()
-        let undoManager = UndoManager()
-        let editor = ProjectEditor(document: document, undoManager: undoManager)
-
-        let id = editor.addFrameworkSpacing()
-        editor.setFrameworkSpacingName(id: id, value: "Hero Gap")
-        editor.setFrameworkSpacingValue(id: id, value: 18)
-
-        let spacing = try #require(document.site.framework.spacing.custom.first(where: { $0.id == id }))
-        #expect(spacing.name == "Hero Gap")
-        #expect(spacing.value == 18)
-        #expect(document.site.framework.spacingCSSVariables.contains("\(spacing.cssVariable):calc(var(--foundry-spacing-base) * 18.0)"))
-
-        let data = try FoundryDocument.encoder.encode(document.site)
-        let decoded = try FoundryDocument.decoder.decode(Site.self, from: data)
-        #expect(decoded.framework.spacing.custom == [spacing])
-
-        undoManager.removeAllActions()
-        editor.removeFrameworkSpacing(id: id)
-        #expect(document.site.framework.spacing.custom.isEmpty)
-        undoManager.undo()
-        #expect(document.site.framework.spacing.custom == [spacing])
-    }
-
-    @Test
-    func deletingCustomSpacingBakesItsSizeIntoReferencingParts() throws {
-        let document = FoundryDocument()
-        let editor = ProjectEditor(document: document, undoManager: UndoManager())
-        let id = editor.addFrameworkSpacing()
-        editor.setFrameworkSpacingValue(id: id, value: 18)
-        let reference = "custom:\(id.uuidString.lowercased())"
-
-        var padding = FrameworkPaddingValue()
-        padding.setAll(.init(token: reference))
-        var part = PartNode.make(.section)
-        part.setProperty(.init(rawValue: "framePadding"), value: .frameworkPadding(padding))
-        part.setProperty(.init(rawValue: "gap"), value: .frameworkSpacing(.init(selection: .init(token: reference))))
-        part.setProperty(.init(rawValue: "spacingChoice"), value: .choice(reference))
-        document.site.pages[0].parts = [part]
-
-        editor.removeFrameworkSpacing(id: id)
-
-        let updated = try #require(document.site.pages.first?.parts.first)
-        guard case .frameworkPadding(let bakedPadding) = updated.propertyValue(.init(rawValue: "framePadding")) else {
-            Issue.record("Expected a padding value")
-            return
-        }
-        // 18 quarter-rem units bake to 4.5 rem on every linked edge.
-        for edge in FrameworkPaddingValue.Edge.allCases {
-            let value = bakedPadding.value(for: edge)
-            #expect(value.isCustom)
-            #expect(value.amount == 4.5)
-            #expect(value.unit == "rem")
-        }
-        guard case .frameworkSpacing(let bakedGap) = updated.propertyValue(.init(rawValue: "gap")) else {
-            Issue.record("Expected a single spacing value")
-            return
-        }
-        #expect(bakedGap.selection.isCustom)
-        #expect(bakedGap.selection.amount == 4.5)
-        #expect(bakedGap.selection.unit == "rem")
-        // Token-only selections can't hold lengths; 18 snaps to 2XL (16).
-        #expect(updated.propertyValue(.init(rawValue: "spacingChoice")) == .choice("2xl"))
-        #expect(document.site.framework.spacing.custom.isEmpty)
     }
 
     @Test
@@ -664,20 +586,6 @@ struct FrameworkEditingTests {
     }
 
     @Test
-    func predefinedSpacingScaleCanResetWithoutRemovingCustomSpacings() {
-        let document = FoundryDocument()
-        let editor = ProjectEditor(document: document, undoManager: UndoManager())
-        let customID = editor.addFrameworkSpacing()
-        editor.setFrameworkSpacing(.extraSmallSpacing, value: 6)
-        editor.setFrameworkSpacing(.mediumSpacing, value: 23.5)
-
-        editor.resetFrameworkSpacingScale()
-
-        #expect(document.site.framework.spacing.usesStandardPredefinedScale)
-        #expect(document.site.framework.spacing.custom.map(\.id) == [customID])
-    }
-
-    @Test
     func shadowsCanBeEditedPersistedResolvedAndUndone() throws {
         let document = FoundryDocument()
         let undoManager = UndoManager()
@@ -759,8 +667,8 @@ struct FrameworkEditingTests {
         editor.setFrameworkScreenContainerUnit(.large, value: .viewportWidth)
         editor.setFrameworkScreenContainerWidth(.large, value: 92)
 
-        #expect(ResponsiveBreakpoint.forViewportWidth(639, screens: document.site.framework.screens) == .mobile)
-        #expect(ResponsiveBreakpoint.forViewportWidth(640, screens: document.site.framework.screens) == .small)
+        #expect(ResponsiveBreakpoint.forViewportWidth(575, screens: document.site.framework.screens) == .mobile)
+        #expect(ResponsiveBreakpoint.forViewportWidth(576, screens: document.site.framework.screens) == .small)
         #expect(ResponsiveBreakpoint.forViewportWidth(819, screens: document.site.framework.screens) == .small)
         #expect(ResponsiveBreakpoint.forViewportWidth(820, screens: document.site.framework.screens) == .medium)
         #expect(document.site.framework.screens.containerCSS.contains("92vw"))
@@ -829,8 +737,7 @@ struct FrameworkEditingTests {
 
         #expect(loaded.id == saved.id)
         #expect(loaded.metadata.name == "Studio")
-        var expectedFramework = framework
-        expectedFramework.screens = .standard
+        let expectedFramework = framework
         #expect(loaded.framework == expectedFramework)
         #expect(loaded.resources == [ProjectAssetContent(asset: fontAsset, data: fontData)])
         #expect(FileManager.default.fileExists(atPath: root.appending(path: "manifest.json").path))

@@ -18,12 +18,7 @@ nonisolated enum PartPackageControlGroupCSSResolver {
     }
 
     private static let composers: [Composer] = [
-        .init(name: "flexbox", declarations: flexbox),
-        .init(name: "sizing", declarations: sizing),
-        .init(name: "spacing", declarations: spacing),
-        .init(name: "borders", declarations: borders),
         .init(name: "effects", declarations: effects),
-        .init(name: "typography", declarations: typography),
         .init(name: "transitions", declarations: transitions),
         .init(name: "filters", declarations: { values, declared in
             PartPackageFiltersResolver.declarations(values: values, declared: declared, hovered: false)
@@ -42,6 +37,11 @@ nonisolated enum PartPackageControlGroupCSSResolver {
             guard let source = members.first?.controlGroupSource else { continue }
             let declared = Set(members.compactMap { $0.controlGroupSource?.localID })
             var local = localValues(values, members: members)
+            if source.type.generatesBootstrapClasses {
+                let classes = members.compactMap { string(values[$0.id]) }.filter { !$0.isEmpty }.joined(separator: " ")
+                insertRaw(classes, at: source.namespace + ".classes", into: &values)
+                continue
+            }
             if supportsHoverTrigger(source.type) {
                 insertRaw(
                     hoverSelector(values: local),
@@ -68,11 +68,6 @@ nonisolated enum PartPackageControlGroupCSSResolver {
             if source.type == .transforms {
                 let hover = PartPackageTransformsResolver.declarations(values: local, declared: declared, hovered: true)
                 insertRaw(hover.joined(separator: " "), at: source.namespace + ".hover.css", into: &values)
-            }
-            if source.type == .flexbox {
-                // Structural child sizing is explicitly placed by the part;
-                // it does not inject a rule onto the part root.
-                insertRaw("min-width: 0;", at: source.namespace + ".childCSS", into: &values)
             }
         }
     }
@@ -138,133 +133,6 @@ nonisolated enum PartPackageControlGroupCSSResolver {
         values["__foundry_raw." + reference] = .boolean(true)
     }
 
-    // MARK: Flexbox
-
-    private static func flexbox(
-        _ values: [String: PartPackageValue],
-        declared: Set<String>
-    ) -> [String] {
-        let fields = [("direction", "flex-direction", "column"), ("wrap", "flex-wrap", "nowrap"),
-                      ("columnGap", "column-gap", "0"), ("rowGap", "row-gap", "0"),
-                      ("alignItems", "align-items", "flex-start"), ("alignContent", "align-content", "flex-start"),
-                      ("justifyContent", "justify-content", "flex-start")]
-        return ["display: flex;"] + fields.filter { declared.contains($0.0) }.map {
-            "\($0.1): \(string(values[$0.0]) ?? $0.2);"
-        }
-    }
-
-    // MARK: Sizing
-
-    /// The mode choices are semantic, so this is where they become CSS.
-    ///
-    /// Every filling mode uses the `stretch` family rather than `width: 100%`:
-    /// a percentage resolves against the containing block and then has the
-    /// element's own margins added on top, so a part with horizontal margins
-    /// overflows its parent. `stretch` fills what is left *after* margins.
-    /// The three declarations are one value each engine understands, oldest
-    /// first, so the last one a browser recognises wins.
-    ///
-    /// `max-width: 100%` leads as a rail every later cap overrides in turn:
-    /// the mode's own cap, then the author's Max width. Without it an end user
-    /// can give a page horizontal scroll with no way to see why.
-    private static func sizing(
-        _ values: [String: PartPackageValue],
-        declared: Set<String>
-    ) -> [String] {
-        let fills = ["width: -webkit-fill-available;", "width: -moz-available;", "width: stretch;"]
-        var declarations: [String] = []
-        let heightMode = declared.contains("heightMode") ? string(values["heightMode"]) ?? "auto" : nil
-        var widthCap: String?
-
-        if declared.contains("widthMode") {
-            declarations.append("max-width: 100%;")
-            switch string(values["widthMode"]) ?? "auto" {
-            case "full":
-                declarations += fills
-            case "screen":
-                // Deliberately ignores the parent, so it escapes the rail.
-                declarations.append("width: 100svw;")
-                declarations.append("max-width: none;")
-            case "breakpoint":
-                declarations += fills
-                widthCap = "var(--foundry-container-width)"
-                declarations.append("max-width: min(100%, var(--foundry-container-width));")
-            case "custom":
-                declarations += fills
-                let customWidth = "\(length(values["customWidth"]))px"
-                widthCap = customWidth
-                declarations.append("max-width: min(100%, \(customWidth));")
-            default:
-                declarations.append("width: auto;")
-            }
-        }
-
-        if let heightMode {
-            // Every responsive mode owns its growth state. Only change growth,
-            // leaving a part's shrink factor and basis available to its layout.
-            declarations.append("flex-grow: \(heightMode == "fill" ? "1" : "0");")
-            if heightMode != "viewport", !declared.contains("minHeight") {
-                // Height mode itself can set a minimum even if its separate
-                // control is omitted, so leaving viewport must still reset it.
-                declarations.append("min-height: 0;")
-            }
-            switch heightMode {
-            case "custom":
-                declarations.append("height: \(length(values["customHeight"]))px;")
-            case "viewport":
-                // A minimum rather than a height, so content taller than the
-                // viewport still shows instead of overflowing.
-                declarations.append("height: auto;")
-                let minimum = declared.contains("minHeight") ? string(values["minHeight"]) ?? "0" : "0"
-                // Math functions require compatible types; bare 0 is a number,
-                // whereas the framework's None must be a length here.
-                declarations.append("min-height: max(100svh, \(minimum == "0" ? "0px" : minimum));")
-            case "fill":
-                // The page body is a minimum-height flex column, so growing
-                // into the space siblings leave free needs no height.
-                declarations.append("height: auto;")
-            default:
-                declarations.append("height: auto;")
-            }
-        }
-
-        // A ratio only shapes a part whose height follows its width. Any
-        // other height mode, or None, writes `auto` so a wider breakpoint's
-        // ratio does not leak into this one.
-        if declared.contains("aspectRatio") {
-            let ratio = string(values["aspectRatio"]) ?? "none"
-            if (heightMode ?? "auto") != "auto" || ratio == "none" {
-                declarations.append("aspect-ratio: auto;")
-            } else if ratio == "custom" {
-                declarations.append("aspect-ratio: \(length(values["aspectRatioWidth"])) / \(length(values["aspectRatioHeight"]));")
-            } else {
-                declarations.append("aspect-ratio: \(ratio);")
-            }
-        }
-
-        if declared.contains("minWidth") {
-            declarations.append("min-width: \(string(values["minWidth"]) ?? "0");")
-        }
-        // A maximum can tighten a requested width, never enlarge it. With no
-        // width mode, None must explicitly clear an earlier breakpoint's cap.
-        if declared.contains("maxWidth") {
-            let maximum = string(values["maxWidth"]) ?? "none"
-            if maximum != "none" {
-                let limits = ["100%", widthCap, maximum].compactMap { $0 }.joined(separator: ", ")
-                declarations.append("max-width: min(\(limits));")
-            } else if !declared.contains("widthMode") {
-                declarations.append("max-width: none;")
-            }
-        }
-        if declared.contains("minHeight"), heightMode != "viewport" {
-            declarations.append("min-height: \(string(values["minHeight"]) ?? "0");")
-        }
-        if declared.contains("maxHeight") {
-            declarations.append("max-height: \(string(values["maxHeight"]) ?? "none");")
-        }
-        return declarations
-    }
-
     private static func transitions(
         _ values: [String: PartPackageValue],
         declared: Set<String>
@@ -302,48 +170,7 @@ nonisolated enum PartPackageControlGroupCSSResolver {
         ]
     }
 
-    // MARK: Spacing
-
-    /// Disabled spacing writes explicit zeros rather than nothing, so turning
-    /// it off at one breakpoint resets the value a narrower one set.
-    private static func spacing(
-        _ values: [String: PartPackageValue],
-        declared: Set<String>
-    ) -> [String] {
-        let enabled = boolean(values["spacingEnabled"]) ?? false
-        var declarations: [String] = []
-        if declared.contains("frameworkPadding") {
-            declarations.append("padding: \(enabled ? string(values["frameworkPadding"]) ?? "0" : "0");")
-        }
-        if declared.contains("frameworkMargin") {
-            declarations.append("margin: \(enabled ? string(values["frameworkMargin"]) ?? "0" : "0");")
-        }
-        return declarations
-    }
-
     // MARK: Borders
-
-    /// Style and colour stay declared while borders are off: a zero width
-    /// keeps them from drawing, and dropping them would fight a wider
-    /// breakpoint that has borders on.
-    private static func borders(
-        _ values: [String: PartPackageValue],
-        declared: Set<String>
-    ) -> [String] {
-        let enabled = boolean(values["borderEnabled"]) ?? false
-        var declarations: [String] = []
-        if declared.contains("frameworkBorder") {
-            declarations.append("border-width: \(enabled ? string(values["frameworkBorder.width"]) ?? "0" : "0");")
-            declarations.append("border-style: \(string(values["frameworkBorder.style"]) ?? "solid");")
-        }
-        if declared.contains("frameworkBorderColour") {
-            declarations.append("border-color: \(string(values["frameworkBorderColour"]) ?? "currentColor");")
-        }
-        if declared.contains("frameworkRadius") {
-            declarations.append("border-radius: \(enabled ? string(values["frameworkRadius"]) ?? "0" : "0");")
-        }
-        return declarations
-    }
 
     // MARK: Shadow
 
@@ -355,41 +182,6 @@ nonisolated enum PartPackageControlGroupCSSResolver {
         var declarations: [String] = []
         if declared.contains("frameworkShadow") {
             declarations.append("box-shadow: \(enabled ? string(values["frameworkShadow"]) ?? "none" : "none");")
-        }
-        return declarations
-    }
-
-    // MARK: Typography
-
-    /// A typography group deliberately composes inheritable text properties
-    /// only. Parts place the finished block on the exact title, caption or
-    /// body selector they own, so a group never restyles arbitrary children.
-    private static func typography(
-        _ values: [String: PartPackageValue],
-        declared: Set<String>
-    ) -> [String] {
-        var declarations: [String] = []
-        if declared.contains("font") {
-            declarations.append("font-family: \(string(values["font.family"]) ?? "inherit");")
-            declarations.append("font-weight: \(length(values["font.weight"]));")
-            declarations.append("font-style: \(string(values["font.style"]) ?? "normal");")
-            declarations.append("font-size: \(string(values["font.size"]) ?? "inherit");")
-            declarations.append("line-height: \(string(values["font.size.lineHeight"]) ?? "normal");")
-        }
-        if declared.contains("textColor") {
-            let colour = boolean(values["customColorEnabled"]) == true
-                ? string(values["textColor"]) ?? "currentColor"
-                : "inherit"
-            declarations.append("color: \(colour);")
-        }
-        if declared.contains("textAlignment") {
-            declarations.append("text-align: \(string(values["textAlignment"]) ?? "start");")
-        }
-        if declared.contains("textDecoration") {
-            declarations.append("text-decoration-line: \(string(values["textDecoration"]) ?? "none");")
-        }
-        if declared.contains("textTransform") {
-            declarations.append("text-transform: \(string(values["textTransform"]) ?? "none");")
         }
         return declarations
     }
@@ -419,13 +211,6 @@ nonisolated enum PartPackageControlGroupCSSResolver {
         if let offsets = string(values["offsets"]), offsets != "none",
            let inset = string(values["offset"]) ?? string(values["offsetEdges"]) {
             declarations.append("inset: \(inset);")
-        }
-        if boolean(values["hidden"]) == true {
-            // Written after any display the part or another group set.
-            declarations.append("display: none;")
-        }
-        if let visibility = string(values["visibility"]), visibility != "default" {
-            declarations.append("visibility: \(visibility);")
         }
         if let overflow = string(values["overflow"]), overflow != "none" {
             declarations.append("overflow: \(overflow);")

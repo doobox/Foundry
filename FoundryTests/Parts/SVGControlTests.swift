@@ -5,6 +5,34 @@ import UniformTypeIdentifiers
 @testable import Foundry
 
 struct SVGControlTests {
+    @Test(arguments: [false, true], [false, true])
+    func paintOverridesAreIndependentAndProtectHelpers(fill: Bool, stroke: Bool) throws {
+        let data = Data("""
+        <svg><defs><linearGradient id="gradient"><stop stop-color="red"/></linearGradient></defs>
+        <g fill="none" stroke="blue" color="green">
+          <path d="M0 0L5 5"/>
+          <rect fill="red" stroke="none"/>
+          <circle style="fill:none !important;fill:red;stroke:none"/>
+          <ellipse fill="url(#gradient)" stroke="none"/>
+          <polygon fill="transparent" stroke="none"/>
+          <clipPath><rect fill="red"/></clipPath><mask><rect fill="white"/></mask>
+        </g></svg>
+        """.utf8)
+        let result = try #require(PartSVGRenderer.sanitized(data, prefix: "paint",
+            overrideFill: fill, overrideStroke: stroke))
+        let doc = try XMLDocument(xmlString: result)
+        func attribute(_ path: String) throws -> String? { try doc.nodes(forXPath: path).first?.stringValue }
+        #expect(try attribute("//g/rect/@fill") == (fill ? "currentColor" : "red"))
+        #expect(try attribute("//g/path/@stroke") == (stroke ? "currentColor" : nil))
+        #expect(try attribute("//g/@fill") == "none")
+        #expect(try attribute("//g/rect/@stroke") == "none")
+        #expect(try attribute("//g/circle/@style") == "fill:none !important;fill:red;stroke:none")
+        #expect(try attribute("//g/ellipse/@fill") == (fill ? "currentColor" : "url(#fd-svg-paint-0)"))
+        #expect(try attribute("//g/polygon/@fill") == "transparent")
+        #expect(try attribute("//clipPath/rect/@fill") == "red")
+        #expect(try attribute("//mask/rect/@fill") == "white")
+        #expect(result.contains("data-foundry-") == false)
+    }
     @Test @MainActor func suppliedOrangeSVGImportsWithItsPaintAndClipIntact() throws {
         let fixture = URL(fileURLWithPath: #filePath).deletingLastPathComponent()
             .deletingLastPathComponent().appending(path: "Fixtures/SVG/s-orange.svg")
@@ -15,7 +43,7 @@ struct SVGControlTests {
         #expect(result.contains("<path"))
         #expect(result.contains("DOCTYPE") == false)
         let svg = try XMLDocument(xmlString: result)
-        #expect(try svg.nodes(forXPath: "//*[@data-foundry-svg-fill]").count == 2)
+        #expect(try svg.nodes(forXPath: "//*[@data-foundry-svg-fill]").isEmpty)
         #expect(try svg.nodes(forXPath: "//rect[@data-foundry-svg-fill]").isEmpty)
         #expect(try svg.nodes(forXPath: "//*[@data-foundry-svg-stroke]").isEmpty)
         let preview = try #require(NSImage(data: data))
@@ -25,7 +53,7 @@ struct SVGControlTests {
     func recognizesSVGWithGenericDragMetadata(mediaType: String) {
         #expect(PartMediaImport.contentType(filename: "drawing.svg", mediaType: mediaType) == .svg)
     }
-    @Test func overridesRespectInheritedPaintAndProtectHelpers() throws {
+    @Test func preservesPaintWithoutLegacyOverrideMarkers() throws {
         let data = Data("""
         <svg><g fill="none" stroke="blue">
         <path d="M0 0L5 5"/><rect fill="red" stroke="none"/>
@@ -35,9 +63,9 @@ struct SVGControlTests {
         """.utf8)
         let result = try #require(PartSVGRenderer.sanitized(data, prefix: "paint"))
         let svg = try XMLDocument(xmlString: result)
-        #expect(try svg.nodes(forXPath: "//*[@data-foundry-svg-fill]").count == 1)
-        #expect(try svg.nodes(forXPath: "//*[@data-foundry-svg-stroke]").count == 1)
-        #expect(try svg.nodes(forXPath: "//path[@data-foundry-svg-stroke]").count == 1)
+        #expect(try svg.nodes(forXPath: "//*[@data-foundry-svg-fill]").isEmpty)
+        #expect(try svg.nodes(forXPath: "//*[@data-foundry-svg-stroke]").isEmpty)
+        #expect(try svg.nodes(forXPath: "//g[@stroke='blue']").count == 1)
         #expect(try svg.nodes(forXPath: "//circle[@data-foundry-svg-fill]").isEmpty)
     }
     @Test func acceptsStandardSVGDoctypeWithoutLoadingItsDTD() throws {
@@ -95,7 +123,7 @@ struct SVGControlTests {
         #expect(values["source"]?.stringValue.contains("data-foundry-svg-drop-zone") == true)
         let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], language: "en", framework: site.framework, assets: assets, breakpoint: .mobile)
         #expect(canvas.contains("fill:rgb(254,91,0)"))
-        #expect(canvas.contains("fd-inline-svg"))
+        #expect(canvas.contains("data-foundry-svg-drop-zone"))
         let output = StaticSiteRenderer().render(site: site, assets: assets)
         #expect(output.errors.isEmpty)
         let page = try #require(output.files.first(where: { $0.path == "index.html" }))

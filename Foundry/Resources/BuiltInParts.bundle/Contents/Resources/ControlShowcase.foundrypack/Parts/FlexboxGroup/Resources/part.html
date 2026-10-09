@@ -1,44 +1,14 @@
 <article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
-    <p class="fx-kicker">Control group · flexbox</p>
-    <h2>Flexbox group</h2>
-    <p class="fx-lede">Arranges an element's immediate children. One rule makes the container; a second, on its children, lets them shrink instead of stretching the container.</p>
-
+    <h2>Bootstrap flexbox and gap</h2>
     <section class="fx-form">
-        <h3>Flexbox</h3>
-        <p>The full group. The box is the flex container and the five tiles are its children; they differ in size so alignment is visible.</p>
-        <div class="fx-demo"><div class="fx-target fx-flex">{{ loop 5 }}<div class="fx-item">Item</div>{{ endloop }}</div></div>
-        <dl class="fx-values">
-            <dt>control.flexbox.css</dt><dd>{{ control.flexbox.css }}</dd>
-            <dt>control.flexbox.childCSS</dt><dd>{{ control.flexbox.childCSS }}</dd>
-            <dt>control.flexbox.direction</dt><dd>{{ control.flexbox.direction }}</dd>
-            <dt>control.flexbox.wrap</dt><dd>{{ control.flexbox.wrap }}</dd>
-            <dt>control.flexbox.columnGap</dt><dd>{{ control.flexbox.columnGap }}</dd>
-            <dt>control.flexbox.columnGap.css</dt><dd>{{ control.flexbox.columnGap.css }}</dd>
-            <dt>control.flexbox.columnGap.value</dt><dd>{{ control.flexbox.columnGap.value }}</dd>
-            <dt>control.flexbox.columnGap.unit</dt><dd>{{ control.flexbox.columnGap.unit }}</dd>
-            <dt>control.flexbox.rowGap</dt><dd>{{ control.flexbox.rowGap }}</dd>
-            <dt>control.flexbox.rowGap.css</dt><dd>{{ control.flexbox.rowGap.css }}</dd>
-            <dt>control.flexbox.rowGap.value</dt><dd>{{ control.flexbox.rowGap.value }}</dd>
-            <dt>control.flexbox.rowGap.unit</dt><dd>{{ control.flexbox.rowGap.unit }}</dd>
-            <dt>control.flexbox.alignItems</dt><dd>{{ control.flexbox.alignItems }}</dd>
-            <dt>control.flexbox.alignContent</dt><dd>{{ control.flexbox.alignContent }}</dd>
-            <dt>control.flexbox.justifyContent</dt><dd>{{ control.flexbox.justifyContent }}</dd>
-        </dl>
+        <h3>Reusable groups</h3>
+        <div class="fx-target {{ control.display.classes }} {{ control.flexbox.classes }} {{ control.alignment.classes }} {{ control.gap.classes }}">{{ loop 5 }}<div class="fx-item">Item</div>{{ endloop }}</div>
+        <p>Flexbox: {{ control.flexbox.classes }}</p>
+        <p>Gap: {{ control.gap.classes }}</p>
     </section>
-
     <section class="fx-form">
         <h3>Row-first, no reverse</h3>
-        <p><code>"allowedOptions": { "direction": ["row", "column"] }</code> drops the reverse directions; <code>defaults</code> starts it as a wrapping row; <code>"excludeControls": ["alignContent"]</code> removes that control and its value.</p>
-        <div class="fx-demo"><div class="fx-target fx-toolbar">{{ loop 8 }}<div class="fx-item">Tool</div>{{ endloop }}</div></div>
-        <dl class="fx-values">
-            <dt>control.toolbar.css</dt><dd>{{ control.toolbar.css }}</dd>
-            <dt>control.toolbar.childCSS</dt><dd>{{ control.toolbar.childCSS }}</dd>
-            <dt>control.toolbar.direction</dt><dd>{{ control.toolbar.direction }}</dd>
-            <dt>control.toolbar.wrap</dt><dd>{{ control.toolbar.wrap }}</dd>
-            <dt>control.toolbar.columnGap</dt><dd>{{ control.toolbar.columnGap }}</dd>
-            <dt>control.toolbar.rowGap</dt><dd>{{ control.toolbar.rowGap }}</dd>
-            <dt>control.toolbar.alignItems</dt><dd>{{ control.toolbar.alignItems }}</dd>
-            <dt>control.toolbar.justifyContent</dt><dd>{{ control.toolbar.justifyContent }}</dd>
-        </dl>
+        <div class="fx-target d-flex {{ control.toolbar.classes }}">{{ loop 8 }}<div class="fx-item">Tool</div>{{ endloop }}</div>
+        <p>{{ control.toolbar.classes }}</p>
     </section>
 </article>

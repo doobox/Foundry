@@ -17,6 +17,9 @@ build/
 
 # Locally built, reproducible third-party runtime artifacts
 Foundry/PHPRuntime/
+tools/bootstrap/node_modules/
+Foundry/Resources/BootstrapCompiler.bundle/
+Foundry/Resources/BootstrapLayouts.bundle/
 
 # Local environment files
 .env

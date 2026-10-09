@@ -1,0 +1,28 @@
+{
+  "type": "foreground",
+  "name": "Bootstrap foreground",
+  "systemImage": "paintpalette",
+  "controls": [
+    {
+      "type": "toggle",
+      "id": "enabled",
+      "label": "Theme colour",
+      "defaults": {
+        "base": false
+      }
+    },
+    {
+      "type": "themeColor",
+      "id": "theme",
+      "label": "Colour",
+      "defaults": {
+        "base": "framework.primary"
+      },
+      "visibleWhen": {
+        "id": "enabled",
+        "value": true
+      },
+      "subtitle": "Colours currentColor artwork; explicit fills and strokes are preserved."
+    }
+  ]
+}

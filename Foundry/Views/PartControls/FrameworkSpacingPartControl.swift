@@ -9,6 +9,7 @@ struct FrameworkSpacingPartControl<Policy: FrameworkSpacingPolicy>: View {
     var label: String? = nil
     let framework: Framework
     var indicator: InspectorRowIndicator? = nil
+    var bootstrapSpacing: Bool = false
     /// False for the generic edges/corners controls: raw lengths only, no framework
     /// tokens, no mode toggle.
     var allowsFrameworkTokens: Bool = true
@@ -65,13 +66,13 @@ struct FrameworkSpacingPartControl<Policy: FrameworkSpacingPolicy>: View {
     }
 
     private var modeToggleAction: (() -> Void)? {
-        guard allowsFrameworkTokens else { return nil }
+        guard allowsFrameworkTokens && !bootstrapSpacing else { return nil }
         return { value.setUsesFrameworkTokens(value.value(for: .top).isCustom) }
     }
 
     private func edgeInput(_ edge: Edge) -> some View {
         let binding = Binding(get: { value.value(for: edge) }, set: { value.set($0, for: edge) })
-        return FrameworkSpacingInput<Policy>(binding: binding, title: edge.title, framework: framework, focusNamespace: focusNamespace, unitChoices: unitChoices)
+        return FrameworkSpacingInput<Policy>(binding: binding, title: bootstrapSpacing ? (edge == .left ? "Start" : edge == .right ? "End" : edge.title) : edge.title, framework: framework, focusNamespace: focusNamespace, unitChoices: unitChoices, bootstrapSpacing: bootstrapSpacing, bootstrapClassPrefix: BootstrapSpacingClasses.edgePrefix(edge, property: Policy.self == MarginPolicy.self ? "m" : "p"))
     }
 
     var resolvedLabel: String {

@@ -1,43 +1,25 @@
 {
+  "type": "spacing",
+  "name": "Bootstrap spacing",
+  "systemImage": "arrow.up.left.and.arrow.down.right",
   "controls": [
     {
-      "defaults": {
-        "base": false
-      },
-      "id": "spacingEnabled",
-      "label": "Enable",
-      "presentation": "switch",
-      "responsive": true,
-      "type": "toggle"
-    },
-    {
-      "defaults": {
-        "base": "none"
-      },
-      "id": "frameworkMargin",
+      "type": "frameworkMargin",
+      "id": "margin",
       "label": "Margin",
       "responsive": true,
-      "type": "frameworkMargin",
-      "visibleWhen": {
-        "id": "spacingEnabled",
-        "value": true
+      "defaults": {
+        "base": "none"
       }
     },
     {
-      "defaults": {
-        "base": "none"
-      },
-      "id": "frameworkPadding",
+      "type": "frameworkPadding",
+      "id": "padding",
       "label": "Padding",
       "responsive": true,
-      "type": "frameworkPadding",
-      "visibleWhen": {
-        "id": "spacingEnabled",
-        "value": true
+      "defaults": {
+        "base": "none"
       }
     }
-  ],
-  "name": "Spacing",
-  "systemImage": "arrow.up.and.down.and.arrow.left.and.right",
-  "type": "spacing"
+  ]
 }

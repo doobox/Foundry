@@ -1,64 +1,274 @@
 {
+  "type": "borders",
+  "name": "Bootstrap borders",
+  "systemImage": "square.dashed",
   "controls": [
     {
-      "defaults": {
-        "base": false
-      },
-      "id": "borderEnabled",
-      "label": "Enable",
-      "presentation": "switch",
-      "responsive": true,
-      "type": "toggle"
-    },
-    {
-      "defaults": {
-        "base": {
-          "style": "solid",
-          "width": "none"
-        }
-      },
-      "id": "frameworkBorder",
+      "type": "select",
+      "id": "border",
       "label": "Border",
-      "responsive": true,
-      "showsStyle": true,
-      "type": "frameworkBorder",
-      "visibleWhen": {
-        "id": "borderEnabled",
-        "value": true
-      }
-    },
-    {
-      "allowsCustom": true,
-      "defaults": {
-        "base": {
-          "palette": "border"
-        }
-      },
-      "id": "frameworkBorderColour",
-      "label": "Colour",
-      "opacity": true,
-      "responsive": true,
-      "type": "frameworkColor",
-      "visibleWhen": {
-        "id": "borderEnabled",
-        "value": true
-      }
-    },
-    {
+      "responsive": false,
       "defaults": {
         "base": "none"
       },
-      "id": "frameworkRadius",
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "border",
+          "value": "border"
+        },
+        {
+          "title": "border-0",
+          "value": "border-0"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "borderTop",
+      "label": "Border top",
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "border-top",
+          "value": "border-top"
+        },
+        {
+          "title": "border-top-0",
+          "value": "border-top-0"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "borderEnd",
+      "label": "Border end",
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "border-end",
+          "value": "border-end"
+        },
+        {
+          "title": "border-end-0",
+          "value": "border-end-0"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "borderBottom",
+      "label": "Border bottom",
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "border-bottom",
+          "value": "border-bottom"
+        },
+        {
+          "title": "border-bottom-0",
+          "value": "border-bottom-0"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "borderStart",
+      "label": "Border start",
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "border-start",
+          "value": "border-start"
+        },
+        {
+          "title": "border-start-0",
+          "value": "border-start-0"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "borderX",
+      "label": "Border x",
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "border-x",
+          "value": "border-x"
+        },
+        {
+          "title": "border-x-0",
+          "value": "border-x-0"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "borderY",
+      "label": "Border y",
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "border-y",
+          "value": "border-y"
+        },
+        {
+          "title": "border-y-0",
+          "value": "border-y-0"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "width",
+      "label": "Width",
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "border-keyline",
+          "value": "border-keyline"
+        },
+        {
+          "title": "border-1",
+          "value": "border-1"
+        },
+        {
+          "title": "border-2",
+          "value": "border-2"
+        },
+        {
+          "title": "border-3",
+          "value": "border-3"
+        },
+        {
+          "title": "border-4",
+          "value": "border-4"
+        },
+        {
+          "title": "border-5",
+          "value": "border-5"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "radius",
       "label": "Radius",
-      "responsive": true,
-      "type": "frameworkRadius",
-      "visibleWhen": {
-        "id": "borderEnabled",
-        "value": true
-      }
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "rounded",
+          "value": "rounded"
+        },
+        {
+          "title": "rounded-0",
+          "value": "rounded-0"
+        },
+        {
+          "title": "rounded-1",
+          "value": "rounded-1"
+        },
+        {
+          "title": "rounded-2",
+          "value": "rounded-2"
+        },
+        {
+          "title": "rounded-3",
+          "value": "rounded-3"
+        },
+        {
+          "title": "rounded-4",
+          "value": "rounded-4"
+        },
+        {
+          "title": "rounded-5",
+          "value": "rounded-5"
+        },
+        {
+          "title": "rounded-6",
+          "value": "rounded-6"
+        },
+        {
+          "title": "rounded-7",
+          "value": "rounded-7"
+        },
+        {
+          "title": "rounded-8",
+          "value": "rounded-8"
+        },
+        {
+          "title": "rounded-9",
+          "value": "rounded-9"
+        },
+        {
+          "title": "rounded-circle",
+          "value": "rounded-circle"
+        },
+        {
+          "title": "rounded-pill",
+          "value": "rounded-pill"
+        }
+      ]
     }
-  ],
-  "name": "Borders",
-  "systemImage": "square.dashed",
-  "type": "borders"
+  ]
 }

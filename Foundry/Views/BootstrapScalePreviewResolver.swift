@@ -9,13 +9,17 @@ final class BootstrapScalePreviewResolver: NSObject, WKNavigationDelegate {
     private var continuation: CheckedContinuation<Void, any Error>?
 
     func resolve(_ scale: BootstrapColourScale) async throws -> [String] {
+        try await resolve(expressions: ColourShade.allCases.map(scale.expression))
+    }
+
+    func resolve(expressions: [String], css: String = ":root{--bs-white:#fff;--bs-black:#000}", mode: String = "light") async throws -> [String] {
         try Task.checkCancellation()
         view.navigationDelegate = self
         defer { view.stopLoading(); view.navigationDelegate = nil }
         try await withTaskCancellationHandler {
             try await withCheckedThrowingContinuation { continuation in
                 self.continuation = continuation
-                view.loadHTMLString("<html><head><style>:root{--bs-white:#fff;--bs-black:#000}</style></head><body></body></html>", baseURL: nil)
+                view.loadHTMLString("<html data-bs-theme='\(mode)'><head><style>\(css)</style></head><body></body></html>", baseURL: nil)
             }
         } onCancel: {
             Task { @MainActor in self.finish(.failure(CancellationError())) }
@@ -34,8 +38,9 @@ final class BootstrapScalePreviewResolver: NSObject, WKNavigationDelegate {
                 return '#' + Array.from(context.getImageData(0,0,1,1).data).slice(0,3)
                     .map(v => v.toString(16).padStart(2,'0')).join('').toUpperCase();
             });
-            """, arguments: ["expressions": ColourShade.allCases.map(scale.expression)], in: nil, contentWorld: .defaultClient)
-        guard let shades = result as? [String], shades.count == 13 else { throw CocoaError(.coderReadCorrupt) }
+            """, arguments: ["expressions": expressions], in: nil, contentWorld: .defaultClient)
+        try Task.checkCancellation()
+        guard let shades = result as? [String], shades.count == expressions.count else { throw CocoaError(.coderReadCorrupt) }
         return shades
     }
 

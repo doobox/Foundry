@@ -45,8 +45,11 @@
           "defaults": { "base": "btn-solid" },
           "options": [
             { "title": "Solid", "value": "btn-solid" },
+            { "title": "Styled", "value": "btn-solid btn-styled" },
             { "title": "Subtle", "value": "btn-subtle" },
-            { "title": "Outline", "value": "btn-outline" }
+            { "title": "Outline", "value": "btn-outline" },
+            { "title": "Text", "value": "btn-text" },
+            { "title": "Link", "value": "btn-link" }
           ]
         },
         {
@@ -55,14 +58,63 @@
           "label": "Size",
           "defaults": { "base": "" },
           "options": [
+            { "title": "Extra small", "value": "btn-xs" },
             { "title": "Small", "value": "btn-sm" },
             { "title": "Default", "value": "" },
             { "title": "Large", "value": "btn-lg" }
           ]
+        },
+        {
+          "type": "select",
+          "id": "shape",
+          "label": "Shape",
+          "defaults": { "base": "" },
+          "options": [
+            { "title": "Default", "value": "" },
+            { "title": "Pill", "value": "rounded-pill" },
+            { "title": "Square corners", "value": "rounded-0" }
+          ]
+        },
+        {
+          "type": "select",
+          "id": "width",
+          "label": "Width",
+          "visibleWhen": { "id": "iconPosition", "operation": "!=", "value": "only" },
+          "defaults": { "base": "" },
+          "options": [
+            { "title": "Fit content", "value": "" },
+            { "title": "Full width", "value": "w-100" }
+          ],
+          "subtitle": "Icon-only buttons keep their square proportions."
         }
       ],
       "section": "Appearance",
       "systemImage": "paintpalette"
+    },
+    {
+      "section": "Icon",
+      "systemImage": "star",
+      "controls": [
+        {
+          "type": "select",
+          "id": "iconPosition",
+          "label": "Placement",
+          "defaults": { "base": "none" },
+          "options": [
+            { "title": "None", "value": "none" },
+            { "title": "Before text", "value": "before" },
+            { "title": "After text", "value": "after" },
+            { "title": "Icon only", "value": "only" }
+          ]
+        },
+        {
+          "type": "icon",
+          "id": "symbol",
+          "label": "Icon",
+          "defaults": { "base": "arrow-right" },
+          "visibleWhen": { "id": "iconPosition", "operation": "!=", "value": "none" }
+        }
+      ]
     },
     {
       "controls": [
@@ -94,5 +146,5 @@
     "html": "part.html"
   },
   "title": "Button",
-  "version": "3.0.0"
+  "version": "3.1.0"
 }

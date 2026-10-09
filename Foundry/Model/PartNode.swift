@@ -297,6 +297,9 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
         guard !keys.isEmpty else { return self }
         var copy = self
         for key in keys {
+            // Native Bootstrap utilities retain all breakpoint classes in one
+            // markup tree; do not overwrite their base values for canvas size.
+            if definition.package?.manifest.resolvedProperties.first(where: { $0.id == key.rawValue })?.controlGroupSource?.type.generatesBootstrapClasses == true { continue }
             copy.setProperty(key, value: propertyValue(key, at: breakpoint, screens: screens))
         }
         return copy
@@ -366,6 +369,10 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
 
     mutating func replaceFrameworkReference(_ reference: String, with replacement: String) {
         transformPropertyValues { $0.replacingFrameworkReference(reference, with: replacement) }
+    }
+
+    mutating func replaceSpacingReference(_ reference: String, with replacement: String) {
+        transformPropertyValues { $0.replacingSpacingReference(reference, with: replacement) }
     }
 
     mutating func bakeFrameworkSpacingReference(_ reference: String, amountRem: Double, fallbackToken: String) {

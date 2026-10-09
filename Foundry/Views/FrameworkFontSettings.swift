@@ -59,7 +59,20 @@ struct FrameworkFontSettings: View {
                 .frame(width: 200)
             Divider()
             VStack(alignment: .leading, spacing: 16) {
-                    assignmentCard
+                    FrameworkEditorCard {
+                        HStack {
+                            Text("Bootstrap Fonts").font(.headline)
+                            Spacer()
+                            if framework.typography.bodyFont != Framework.standard.typography.bodyFont || framework.typography.headingFont != Framework.standard.typography.headingFont || framework.typography.monospacedFont != Framework.standard.typography.monospacedFont {
+                                Button("Reset", systemImage: "arrow.counterclockwise") {
+                                    session.discardFontPreview()
+                                    editor.resetBootstrapFonts()
+                                }
+                                .help("Restore Bootstrap font defaults. Custom fonts are kept.")
+                            }
+                        }
+                        assignmentCard
+                    }
                     if isGoogleFont {
                         HSplitView {
                             googleFontCard

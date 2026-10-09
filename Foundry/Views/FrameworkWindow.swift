@@ -84,15 +84,15 @@ struct FrameworkWindowContent: View {
             case .fontFamily:
                 FrameworkFontSettings(framework: document.site.framework, assets: document.site.assets, session: session)
             case .fontSize:
-                FrameworkFontSizeSettings(framework: document.site.framework, session: session)
+                BootstrapTokenSettings(section: .fontSize, framework: document.site.framework, editor: session.editor)
             case .spacing:
                 FrameworkSpacingSettings(framework: document.site.framework, session: session)
             case .borderWidth:
-                FrameworkDimensionSettings(framework: document.site.framework, kind: .borderWidth, session: session)
+                BootstrapTokenSettings(section: .borderWidth, framework: document.site.framework, editor: session.editor)
             case .borderRadius:
-                FrameworkDimensionSettings(framework: document.site.framework, kind: .borderRadius, session: session)
+                BootstrapTokenSettings(section: .borderRadius, framework: document.site.framework, editor: session.editor)
             case .zIndex:
-                FrameworkDimensionSettings(framework: document.site.framework, kind: .zIndex, session: session)
+                BootstrapTokenSettings(section: .zIndex, framework: document.site.framework, editor: session.editor)
             default:
                 FrameworkSettingsDetail(
                     section: selectedSection,
@@ -135,6 +135,7 @@ enum FrameworkWindowSection: String, CaseIterable, Identifiable, Hashable {
     case borderWidth
     case borderRadius
     case zIndex
+    case fontWeight, body, links, focusRing, controls
 
     var id: String { rawValue }
 
@@ -142,11 +143,16 @@ enum FrameworkWindowSection: String, CaseIterable, Identifiable, Hashable {
         .colors,
         .fontFamily,
         .fontSize,
+        .fontWeight,
+        .body,
         .spacing,
         .shadows,
         .borderWidth,
         .borderRadius,
-        .zIndex
+        .zIndex,
+        .links,
+        .focusRing,
+        .controls
     ]
 
     var title: String {
@@ -155,7 +161,12 @@ enum FrameworkWindowSection: String, CaseIterable, Identifiable, Hashable {
         case .screens: "Breakpoints"
         case .colors: "Colours"
         case .fontFamily: "Fonts"
-        case .fontSize: "Font Size"
+        case .fontSize: "Font Size & Line Height"
+        case .fontWeight: "Font Weight"
+        case .body: "Body Typography"
+        case .links: "Links"
+        case .focusRing: "Focus Ring"
+        case .controls: "Buttons & Inputs"
         case .spacing: "Spacing"
         case .shadows: "Shadows"
         case .borderWidth: "Border Width"
@@ -171,6 +182,11 @@ enum FrameworkWindowSection: String, CaseIterable, Identifiable, Hashable {
         case .colors: "paintpalette"
         case .fontFamily: "text.alignleft"
         case .fontSize: "textformat.size"
+        case .fontWeight: "bold"
+        case .body: "textformat"
+        case .links: "link"
+        case .focusRing: "viewfinder"
+        case .controls: "rectangle.and.hand.point.up.left"
         case .spacing: "arrow.left.and.right"
         case .shadows: "square.stack"
         case .borderWidth: "square"
@@ -191,6 +207,8 @@ enum FrameworkWindowSection: String, CaseIterable, Identifiable, Hashable {
             "Choose the typefaces used for body text, headings and monospaced content."
         case .fontSize:
             "Adjust each framework font size and its line height."
+        case .fontWeight, .body, .links, .focusRing, .controls:
+            "Edit Bootstrap's shared design tokens."
         case .spacing:
             "Adjust the spacing scale used by framework-aware part controls."
         case .shadows:
@@ -219,82 +237,22 @@ struct FrameworkSettingsDetail: View {
     let framework: Framework
     let assets: [ProjectAsset]
     let session: FrameworkEditorSession
-    @State private var isConfirmingReset = false
 
     private var editor: ProjectEditor { session.editor }
 
     var body: some View {
         Group {
-            if section == .fontFamily {
+            if let bootstrapSection = BootstrapEditorSection(rawValue: section.rawValue) {
+                BootstrapTokenSettings(section: bootstrapSection, framework: framework, editor: editor)
+            } else if section == .fontFamily {
                 FrameworkFontSettings(framework: framework, assets: assets, session: session)
-            } else if section == .fontSize {
-                FrameworkFontSizeSettings(framework: framework, session: session)
             } else if section == .spacing {
                 FrameworkSpacingSettings(framework: framework, session: session)
-            } else if section == .borderWidth {
-                FrameworkDimensionSettings(framework: framework, kind: .borderWidth, session: session)
-            } else if section == .borderRadius {
-                FrameworkDimensionSettings(framework: framework, kind: .borderRadius, session: session)
-            } else if section == .zIndex {
-                FrameworkDimensionSettings(framework: framework, kind: .zIndex, session: session)
             } else if section == .screens {
-                FrameworkBreakpointSettings(screens: framework.screens, editor: editor)
-            } else {
-                FrameworkEditorPage(title: section.title, subtitle: section.explanation) {
-                    if resetAction != nil {
-                        Button("Reset Scale…", systemImage: "arrow.counterclockwise") {
-                            isConfirmingReset = true
-                        }
-                        .help("Restore the preset values in this section")
-                    }
-                } content: {
-                    settingsContent
-                }
+                FrameworkBreakpointSettings(screens: framework.screens, editor: editor, canEdit: session.canEditFramework)
+            } else if section == .colors {
+                ProjectColourSettings(session: session)
             }
-        }
-        .confirmationDialog(
-            "Reset \(section.title)?",
-            isPresented: $isConfirmingReset,
-            titleVisibility: .visible
-        ) {
-            Button("Reset Scale") { resetAction?() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("Restore the preset values in this section. Custom styles are kept. You can undo this change.")
-        }
-    }
-
-    @ViewBuilder
-    private var settingsContent: some View {
-        switch section {
-        case .screens:
-            FrameworkBreakpointSettings(screens: framework.screens, editor: editor)
-        case .fontFamily:
-            FrameworkFontSettings(framework: framework, assets: assets, session: session)
-        case .fontSize:
-            FrameworkFontSizeSettings(framework: framework, session: session)
-        case .spacing:
-            FrameworkSpacingSettings(framework: framework, session: session)
-        case .shadows:
-            FrameworkShadowSettings(shadows: framework.shadows, editor: editor)
-        case .borderWidth:
-            FrameworkDimensionSettings(framework: framework, kind: .borderWidth, session: session)
-        case .borderRadius:
-            FrameworkDimensionSettings(framework: framework, kind: .borderRadius, session: session)
-        case .zIndex:
-            FrameworkDimensionSettings(framework: framework, kind: .zIndex, session: session)
-        case .colors:
-            ProjectColourSettings(session: session)
-        case .frameworks:
-            EmptyView()
-        }
-    }
-
-    private var resetAction: (() -> Void)? {
-        switch section {
-        case .shadows: editor.resetFrameworkShadowScale
-        case .frameworks, .screens, .colors, .fontFamily, .fontSize, .spacing,
-             .borderWidth, .borderRadius, .zIndex: nil
         }
     }
 }

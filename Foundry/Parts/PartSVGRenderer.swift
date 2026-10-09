@@ -23,7 +23,8 @@ nonisolated enum PartSVGRenderer {
         "font-style", "text-anchor", "dominant-baseline", "vector-effect"
     ]
 
-    static func sanitized(_ data: Data, prefix: String, alt: String = "") -> String? {
+    static func sanitized(_ data: Data, prefix: String, alt: String = "",
+                          overrideFill: Bool = false, overrideStroke: Bool = false) -> String? {
         guard data.count <= 5_000_000, var source = String(data: data, encoding: .utf8),
               !source.localizedCaseInsensitiveContains("<!ENTITY") else { return nil }
         // Exporters commonly include the SVG 1.1 external DTD. Remove the
@@ -84,40 +85,9 @@ nonisolated enum PartSVGRenderer {
             }
         }
         clean(root, depth: 0)
-        // Mark only existing paint. Invisible artboard rectangles and helper
-        // geometry must never become visible just because a colour is overridden.
-        let paintedElements: Set<String> = ["path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "text", "tspan"]
-        func paint(_ name: String, on element: XMLElement, inherited: Bool, initial: Bool) -> Bool {
-            var value = element.attribute(forName: name)?.stringValue
-            var important = false
-            for declaration in (element.attribute(forName: "style")?.stringValue ?? "").split(separator: ";") {
-                let pair = declaration.split(separator: ":", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-                guard pair.count == 2, pair[0].lowercased() == name else { continue }
-                let isImportant = pair[1].range(of: #"!\s*important\s*$"#, options: [.regularExpression, .caseInsensitive]) != nil
-                if !important || isImportant { value = pair[1]; important = isImportant }
-            }
-            let normalized = value?.replacingOccurrences(of: #"!\s*important\s*$"#, with: "", options: [.regularExpression, .caseInsensitive])
-                .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            switch normalized {
-            case nil, "inherit", "unset": return inherited
-            case "initial", "revert", "revert-layer": return initial
-            case "none": return false
-            default: return true
-            }
+        if overrideFill || overrideStroke {
+            overridePaint(root, fill: overrideFill, stroke: overrideStroke)
         }
-        func markPaint(_ element: XMLElement, fill: Bool, stroke: Bool) {
-            guard !["defs", "clipPath", "mask"].contains(element.name ?? "") else { return }
-            let hasFill = paint("fill", on: element, inherited: fill, initial: true)
-            let hasStroke = paint("stroke", on: element, inherited: stroke, initial: false)
-            if paintedElements.contains(element.name ?? "") {
-                if hasFill { element.addAttribute(XMLNode.attribute(withName: "data-foundry-svg-fill", stringValue: "") as! XMLNode) }
-                if hasStroke { element.addAttribute(XMLNode.attribute(withName: "data-foundry-svg-stroke", stringValue: "") as! XMLNode) }
-            }
-            for child in element.children ?? [] {
-                if let child = child as? XMLElement { markPaint(child, fill: hasFill, stroke: hasStroke) }
-            }
-        }
-        markPaint(root, fill: true, stroke: false)
         root.addNamespace(XMLNode.namespace(withName: "", stringValue: "http://www.w3.org/2000/svg") as! XMLNode)
         root.addAttribute(XMLNode.attribute(withName: "role", stringValue: "img") as! XMLNode)
         if !alt.isEmpty {
@@ -130,8 +100,65 @@ nonisolated enum PartSVGRenderer {
             .replacingOccurrences(of: "{", with: "&#123;").replacingOccurrences(of: "}", with: "&#125;")
     }
 
+
+    /// Resolve the original paint before changing leaves. Never recolour helper
+    /// geometry, introduce missing strokes, or turn fill:none into a solid shape.
+    private static func overridePaint(_ root: XMLElement, fill: Bool, stroke: Bool) {
+        let painted: Set<String> = ["path", "rect", "circle", "ellipse", "line", "polyline", "polygon", "text", "tspan"]
+        func declarations(_ element: XMLElement) -> [(String, String)] {
+            (element.attribute(forName: "style")?.stringValue ?? "").split(separator: ";").compactMap {
+                let pair = $0.split(separator: ":", maxSplits: 1).map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                return pair.count == 2 ? (pair[0].lowercased(), pair[1]) : nil
+            }
+        }
+        func hasPaint(_ name: String, element: XMLElement, inherited: Bool, initial: Bool) -> Bool {
+            var value = element.attribute(forName: name)?.stringValue
+            var important = false
+            for (key, candidate) in declarations(element) where key == name {
+                let isImportant = candidate.range(of: #"!\s*important\s*$"#, options: [.regularExpression, .caseInsensitive]) != nil
+                if !important || isImportant { value = candidate; important = isImportant }
+            }
+            let normalized = value?.replacingOccurrences(of: #"!\s*important\s*$"#, with: "", options: [.regularExpression, .caseInsensitive])
+                .trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            switch normalized {
+            case nil, "inherit", "unset": return inherited
+            case "initial", "revert", "revert-layer": return initial
+            case "none", "transparent": return false
+            default: return true
+            }
+        }
+        func visit(_ element: XMLElement, inheritedFill: Bool, inheritedStroke: Bool) {
+            guard !["defs", "clipPath", "mask"].contains(element.name ?? "") else { return }
+            let hasFill = hasPaint("fill", element: element, inherited: inheritedFill, initial: true)
+            let hasStroke = hasPaint("stroke", element: element, inherited: inheritedStroke, initial: false)
+            var replacements: Set<String> = []
+            if painted.contains(element.name ?? "") {
+                if fill && hasFill { replacements.insert("fill") }
+                if stroke && hasStroke { replacements.insert("stroke") }
+            }
+            // Imported color declarations must not block the selected Bootstrap
+            // foreground from reaching currentColor. Definitions stay untouched.
+            element.removeAttribute(forName: "color")
+            let style = declarations(element).filter { $0.0 != "color" && !replacements.contains($0.0) }
+                .map { $0.0 + ":" + $0.1 }.joined(separator: ";")
+            element.removeAttribute(forName: "style")
+            if !style.isEmpty { element.addAttribute(XMLNode.attribute(withName: "style", stringValue: style) as! XMLNode) }
+            for name in replacements {
+                element.removeAttribute(forName: name)
+                element.addAttribute(XMLNode.attribute(withName: name, stringValue: "currentColor") as! XMLNode)
+            }
+            for child in element.children ?? [] {
+                if let child = child as? XMLElement { visit(child, inheritedFill: hasFill, inheritedStroke: hasStroke) }
+            }
+        }
+        visit(root, inheritedFill: true, inheritedStroke: false)
+    }
     static func insert(node: PartNode, package: LoadedPartPackage, assets: ProjectAssetContents,
                        canvas: Bool, into values: inout [String: PartPackageValue]) {
+        let usesPaintOverrides = node.type == .svg &&
+            node.propertyValue(.init(rawValue: "foreground.enabled")) == .boolean(true)
+        let overrideFill = usesPaintOverrides && node.propertyValue(.init(rawValue: "fillEnabled")) == .boolean(true)
+        let overrideStroke = usesPaintOverrides && node.propertyValue(.init(rawValue: "strokeEnabled")) == .boolean(true)
         for definition in node.type.definition.properties {
             guard case .svg = definition.control else { continue }
             let key = definition.key.rawValue
@@ -148,7 +175,20 @@ nonisolated enum PartSVGRenderer {
                     let file = root.appending(path: source).resolvingSymlinksInPath()
                     if file.path.hasPrefix(root.path + "/") { data = try? Data(contentsOf: file) }
                 }
-                let markup = data.flatMap { sanitized($0, prefix: node.id.uuidString + "-" + key + "-" + path.map(String.init).joined(separator: "-"), alt: alt) } ?? ""
+                let markup = data.flatMap { sanitized($0, prefix: node.id.uuidString + "-" + key + "-" + path.map(String.init).joined(separator: "-"), alt: alt,
+                    overrideFill: overrideFill, overrideStroke: overrideStroke) } ?? ""
+                if path.isEmpty, let document = try? XMLDocument(xmlString: markup),
+                   let root = document.rootElement() {
+                    // Reuse the sanitized root directly, without a styling wrapper.
+                    // The part supplies its own ID and classes.
+                    root.removeAttribute(forName: "id")
+                    let attributes = (root.attributes ?? []).map { $0.xmlString }.joined(separator: " ")
+                    let content = (root.children ?? []).map { $0.xmlString(options: [.nodeCompactEmptyElement]) }.joined()
+                    PartPackageControlGroupCSSResolver.insertRaw(attributes, at: key + ".attributes", into: &values)
+                    PartPackageControlGroupCSSResolver.insertRaw(
+                        content.replacingOccurrences(of: "{", with: "&#123;").replacingOccurrences(of: "}", with: "&#125;"),
+                        at: key + ".content", into: &values)
+                }
                 return .string(fragment(markup: markup, key: key, path: path, canvas: canvas))
             }
             values[key] = resolve(node.storedPropertyValue(definition.key) ?? definition.defaultValue, path: [])

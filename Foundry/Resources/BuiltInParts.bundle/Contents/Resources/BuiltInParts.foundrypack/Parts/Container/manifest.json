@@ -2,14 +2,29 @@
   "id": "foundry.layout.container",
   "title": "Container",
   "author": "Foundry",
-  "version": "1.0.0",
+  "version": "3.0.0",
   "minimumAPIVersion": 1,
-  "description": "A Bootstrap container for grouping child parts.",
+  "description": "Bootstrap page-width containment and grouping.",
   "group": "Layout",
-  "icon": { "symbol": "rectangle", "tint": "blue" },
-  "tags": ["Bootstrap", "layout", "container"],
+  "icon": {
+    "symbol": "rectangle",
+    "tint": "blue"
+  },
+  "tags": [
+    "Bootstrap",
+    "layout",
+    "container"
+  ],
   "assets": [],
-  "templates": { "html": "part.html" },
+  "libraries": [
+    {
+      "id": "bootstrap",
+      "majorVersion": 6
+    }
+  ],
+  "templates": {
+    "html": "part.html"
+  },
   "inspector": [
     {
       "section": "Container",
@@ -19,11 +34,68 @@
           "type": "select",
           "id": "width",
           "label": "Width",
-          "defaults": { "base": "container" },
+          "tooltip": "Default follows every Bootstrap breakpoint. Fluid fills the available width. Fluid until a breakpoint follows Bootstrap container widths from that breakpoint upwards. All options retain Bootstrap's horizontal gutters.",
+          "responsive": false,
+          "defaults": {
+            "base": "container"
+          },
           "options": [
-            { "title": "Container", "value": "container" },
-            { "title": "Container fluid", "value": "container-fluid" }
+            {
+              "title": "Default",
+              "value": "container"
+            },
+            {
+              "title": "Fluid",
+              "value": "container-fluid"
+            },
+            {
+              "title": "Fluid until small (sm)",
+              "value": "sm:container"
+            },
+            {
+              "title": "Fluid until medium (md)",
+              "value": "md:container"
+            },
+            {
+              "title": "Fluid until large (lg)",
+              "value": "lg:container"
+            },
+            {
+              "title": "Fluid until extra large (xl)",
+              "value": "xl:container"
+            },
+            {
+              "title": "Fluid until 2× large (2xl)",
+              "value": "2xl:container"
+            }
           ]
+        }
+      ]
+    },
+    {
+      "section": "Display",
+      "systemImage": "eye",
+      "controls": [
+        {
+          "type": "display",
+          "id": "display",
+          "allowedOptions": {
+            "display": [
+              "none",
+              "d-block",
+              "d-none"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "section": "Spacing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "spacing",
+          "id": "spacing"
         }
       ]
     }

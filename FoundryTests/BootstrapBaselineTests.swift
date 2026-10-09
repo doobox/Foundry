@@ -4,7 +4,8 @@ import Testing
 
 @MainActor
 struct BootstrapBaselineTests {
-    @Test func containerSupportsInsertionMovementAndUndo() async throws {
+    @Test(arguments: [PartType.container, .flex, .grid])
+    func layoutPartsSupportInsertionMovementAndUndo(type: PartType) async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
         let document = FoundryDocument()
         let undo = UndoManager()
@@ -12,7 +13,7 @@ struct BootstrapBaselineTests {
         let editor = ProjectEditor(document: document, undoManager: undo)
         let page = try #require(document.site.pages.first)
         undo.beginUndoGrouping()
-        let containerID = try #require(editor.insertPart(type: .container, on: page.id, placement: .end))
+        let containerID = try #require(editor.insertPart(type: type, on: page.id, placement: .end))
         let buttonID = try #require(editor.insertPart(type: .button, on: page.id, placement: .inside(containerID)))
         undo.endUndoGrouping()
         #expect(document.site.pages[0].parts.node(withID: containerID)?.children.first?.id == buttonID)
@@ -34,17 +35,19 @@ struct BootstrapBaselineTests {
             $0.rootURL.path.contains("BuiltInParts.foundrypack/Parts/")
         }
         #expect(Set(packages.map { $0.manifest.identifier }) == Set([
-            "foundry.content.button", "foundry.layout.container"
+            "foundry.content.button", "foundry.layout.container", "foundry.content.paragraph",
+            "foundry.layout.flex", "foundry.layout.grid", "foundry.content.html",
+            "foundry.media.svg", "foundry.media.image"
         ]))
         let container = try #require(PartType.container.definition.package)
         #expect(container.css.isEmpty)
         #expect(container.instanceJavaScript.isEmpty)
         #expect(PartType.container.definition.allowsChildren)
-        #expect(PartType.container.definition.properties.map(\.key.rawValue) == ["width"])
-        #expect(PartType.paragraph.definition.package == nil)
+        #expect(PartType.container.definition.properties.contains { $0.key.rawValue == "spacing.margin" })
+        #expect(PartType.paragraph.definition.package != nil)
     }
 
-    @Test(arguments: ["container", "container-fluid"])
+    @Test(arguments: ["container", "container-fluid", "sm:container", "md:container", "lg:container", "xl:container", "2xl:container"])
     func nestedBootstrapOutputIsCleanInPreviewAndExport(width: String) async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
         let button = PartNode.make(.button)
@@ -75,7 +78,7 @@ struct BootstrapBaselineTests {
             #expect(body.contains("foundry-package-") == false)
             #expect(body.contains("c-\(button.id.uuidString.lowercased())") == false)
             #expect(body.contains("btn btn-solid theme-primary"))
-            #expect(body.contains(width))
+            #expect(body.contains(BootstrapLayout.containerClass(width, screens: site.framework.screens)))
             let css = bundle.files.filter { $0.path.hasSuffix(".css") }.map(\.contents).joined()
             #expect(css.contains("Foundry CSS 1") == false)
             #expect(css.contains("--foundry-font-body:") == false)

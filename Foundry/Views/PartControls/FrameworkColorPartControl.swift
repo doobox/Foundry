@@ -180,7 +180,7 @@ struct InspectorPaletteMenu: View {
     @Environment(\.canvasAppearance) private var appearance
     let palettes: [ColourPalette]
     let selectedID: String
-    var usesThemeBase = false
+    var tokenPreviews: [String: String] = [:]
     let select: (String) -> Void
     @State private var search = ""
 
@@ -190,8 +190,8 @@ struct InspectorPaletteMenu: View {
 
     private func menuColour(_ palette: ColourPalette) -> String {
         let resolved = palettes.resolvedPalette(id: palette.id) ?? palette
-        let shade = usesThemeBase && BootstrapPaletteTheme.nativeRole(resolved) == nil
-            ? ColourShade.seven : resolved.defaultShade(for: appearance)
+        if let preview = tokenPreviews[palette.id] { return preview }
+        let shade = resolved.defaultShade(for: appearance)
         return resolved.colour(at: .shade(shade))
     }
 

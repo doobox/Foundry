@@ -1,6 +1,13 @@
 import Foundation
 
 nonisolated enum CanvasBreakpointPreference {
+    static func viewportWidth(afterChanging old: ScreenTokens, to screens: ScreenTokens, currentWidth: Double) -> Double {
+        let selected = old.activeScreen(for: currentWidth)
+        guard !screens.screen(selected.id).isEnabled else { return currentWidth }
+        let fallback = screens.activeScreen(for: selected.minimumWidth)
+        return screens.canvasWidth(for: fallback)
+    }
+
     static func restoredViewportWidth(
         screens: ScreenTokens,
         defaults: UserDefaults = .standard

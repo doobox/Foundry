@@ -1,0 +1,13 @@
+{
+  "name": "foundry-bootstrap-compiler",
+  "private": true,
+  "type": "module",
+  "scripts": { "test": "node --test", "build": "node build-live.mjs" },
+  "dependencies": {
+    "bootstrap": "6.0.0-alpha.1",
+    "sass-embedded": "1.105.1",
+    "postcss": "8.5.28",
+    "postcss-prefix-custom-properties": "0.1.0",
+    "autoprefixer": "10.6.1"
+  }
+}

@@ -139,39 +139,6 @@
     },
     {
       "defaults": {
-        "base": false
-      },
-      "id": "hidden",
-      "label": "Hidden",
-      "presentation": "switch",
-      "responsive": true,
-      "type": "toggle"
-    },
-    {
-      "defaults": {
-        "base": "default"
-      },
-      "id": "visibility",
-      "label": "Visibility",
-      "options": [
-        {
-          "title": "Default",
-          "value": "default"
-        },
-        {
-          "title": "Visible",
-          "value": "visible"
-        },
-        {
-          "title": "Hidden",
-          "value": "hidden"
-        }
-      ],
-      "responsive": true,
-      "type": "select"
-    },
-    {
-      "defaults": {
         "base": "none"
       },
       "id": "overflow",
