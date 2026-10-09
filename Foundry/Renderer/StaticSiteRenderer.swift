@@ -66,12 +66,12 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 sitePackages.append(package)
             }
             let libraryPrefix = rootPrefix + "files/libraries"
-            let scriptsBefore = FoundryWebLibraryRegistry.exportScriptPaths(
+            let scriptsBefore = FoundryWebLibraryRegistry.exportScripts(
                 for: pagePackages,
                 prefix: libraryPrefix,
                 placement: .beforePage
             )
-            let scriptsAfter = FoundryWebLibraryRegistry.exportScriptPaths(
+            let scriptsAfter = FoundryWebLibraryRegistry.exportScripts(
                 for: pagePackages,
                 prefix: libraryPrefix,
                 placement: .afterPage
@@ -90,7 +90,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     language: site.language,
                     framework: site.framework,
                     stylesheetPaths: [rootPrefix + "files/site.css", "files/page.css"],
-                    scriptPaths: scriptsBefore + (includesPageJavaScript ? ["files/page.js"] : []) + scriptsAfter,
+                    scripts: scriptsBefore + (includesPageJavaScript ? [FoundryWebScript(path: "files/page.js")] : []) + scriptsAfter,
                     assetPrefix: rootPrefix + "assets",
                     packageAssetPrefix: documentPackageAssetPrefix,
                     assets: assets,
@@ -237,7 +237,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         prefix.isEmpty ? suffix : prefix + "/" + suffix
     }
 
-    private func render(page: Page, language: String, framework: Framework, stylesheetPaths: [String], scriptPaths: [String], assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site, webIconPlan: WebIconExportPlan) -> String {
+    private func render(page: Page, language: String, framework: Framework, stylesheetPaths: [String], scripts: [FoundryWebScript], assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site, webIconPlan: WebIconExportPlan) -> String {
         let body = page.parts.map { render($0, page: page, framework: framework, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site) }.joined(separator: "\n")
         let pageTitle = page.metadata.browserTitle.isEmpty ? page.title : page.metadata.browserTitle
         let browserTitle = pageTitle + site.titleSuffix
@@ -246,7 +246,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let headEnd = placedHTML(for: page, placement: .headEnd, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, site: site)
         let bodyStart = placedHTML(for: page, placement: .bodyStart, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, site: site)
         let bodyEnd = placedHTML(for: page, placement: .bodyEnd, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, site: site)
-        let scripts = scriptPaths.map { "<script src=\"\($0)\"></script>" }.joined(separator: "\n")
+        let scriptTags = scripts.map(\.htmlTag).joined(separator: "\n")
         let php = packagePHP(for: page, framework: framework, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site)
         let customHeadCode = site.customCodeEnabled ? site.headCode : ""
         let customBodyStartCode = site.customCodeEnabled ? site.bodyStartCode : ""
@@ -269,7 +269,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             analyticsCode,
             headEnd
         ]
-        let bodyLines = [customBodyStartCode, bodyStart, body, bodyEnd, scripts, customBodyEndCode]
+        let bodyLines = [customBodyStartCode, bodyStart, body, bodyEnd, scriptTags, customBodyEndCode]
         func joined(_ lines: [String]) -> String {
             lines
                 .map { $0.trimmingCharacters(in: .newlines) }

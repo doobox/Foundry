@@ -6925,9 +6925,53 @@ struct PartPackageTests {
     @Test
     func webLibrariesSupportPublishedRuntimeLibraries() {
         #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.alpineRequirement))
+        #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.bootstrapRequirement))
         #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.gsapRequirement))
         #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.glightboxRequirement))
         #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.gsapScrollTriggerRequirement))
+    }
+
+    @Test
+    func bootstrap6LibraryUsesBundledCSSAndESMExport() throws {
+        let identifier = "com.example.bootstrap6.\(UUID().uuidString.lowercased())"
+        let manifest = """
+        {
+        "minimumAPIVersion" : 1,
+        "id" : "\(identifier)",
+        "title" : "Bootstrap 6",
+        "version" : "1.0.0",
+        "libraries" : [{"id" : "bootstrap", "majorVersion" : 6}],
+        "inspector" : [],
+        "templates" : {"html" : "part.html"}
+        }
+        """
+        let packageURL = try makePackage(
+            manifest: manifest,
+            template: "<button class=\"btn btn-primary\" {{ part.attributes }}>Bootstrap</button>"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        let package = try PartPackageLoader.load(from: packageURL)
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+
+        let page = Page(title: "Home", slug: "index", parts: [
+            PartNode(type: PartType(rawValue: identifier))
+        ])
+        let canvas = HTMLPageRenderer().render(page: page, framework: .standard)
+        #expect(canvas.contains("--bs-primary-base"))
+
+        let bundle = StaticSiteRenderer().render(site: Site(name: "Bootstrap", pages: [page]))
+        #expect(bundle.errors.isEmpty)
+        let document = try #require(bundle.file(at: "index.html")?.contents)
+        let stylesheet = try #require(bundle.file(at: "files/site.css")?.contents)
+        let script = try #require(bundle.file(
+            at: "files/libraries/bootstrap/bootstrap-6.0.0-alpha.1.bundle.min.js"
+        )?.contents)
+        #expect(document.contains(
+            "<script type=\"module\" src=\"files/libraries/bootstrap/bootstrap-6.0.0-alpha.1.bundle.min.js"
+        ))
+        #expect(stylesheet.contains("--bs-primary-base"))
+        #expect(script.contains("export{"))
     }
 
     @Test

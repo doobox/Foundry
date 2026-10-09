@@ -206,6 +206,8 @@ struct PartDefinitionTests {
         #expect(PartType.paragraph.definition.package!.css.contains("font-size: {{ control.fontSize }}"))
         #expect(PartType.paragraph.definition.package!.css.contains("line-height: {{ control.fontSize.lineHeight }}"))
         #expect(html.contains("aria-label=\"Open &quot;details&quot;\""))
+        #expect(html.contains("btn btn-primary"))
+        #expect(html.contains("--bs-primary-base"))
         #expect(html.contains("--foundry-editor-part: #007BFF"))
         #expect(html.contains("--foundry-editor-global: #30D158"))
     }

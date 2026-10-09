@@ -1,33 +1,9 @@
 :instance {
-    /* Arrange the label and optional icon */
-      display: inline-flex;
-      align-items: center;
-      justify-content: center;
-      gap: 0.5em;
-
-      /* Size within flex and grid layouts */
-      box-sizing: border-box;
-      inline-size: fit-content;
-      max-inline-size: 100%;
-      min-inline-size: 0;
-
-      flex: 0 1 auto;
-      align-self: start;
-      justify-self: start;
-
-      /* Appearance */
-      padding: 0.65em 1.1em;
-      border: 1px solid transparent;
-      background: #222;
-      color: white;
-
-      font: inherit;
-      line-height: 1.3;
-      text-align: center;
-      text-decoration: none;
-      white-space: normal;
-      overflow-wrap: anywhere;
-      cursor: pointer;
+    /* Bootstrap supplies the button component; Foundry controls customize it. */
+    inline-size: fit-content;
+    max-inline-size: 100%;
+    white-space: normal;
+    overflow-wrap: anywhere;
     color: {{ control.textColor }};
     background-color: {{ control.backgroundColor }};
     border-radius: {{ control.cornerRadius }}px;

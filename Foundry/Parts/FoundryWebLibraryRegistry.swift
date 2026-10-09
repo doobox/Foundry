@@ -15,6 +15,20 @@ nonisolated struct FoundryWebIcon: Identifiable, Hashable, Sendable {
     }
 }
 
+nonisolated struct FoundryWebScript: Equatable, Sendable {
+    let path: String
+    let isModule: Bool
+
+    init(path: String, isModule: Bool = false) {
+        self.path = path
+        self.isModule = isModule
+    }
+
+    var htmlTag: String {
+        "<script\(isModule ? " type=\"module\"" : "") src=\"\(path)\"></script>"
+    }
+}
+
 nonisolated enum FoundryWebLibraryRegistry {
     enum ScriptPlacement {
         case beforePage
@@ -26,6 +40,7 @@ nonisolated enum FoundryWebLibraryRegistry {
     static let nativeIconFontName = "bootstrap-icons"
 
     static let alpineRequirement = PartPackageLibraryRequirement(identifier: "alpine", majorVersion: 3)
+    static let bootstrapRequirement = PartPackageLibraryRequirement(identifier: "bootstrap", majorVersion: 6)
     static let gsapRequirement = PartPackageLibraryRequirement(identifier: "gsap", majorVersion: 3)
     static let glightboxRequirement = PartPackageLibraryRequirement(identifier: "glightbox", majorVersion: 3)
     static let gsapScrollTriggerRequirement = PartPackageLibraryRequirement(
@@ -76,7 +91,7 @@ nonisolated enum FoundryWebLibraryRegistry {
     }()
 
     static func supports(_ requirement: PartPackageLibraryRequirement) -> Bool {
-        [iconRequirement, alpineRequirement, gsapRequirement, glightboxRequirement, gsapScrollTriggerRequirement]
+        [iconRequirement, alpineRequirement, bootstrapRequirement, gsapRequirement, glightboxRequirement, gsapScrollTriggerRequirement]
             .contains(requirement)
     }
 
@@ -108,11 +123,17 @@ nonisolated enum FoundryWebLibraryRegistry {
     }
 
     static func canvasCSS(for packages: [LoadedPartPackage]) -> String {
-        guard uniqueRequirements(in: packages).contains(iconRequirement),
-              let css = resourceString(at: "bootstrap-icons.css"),
-              let font = resourceData(at: "bootstrap-icons.woff2") else { return "" }
-        let dataURL = "data:font/woff2;base64,\(font.base64EncodedString())"
-        return rewrittenIconCSS(css, fontURL: dataURL)
+        uniqueRequirements(in: packages).compactMap { requirement in
+            if requirement == iconRequirement,
+               let css = resourceString(at: "bootstrap-icons.css"),
+               let font = resourceData(at: "bootstrap-icons.woff2") {
+                let dataURL = "data:font/woff2;base64,\(font.base64EncodedString())"
+                return rewrittenIconCSS(css, fontURL: dataURL)
+            }
+            guard requirement == bootstrapRequirement,
+                  let resource = stylesheetResource(for: requirement) else { return nil }
+            return resourceString(at: resource)
+        }.joined(separator: "\n")
     }
 
     static func exportCSS(for packages: [LoadedPartPackage]) -> String {
@@ -154,21 +175,25 @@ nonisolated enum FoundryWebLibraryRegistry {
         return files
     }
 
-    static func exportScriptPaths(
+    static func exportScripts(
         for packages: [LoadedPartPackage],
         prefix: String,
         placement: ScriptPlacement
-    ) -> [String] {
+    ) -> [FoundryWebScript] {
         uniqueRequirements(in: packages).compactMap { requirement in
             guard scriptPlacement(for: requirement) == placement,
                   let resource = scriptResource(for: requirement) else { return nil }
-            return "\(prefix)/\(requirement.identifier)/\(resource)"
+            return FoundryWebScript(
+                path: "\(prefix)/\(requirement.identifier)/\(resource)",
+                isModule: requirement == bootstrapRequirement
+            )
         }
     }
 
     private static func scriptResource(for requirement: PartPackageLibraryRequirement) -> String? {
         switch requirement {
         case alpineRequirement: "alpine.min.js"
+        case bootstrapRequirement: "bootstrap-6.0.0-alpha.1.bundle.min.js"
         case gsapRequirement: "gsap.min.js"
         case glightboxRequirement: "glightbox.min.js"
         case gsapScrollTriggerRequirement: "ScrollTrigger.min.js"
@@ -177,7 +202,11 @@ nonisolated enum FoundryWebLibraryRegistry {
     }
 
     private static func stylesheetResource(for requirement: PartPackageLibraryRequirement) -> String? {
-        requirement == glightboxRequirement ? "glightbox.min.css" : nil
+        switch requirement {
+        case bootstrapRequirement: "bootstrap-6.0.0-alpha.1.min.css"
+        case glightboxRequirement: "glightbox.min.css"
+        default: nil
+        }
     }
 
     private static let glightboxThemeCSS = """
