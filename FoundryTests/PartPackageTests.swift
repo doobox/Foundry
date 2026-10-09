@@ -88,14 +88,14 @@ struct PartPackageTests {
     private static var developerDocsURL: URL {
         URL(fileURLWithPath: #filePath)
             .deletingLastPathComponent().deletingLastPathComponent()
-            .deletingLastPathComponent().deletingLastPathComponent()
-            .appending(path: "Foundry Docs", directoryHint: .isDirectory)
+            .deletingLastPathComponent()
+            .appending(path: "docs", directoryHint: .isDirectory)
             .appending(path: "developer", directoryHint: .isDirectory)
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "index.md").path)))
     @MainActor func developerDocumentationQuickExamplesLoad() throws {
-        // Read the current sibling working tree, not copied or stale fixtures.
+        // Read the current workspace sibling working tree, not copied or stale fixtures.
         let pages = try FileManager.default.contentsOfDirectory(at: Self.developerDocsURL, includingPropertiesForKeys: nil)
             .filter { $0.pathExtension == "md" }.sorted { $0.lastPathComponent < $1.lastPathComponent }
         let expression = try NSRegularExpression(pattern: #"(?s)## Quick example\s+.*?```json\s*\n(.*?)```"#)

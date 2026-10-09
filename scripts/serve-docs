@@ -2,13 +2,13 @@
 set -eu
 
 repository_root=$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)
-docs_repository=$(CDPATH= cd -- "$repository_root/../.." && pwd)/Foundry\ Docs
+docs_repository=$(CDPATH= cd -- "$repository_root/../docs" && pwd)
 docs_server="$docs_repository/serve-docs"
 
 if [ ! -x "$docs_server" ]; then
     echo "Foundry API docs repository or serving script not found:" >&2
     echo "  $docs_server" >&2
-    echo "The docs are a separate sibling repository, not a docs folder in the app repository." >&2
+    echo "The docs are a separate repository beside app in the Foundry workspace." >&2
     exit 1
 fi
 
