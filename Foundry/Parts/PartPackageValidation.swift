@@ -1198,6 +1198,12 @@ nonisolated enum PartPackageValidator {
                 diagnostics.append(.init(severity: .error, location: location, message: "A fontStyle default must be normal or italic."))
                 return
             }
+        case .themeColor:
+            guard case .string(let value) = defaultValue,
+                  ColourPaletteDefaults.make().contains(where: { $0.id == BootstrapPaletteTheme.paletteID(value) }) else {
+                diagnostics.append(.init(severity: .error, location: location, message: "A themeColor default must identify a built-in colour palette."))
+                return
+            }
         case .select:
             guard case .string(let value) = defaultValue else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A select default must match one of its options."))

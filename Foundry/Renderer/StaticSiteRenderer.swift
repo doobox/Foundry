@@ -1037,7 +1037,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     ))
                 )
             }
+            if case .themeColor = definition.control {
+                return (definition.key.rawValue, .string(BootstrapPaletteTheme.resolve(node.property(definition.key), framework: framework)))
+            }
             if case .frameworkFontSize = definition.control {
+
                 return (definition.key.rawValue, .string(framework.fontSizeCSSVariable(for: node.property(definition.key))))
             }
             if case .frameworkStackingOrder = definition.control {

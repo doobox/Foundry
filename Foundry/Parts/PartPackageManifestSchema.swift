@@ -841,6 +841,14 @@ nonisolated enum PartPackageManifestSchema {
                 diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A frameworkFontSize control does not accept \(key)."))
             }
         }
+        if type == .themeColor {
+            for key in ["count", "frameworkValues", "options", "allowsCustom", "opacity", "outputFormat"] where property[key] != nil {
+                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A themeColor control does not accept \(key)."))
+            }
+            if property["responsive"] as? Bool == true {
+                diagnostics.append(.init(severity: .error, location: "\(location).responsive", message: "A themeColor control is not responsive."))
+            }
+        }
         if type == .frameworkStackingOrder {
             for key in ["count", "frameworkValues", "options", "allowsCustom"] where property[key] != nil {
                 diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A frameworkStackingOrder control does not accept \(key)."))

@@ -231,6 +231,9 @@ struct PartPropertyEditor: View {
                 allowsOpacity: opacity,
                 indicator: responsiveIndicator
             )
+        case .themeColor:
+            ThemeColorPartControl(label: definition.label, framework: framework,
+                indicator: responsiveIndicator, selection: stringBinding(as: .choice))
         case .choice(let choices):
             let availableChoices = choicesForCurrentContext(choices)
             if definition.presentation == .segmented {

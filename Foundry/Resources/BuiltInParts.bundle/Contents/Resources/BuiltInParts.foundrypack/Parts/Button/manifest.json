@@ -33,20 +33,10 @@
     {
       "controls": [
         {
-          "type": "select",
+          "type": "themeColor",
           "id": "theme",
           "label": "Theme",
-          "defaults": { "base": "theme-primary" },
-          "options": [
-            { "title": "Primary", "value": "theme-primary" },
-            { "title": "Accent", "value": "theme-accent" },
-            { "title": "Success", "value": "theme-success" },
-            { "title": "Danger", "value": "theme-danger" },
-            { "title": "Warning", "value": "theme-warning" },
-            { "title": "Info", "value": "theme-info" },
-            { "title": "Inverse", "value": "theme-inverse" },
-            { "title": "Secondary", "value": "theme-secondary" }
-          ]
+          "defaults": { "base": "framework.primary" }
         },
         {
           "type": "select",

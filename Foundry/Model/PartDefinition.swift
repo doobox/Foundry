@@ -270,6 +270,7 @@ nonisolated enum PartPropertyControl: Sendable {
         initialDarkShade: ColourShade? = nil
     )
     case choice([PartPropertyChoice])
+    case themeColor
     case frameworkFontSize
     case frameworkStackingOrder
     case pageFolder

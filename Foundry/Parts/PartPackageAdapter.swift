@@ -426,6 +426,7 @@ nonisolated enum PartPackageAdapter {
             )
         case .color: .literalColor(allowsOpacity: control.opacity == true)
         case .frameworkColor: .derived
+        case .themeColor: .themeColor
         case .frameworkFont: .frameworkFont
         case .frameworkFontSize: .frameworkFontSize
         case .frameworkStackingOrder: .frameworkStackingOrder
@@ -515,7 +516,7 @@ nonisolated enum PartPackageAdapter {
             switch control {
             case .link: .link(.init(destination: value.isEmpty ? .none : .url(value)))
             case .color: .color(value)
-            case .frameworkColor: .choice(value)
+            case .frameworkColor, .themeColor: .choice(value)
             case .icon, .select, .frameworkFont, .frameworkFontSize, .frameworkStackingOrder, .pageFolder, .fontStyle, .textAlignment, .frameworkShadow: .choice(value)
             case .date: .string(value)
             case .image, .svg, .video: .url(value)

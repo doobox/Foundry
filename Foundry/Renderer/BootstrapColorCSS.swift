@@ -32,5 +32,6 @@ nonisolated enum BootstrapColorCSS {
         }
         return "/* Bootstrap 6 framework colours */\n:root,:host{\(declarations.joined(separator: ";"))}\n"
             + ":root:not([data-bs-theme]),:host:not([data-bs-theme]){color-scheme:\(colorScheme); }"
+            + BootstrapPaletteTheme.css(framework: framework)
     }
 }
