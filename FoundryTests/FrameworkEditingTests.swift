@@ -554,11 +554,10 @@ struct FrameworkEditingTests {
         editor.setFrameworkZIndexValue(id: zID, value: 1_700)
         let zIndex = try #require(document.site.framework.zIndexes.custom.first(where: { $0.id == zID }))
         #expect(document.site.framework.zIndexCSSVariables.contains("\(zIndex.cssVariable(prefix: "z-index")):1700"))
-        let css = FoundryCSS.build(
-            framework: document.site.framework,
-            colorScheme: "light"
-        )
-        #expect(css.contains(".fd-z-mega-modal{z-index:var(\(zIndex.cssVariable(prefix: "z-index")))}"))
+        let output = StaticSiteRenderer().render(site: document.site)
+        #expect(output.files.filter { $0.path.hasSuffix(".css") }.allSatisfy {
+            !$0.contents.contains(".fd-z-mega-modal")
+        })
 
         var border = FrameworkBorderWidthValue()
         border.setAll(.init(token: width.reference))

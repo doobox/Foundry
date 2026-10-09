@@ -238,7 +238,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     private func render(page: Page, language: String, framework: Framework, stylesheetPaths: [String], scripts: [FoundryWebScript], assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site, webIconPlan: WebIconExportPlan) -> String {
-        let body = page.parts.map { render($0, page: page, framework: framework, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site) }.joined(separator: "\n")
+        let outputHooks = PublishedPartHooks(page: page, site: site)
+        let body = page.parts.map { render($0, page: page, framework: framework, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site, outputHooks: outputHooks) }.joined(separator: "\n")
         let pageTitle = page.metadata.browserTitle.isEmpty ? page.title : page.metadata.browserTitle
         let browserTitle = pageTitle + site.titleSuffix
         let metadata = metadataHTML(for: page, browserTitle: browserTitle, assetPrefix: assetPrefix, assets: assets, site: site, webIconPlan: webIconPlan)
@@ -505,7 +506,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return lines.joined(separator: "\n") + "\n"
     }
 
-    private func render(_ node: PartNode, page: Page, framework: Framework, assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site, parentPartID: UUID? = nil) -> String {
+    private func render(_ node: PartNode, page: Page, framework: Framework, assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site, outputHooks: PublishedPartHooks) -> String {
         guard !Task.isCancelled else { return "" }
         switch node.type.definition.renderKind {
         case .package:
@@ -535,13 +536,13 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 let children = node.children.filter {
                     ($0.slotID ?? (package.hasDropZone ? nil : package.renderDefinition.slots.first?.id)) == slot.id
                 }
-                return (slot.id, children.map { render($0, page: page, framework: framework, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site, parentPartID: node.id) }.joined())
+                return (slot.id, children.map { render($0, page: page, framework: framework, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site, outputHooks: outputHooks) }.joined())
             })
             let dropZones = Dictionary(uniqueKeysWithValues: package.dropZoneNames.enumerated().map { index, name in
                 let slotID = package.dropZoneSlotID(for: name)
                 let children = node.children.filter { $0.slotID == slotID || (index == 0 && $0.slotID == nil) }
                 return (name, children.map {
-                    render($0, page: page, framework: framework, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site, parentPartID: node.id)
+                    render($0, page: page, framework: framework, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site, outputHooks: outputHooks)
                 }.joined())
             })
             let anchor = PartAnchorValidator.validated(node.anchor)
@@ -549,8 +550,13 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             let customAttributes = PartRootAttributeValidator.validAttributes(node.rootAttributes ?? []).map {
                 " \($0.name)=\"\(escapeAttribute($0.value))\""
             }.joined()
-            let relationshipAttributes = "data-foundry-part data-foundry-package=\"\(escapeAttribute(package.manifest.identifier))\"" +
-                (parentPartID.map { " data-foundry-parent=\"\($0.uuidString)\"" } ?? "")
+            let requiresIdentity = outputHooks.requiresIdentity(for: node, package: package)
+            let identityAttributes = requiresIdentity
+                ? "data-foundry-id=\"\(node.id.uuidString)\" data-foundry-part data-foundry-package=\"\(escapeAttribute(package.manifest.identifier))\""
+                : ""
+            let outputClass = requiresIdentity
+                ? partClass(node) + " " + PartTemplateRenderer.packageClass(for: package.manifest.identifier)
+                : PartRootAttributeValidator.normalizedClasses(node.customClasses)
             let properties = packageProperties(node, framework: framework, assetPrefix: assetPrefix, assets: assets, site: site)
             let templateContext = PartTemplateContext(
                     instanceID: node.id,
@@ -559,9 +565,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     templateValues: navigationValues(for: page, in: site),
                     slots: slots,
                     dropZones: dropZones,
-                    partClass: partClass(node) + " " +
-                        PartTemplateRenderer.packageClass(for: package.manifest.identifier),
-                    partAttributes: "data-foundry-id=\"\(node.id.uuidString)\" \(relationshipAttributes)\(anchorAttribute)\(customAttributes)",
+                    partClass: outputClass,
+                    partAttributes: "\(identityAttributes)\(anchorAttribute)\(customAttributes)",
                     assetBasePath: packageAssetPrefix,
                     assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix),
                     siteBaseURL: siteBaseURL(for: site),
@@ -592,7 +597,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 package.htmlTemplate.contains("{{part.attributes}}") {
                 return decorated
             }
-            return "<div data-foundry-id=\"\(node.id.uuidString)\" \(relationshipAttributes) class=\"\(partClass(node)) \(PartTemplateRenderer.packageClass(for: package.manifest.identifier))\">\(decorated)</div>"
+            return "<div \(identityAttributes)\(anchorAttribute)\(customAttributes) class=\"\(outputClass)\">\(decorated)</div>"
         case .unavailable:
             return missingPackageHTML(
                 node,
@@ -631,10 +636,6 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             assets: assets,
             destination: .export,
             exportedSource: { "../" + site.publishedPath(for: $0) }
-        ))
-        \(FoundryCSS.build(
-            framework: framework,
-            colorScheme: site.appearanceMode.cssColorScheme
         ))
         \(FoundryWebLibraryRegistry.exportCSS(for: sitePackages))
         \(BootstrapColorCSS.export(framework: framework, mode: site.appearanceMode))
@@ -1364,6 +1365,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         assets: ProjectAssetContents,
         site: Site
     ) -> String {
+        let outputHooks = PublishedPartHooks(page: page, site: site)
         return node.children.map {
             render(
                 $0,
@@ -1372,7 +1374,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 assetPrefix: assetPrefix,
                 packageAssetPrefix: packageAssetPrefix,
                 assets: assets,
-                site: site
+                site: site,
+                outputHooks: outputHooks
             )
         }.joined()
     }

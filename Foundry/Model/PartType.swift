@@ -59,6 +59,7 @@ nonisolated struct PartType: RawRepresentable, Codable, Hashable, Identifiable, 
     }
 
     static let section = PartType(rawValue: "foundry.layout.section")
+    static let container = PartType(rawValue: "foundry.layout.container")
     static let stack = PartType(rawValue: "foundry.layout.stack")
     static let stackItem = PartType(rawValue: "foundry.layout.stackitem")
     static let grid = PartType(rawValue: "foundry.layout.grid")

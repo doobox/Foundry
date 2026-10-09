@@ -87,12 +87,6 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             \(framework.fontSourceCSS(assets: assets, destination: .canvas))
           </style>
           <style>
-            \(FoundryCSS.build(
-                framework: framework,
-                colorScheme: appearance.rawValue
-            ))
-          </style>
-          <style>
             :root {
               --foundry-editor-part: #007BFF;
               --foundry-editor-global: #30D158;
@@ -150,38 +144,8 @@ nonisolated struct HTMLPageRenderer: PageRendering {
               color: #898989;
             }
             .foundry-drop-label svg { display: block; }
-            /* Empty Sections reserve a comfortable target when auto-sized,
-               but may shrink their layout box when the author sets a height.
-               The visible target remains readable outside that smaller box. */
-            [data-foundry-package="foundry.layout.section"] > .fd-section__content > .foundry-empty-drop-zone {
-              height: 64px;
-              min-height: 0;
-              padding: 0;
-              border: 0 !important;
-              background: transparent;
-              overflow: visible;
-            }
-            [data-foundry-package="foundry.layout.section"] > .fd-section__content > .foundry-empty-drop-zone::before {
-              /* Preserve an intrinsic width for the empty Fit content mode. */
-              content: "";
-              width: 56px;
-              height: 0;
-              pointer-events: none;
-            }
-            [data-foundry-package="foundry.layout.section"] > .fd-section__content > .foundry-empty-drop-zone > .foundry-drop-label {
-              position: absolute;
-              inset: 0;
-              min-height: 64px;
-              display: grid;
-              place-items: center;
-              padding: 16px;
-              background: #e9e9e9;
-              border: 1px solid #cdcdcd;
-              border-radius: 4px;
-            }
             .foundry-empty-page { min-height: 100vh; }
             .foundry-contentless-drop-zone { min-height: 32px; padding: 6px 12px; }
-            .foundry-grid > .foundry-empty-drop-zone { grid-column: 1 / -1; }
             [data-foundry-global].foundry-editing { outline-color: var(--foundry-editor-chrome) !important; }
             body { background: \(page.backgroundColour(framework: framework, appearance: appearance)); }
             .foundry-image-drop-zone, .foundry-video-drop-zone {

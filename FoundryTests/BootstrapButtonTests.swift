@@ -8,7 +8,9 @@ struct BootstrapButtonTests {
     func buttonMatchesBootstrapComponentStyles(destination: String) async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
         let button = PartNode.make(.button)
-        let page = Page(title: "Bootstrap button", slug: "index", parts: [button])
+        var container = PartNode.make(.container)
+        container.children = [button]
+        let page = Page(title: "Bootstrap button", slug: "index", parts: [container])
         let html: String
         if destination == "export" {
             let bundle = StaticSiteRenderer().render(site: Site(name: "Buttons", pages: [page]))
@@ -40,6 +42,20 @@ struct BootstrapButtonTests {
             stableStyles.textContent = '.btn { transition: none !important; animation: none !important; }';
             document.head.append(stableStyles);
             const errors = [];
+            const actualContainer = actual.parentElement;
+            const referenceContainer = document.createElement('div');
+            document.body.append(referenceContainer);
+            const originalContainerClasses = actualContainer.className;
+            for (const containerClass of ['container', 'container-fluid']) {
+                actualContainer.className = containerClass;
+                referenceContainer.className = containerClass;
+                const a = getComputedStyle(actualContainer), b = getComputedStyle(referenceContainer);
+                for (const property of ['width', 'maxWidth', 'paddingLeft', 'paddingRight', 'marginLeft', 'marginRight']) {
+                    if (a[property] !== b[property]) errors.push(`${containerClass}: ${property}: ${a[property]} != ${b[property]}`);
+                }
+            }
+            actualContainer.className = originalContainerClasses;
+            referenceContainer.remove();
             if (!actual.classList.contains('btn-solid') || !actual.classList.contains('theme-primary')) {
                 errors.push('Default button lacks Bootstrap 6 variant/theme');
             }

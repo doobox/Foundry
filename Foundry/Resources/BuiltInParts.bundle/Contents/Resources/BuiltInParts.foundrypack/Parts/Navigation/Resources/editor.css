@@ -1,4 +1,0 @@
-/* The canvas runs no part scripting: keep every link reachable when the
-   menu would be collapsed behind the toggle. */
-:instance .fd-navigation__menu { display: flex !important; }
-:instance .fd-navigation__toggle { pointer-events: none; }

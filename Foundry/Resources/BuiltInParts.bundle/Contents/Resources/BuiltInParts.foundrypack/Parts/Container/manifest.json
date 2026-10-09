@@ -1,0 +1,31 @@
+{
+  "id": "foundry.layout.container",
+  "title": "Container",
+  "author": "Foundry",
+  "version": "1.0.0",
+  "minimumAPIVersion": 1,
+  "description": "A Bootstrap container for grouping child parts.",
+  "group": "Layout",
+  "icon": { "symbol": "rectangle", "tint": "blue" },
+  "tags": ["Bootstrap", "layout", "container"],
+  "assets": [],
+  "templates": { "html": "part.html" },
+  "inspector": [
+    {
+      "section": "Container",
+      "systemImage": "rectangle",
+      "controls": [
+        {
+          "type": "select",
+          "id": "width",
+          "label": "Width",
+          "defaults": { "base": "container" },
+          "options": [
+            { "title": "Container", "value": "container" },
+            { "title": "Container fluid", "value": "container-fluid" }
+          ]
+        }
+      ]
+    }
+  ]
+}

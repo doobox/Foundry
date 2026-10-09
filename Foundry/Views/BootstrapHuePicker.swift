@@ -7,7 +7,7 @@ struct BootstrapHuePicker: View {
     @State private var selectedHue = ""
 
     var body: some View {
-        Picker("\(palette.name) hue", selection: $selectedHue) {
+        Picker(palette.name, selection: $selectedHue) {
             if palette.bootstrapHue == nil { Text("Custom shades").tag("") }
             ForEach(BootstrapColourCatalogue.hues, id: \.self) { hue in
                 Text(hue.capitalized).tag(hue)
