@@ -13,6 +13,26 @@ Foundry is an independently designed native macOS visual website builder. Its ar
 
 Dependencies point inward: presentation and adapters depend on editing/domain contracts; the domain model does not depend on UI, WebKit, exporters, extensions, or legacy formats.
 
+## Source layout
+
+App source in `Foundry/` is split by layer. Xcode uses synchronized folders, so moving or adding a file needs no project-file change.
+
+- `App/` — app entry point and app-wide preferences.
+- `Core/` — everything that is not a view. No SwiftUI views live here.
+  - `Model/Site`, `Model/Parts`, `Model/Framework` — Codable domain values.
+  - `Document/` — document lifecycle, file types and validation.
+  - `Editing/` — `ProjectEditor` and the undo-aware editing extensions. The only layer that changes project content.
+  - `Bootstrap/Tokens` — Bootstrap 6 colour, layout, type and shadow token models. `Bootstrap/CSS` — the generated theme, colour, spacing and utility CSS, and control-group class mapping.
+  - `PartPackages/Manifest`, `Templates`, `Resolvers` — part package loading and validation, the template language, and property/control-group resolvers.
+  - `Rendering/Page`, `Rendering/Canvas`, `Rendering/Export` — page HTML, canvas scene and cache, static-site export and published output.
+  - `Libraries/` — packs, reusable parts, framework and site-kit libraries, updates.
+  - `Services/` — Google Fonts, remote/YouTube video, media import and thumbnails.
+  - `Preview/`, `Publishing/` — local preview server and site publishing.
+- `UI/` — SwiftUI and AppKit presentation only, grouped by screen area: `App`, `Workspace`, `Canvas`, `Navigator`, `Inspector` (with `PartControls`), `Assets`, `Editors`, `Framework` (`Colours`, `Tokens`, `Fonts`, `Layout`), `ProjectSettings` and `Shared`.
+- `Resources/`, `ControlGroups/`, `PHPRuntime/`, `Assets.xcassets` — bundled resources.
+
+Put new non-view types under `Core/` and new views under `UI/`. Keep one main type per file and name the file after it.
+
 ## Workspace layout
 
 The editor shell is an AppKit-managed dockable workspace composed of stable panel identities, tab groups, split columns, a persistent sidebar dock, a canvas region and a persistent inspector dock. Pages, part library, page structure, resources and inspector content remain SwiftUI views hosted by AppKit controllers. The workspace supports tab movement and consolidation, left/right split docking, detached panel windows, resetting layouts, and named workspace snapshots including preferred column widths. Detached panels host the same SwiftUI content, preserve geometry, follow their owning document, and can redock into a tab group or adjacent column.

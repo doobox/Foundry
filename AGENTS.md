@@ -45,6 +45,10 @@ component corner radii and named stacking layers. Foundry's own
 responsive text and wrapping variants and container caps come from
 `BootstrapUtilityExtensionsCSS`, emitted after Bootstrap in the same layers.
 
+## Source layout
+
+App code is split into `Foundry/App`, `Foundry/Core` (models, editing, Bootstrap, part packages, rendering, services; no views) and `Foundry/UI` (views only, grouped by screen area). See "Source layout" in `ARCHITECTURE.md` before adding or moving files. Put each new type in the folder for its layer, one main type per file.
+
 ## Built-in inspector order
 
 Keep shared sections in this relative order, omitting those a part does not use:

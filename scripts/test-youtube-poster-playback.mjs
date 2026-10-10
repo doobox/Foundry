@@ -2,7 +2,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import test from 'node:test';
-const swift = readFileSync(new URL('../Foundry/Renderer/YouTubePosterPlayback.swift', import.meta.url), 'utf8');
+const swift = readFileSync(new URL('../Foundry/Core/Rendering/Page/YouTubePosterPlayback.swift', import.meta.url), 'utf8');
 const source = swift.split('#"""')[1].split('"""#')[0];
 test('creates player only on activation and requests playback when ready', async () => {
     let click, player, replacement, events, playCalls = 0;

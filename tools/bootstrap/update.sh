@@ -32,7 +32,7 @@ shasum -a 256 "$resources/bootstrap-$version.min.css" "$resources/bootstrap-$ver
 cat <<EOF
 
 Copied Bootstrap $version. Next:
-  1. Update the version in Foundry/Parts/FoundryWebLibraryRegistry.swift.
+  1. Update the version in Foundry/Core/Rendering/Page/FoundryWebLibraryRegistry.swift.
   2. Update the version and checksums in FoundryTests/BootstrapBundledLibraryTests.swift.
   3. Run the Bootstrap browser tests (spacing, container, paragraph, live theme, editor tokens).
   4. Review BootstrapUtilityExtensionsCSS against the new release's utilities.

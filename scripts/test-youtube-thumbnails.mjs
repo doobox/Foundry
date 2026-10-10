@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import vm from 'node:vm';
 import test from 'node:test';
 
-const swift = readFileSync(new URL('../Foundry/Renderer/CanvasYouTubeThumbnails.swift', import.meta.url), 'utf8');
+const swift = readFileSync(new URL('../Foundry/Core/Rendering/Canvas/CanvasYouTubeThumbnails.swift', import.meta.url), 'utf8');
 const script = swift.split('#"""')[1].split('"""#')[0];
 function setup(width, complete = true) {
     const listeners = {};

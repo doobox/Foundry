@@ -1,1 +1,1 @@
-#import "Publishing/FoundryCurlBridge.h"
+#import "Core/Publishing/FoundryCurlBridge.h"
