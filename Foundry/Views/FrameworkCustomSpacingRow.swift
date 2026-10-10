@@ -16,7 +16,7 @@ struct FrameworkCustomSpacingRow: View {
                     .textFieldStyle(.roundedBorder).frame(width: 120)
                     .focused($editingName).onSubmit(commitName)
                     .accessibilityLabel("Spacing size name")
-                Slider(value: sliderValue, in: 0...12, step: 0.125)
+                FrameworkSlider(value: sliderValue, range: 0...12, step: 0.125)
                     .accessibilityLabel("\(token.name) value")
                 FrameworkNumberField(title: "\(token.name) value", value: $value, unit: "rem", step: 0.125, precision: 3)
                 Button("Delete \(token.name)", systemImage: "trash", action: remove)

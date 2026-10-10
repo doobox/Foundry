@@ -12,7 +12,10 @@ Canvas editing identifiers and metadata must stay out of plain preview/export
 markup. Preview and export share the clean Bootstrap output contract. Retain
 output hooks only for authored styling or runtime behaviour that needs them.
 The old Foundry CSS generator and old built-in parts are removed; do not restore
-compatibility CSS. The baseline built-ins are Button, Container, Flex, Grid, Paragraph, HTML, SVG and Image.
+compatibility CSS. The baseline built-ins are Button, Container, Flex, Grid, Paragraph, HTML, SVG, Image and Card.
+Card is the first ready-made Bootstrap component part: it composes native
+component markup with a small, semantic inspector and maps choices to classes
+in its template.
 Inspector controls should select
 Bootstrap themes, variants, sizes and tokens; avoid parallel Foundry styling
 defaults or unconditional CSS that overrides Bootstrap's component states.
@@ -26,6 +29,32 @@ For each part's first switchover, strip its inspector to Bootstrap basics.
 Keep only essential content, behaviour, accessibility and native Bootstrap
 options. Remove legacy styling control groups; add extra capabilities back
 progressively when Gary requests them.
+
+## Bootstrap ships untouched; Foundry adds plain CSS
+
+The bundled Bootstrap CSS and JS are byte-for-byte the official npm release,
+pinned by checksum in `BootstrapBundledLibraryTests`. There is no Sass, Node or
+npm step; update Bootstrap with `tools/bootstrap/update.sh <version>`.
+Bootstrap's utility scales (spacing steps, text sizes, weights, numbered radii and
+border widths, numeric z-index) are fixed because Bootstrap bakes them into its
+utilities. The framework editor shows Colours, Fonts, Extensions and Advanced.
+Extensions holds project-named additions to the fixed scales. Advanced holds,
+collapsed, the variables Bootstrap's components read: body typography, links,
+focus ring, buttons and inputs, shadow strength, the shared border width,
+component corner radii and named stacking layers. Foundry's own
+responsive text and wrapping variants and container caps come from
+`BootstrapUtilityExtensionsCSS`, emitted after Bootstrap in the same layers.
+
+## Built-in inspector order
+
+Keep shared sections in this relative order, omitting those a part does not use:
+Content (including source/icon controls), Action, Appearance, Layout (including
+Container/Flex/Grid), Sizing, Alignment, Gap, Spacing, Typography, Foreground,
+Background, Borders, Shadows, Links, Display, Advanced. Object fit follows Sizing;
+Content typography (Prose) follows Typography; Accessibility precedes Advanced.
+Use the same Typography and Foreground titles across parts. Third-party manifests
+retain their declared order. Reuse the Bootstrap sizing group; do not duplicate
+Container's width behaviour or Button's specialised fit/full-width control.
 
 ## Built-in framework artwork
 

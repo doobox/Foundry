@@ -17,17 +17,26 @@ final class FrameworkEditorSession {
     func colourIsInUse(_ id: String) -> Bool {
         var probe = document.site
         probe.replacePartFrameworkReference(id, with: "foundry:usage-check")
+        if let palette = document.site.framework.colourPalettes.first(where: { $0.id == id && $0.colourKind != .theme }) {
+            for token in palette.colourTokens { probe.replacePartFrameworkReference("token:" + token, with: "foundry:usage-check") }
+        }
         return probe != document.site
     }
 
     func deleteColour(_ id: String, replacement: String?) {
-        guard document.site.framework.colourPalettes.contains(where: { $0.id == id && $0.origin == .custom }) else { return }
+        guard let palette = document.site.framework.colourPalettes.first(where: { $0.id == id && $0.origin == .custom }) else { return }
         if let replacement {
             guard replacement != id,
-                  document.site.framework.colourPalettes.contains(where: { $0.id == replacement }) else { return }
+                  replacement == "inherit" || document.site.framework.colourPalettes.contains(where: { $0.id == replacement && $0.colourKind == palette.colourKind }) else { return }
         } else if colourIsInUse(id) { return }
         editor.mutate(actionName: "Delete Colour", impact: .framework) { site in
             if let replacement { site.replacePartFrameworkReference(id, with: replacement) }
+            if palette.colourKind != .theme, let replacement {
+                let tokens = site.framework.colourPalettes.first(where: { $0.id == replacement })?.colourTokens ?? []
+                for (index, token) in palette.colourTokens.enumerated() {
+                    site.replacePartFrameworkReference("token:" + token, with: tokens.indices.contains(index) ? "token:" + tokens[index] : "inherit")
+                }
+            }
             site.framework.colourPalettes.removeAll { $0.id == id }
             site.projectFrameworkValues.colours.removeAll { $0.id == id }
             for index in site.frameworkStates.indices {

@@ -11,11 +11,12 @@ struct FrameworkBreakpointSettings: View {
                 Text("Breakpoints")
                     .font(.title3.weight(.semibold))
                     .accessibilityAddTraits(.isHeader)
+                Text("Bootstrap's breakpoint widths are fixed. Choose which sizes this site uses; a disabled size keeps the previous container width.")
+                    .font(.callout)
+                    .foregroundStyle(.secondary)
                 Grid(alignment: .leading, horizontalSpacing: 28, verticalSpacing: 16) {
                     GridRow {
                         Text("Breakpoint")
-                        Text("Starts at")
-                        Text("Container max")
                         Text("Enabled")
                     }
                     .font(.callout.weight(.medium))

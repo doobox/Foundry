@@ -21,7 +21,7 @@ struct ProjectColourSettings: View {
         FrameworkColoursPreview(model: model, canEditFramework: session.canEditFramework, requestDelete: { palette in
             replacement = ""
             deleting = palette
-        })
+        }, tokenEditor: session.editor, framework: document.site.framework)
             .sheet(item: $deleting) { palette in
                 let inUse = session.colourIsInUse(palette.id)
                 VStack(alignment: .leading, spacing: 16) {
@@ -30,7 +30,8 @@ struct ProjectColourSettings: View {
                         Text("This colour is in use. Choose a replacement. Each part’s currently selected shade will be kept.")
                         Picker("Replace with", selection: $replacement) {
                             Text("Choose a colour").tag("")
-                            ForEach(BootstrapPaletteTheme.selectablePalettes(in: document.site.framework).filter { $0.id != palette.id }) { value in
+                            Text("Inherit").tag("inherit")
+                            ForEach(document.site.framework.colourPalettes.filter { $0.id != palette.id && $0.origin != .standard && $0.colourKind == palette.storedValue.colourKind }) { value in
                                 Text("\(value.name) — \(String(describing: value.origin).capitalized)").tag(value.id)
                             }
                         }

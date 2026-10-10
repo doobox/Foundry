@@ -353,7 +353,7 @@ nonisolated enum PartPackageValidator {
             propertyIDs.insert(namespace + ".css")
         }
         for group in manifest.controlGroups where group.type == .background {
-            for field in ["css", "color", "image", "position", "size", "repeat", "video", "hover", "hover.selector"] {
+            for field in ["classes", "stylesheet", "css", "color", "image", "position", "size", "repeat", "video", "hover", "hover.selector"] {
                 propertyIDs.insert(group.namespace + "." + field)
             }
         }
@@ -1102,6 +1102,13 @@ nonisolated enum PartPackageValidator {
             if case .boolean = defaultValue {} else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A \(property.control.type.rawValue) control requires a Boolean default value."))
             }
+        case .borderSides:
+            if property.responsive {
+                diagnostics.append(.init(severity: .error, location: location, message: "Bootstrap border sides do not have responsive variants."))
+            }
+            if BootstrapBorderClasses.defaultValue(defaultValue) == nil {
+                diagnostics.append(.init(severity: .error, location: location, message: "Border sides require none, 0 or 1, or a dictionary of top/right/bottom/left values."))
+            }
         case .frameworkBorder:
             guard case .object(let fields) = defaultValue else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A frameworkBorder default requires a dictionary with width and optional style."))
@@ -1205,8 +1212,8 @@ nonisolated enum PartPackageValidator {
             }
         case .themeColor:
             guard case .string(let value) = defaultValue,
-                  BootstrapPaletteTheme.selectablePalettes(in: .standard).contains(where: { $0.id == BootstrapPaletteTheme.paletteID(value) }) else {
-                diagnostics.append(.init(severity: .error, location: location, message: "A themeColor default must identify one of Bootstrap's eight semantic themes."))
+                  value == "inherit" || PartColourToken.parse(value) != nil || BootstrapPaletteTheme.selectablePalettes(in: .standard).contains(where: { $0.id == BootstrapPaletteTheme.paletteID(value) }) else {
+                diagnostics.append(.init(severity: .error, location: location, message: "A themeColor default must identify a Bootstrap theme, a supported colour token, or inherit."))
                 return
             }
         case .select:

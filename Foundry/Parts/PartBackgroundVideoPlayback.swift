@@ -5,11 +5,10 @@ nonisolated enum PartBackgroundVideoPlayback {
     static let javaScript = #"""
     (() => {
       if (!("IntersectionObserver" in window)) return;
-      const root = document.querySelector('[data-foundry-id="{{ instance.id }}"]');
-      if (!root) return;
       if (!window.foundryBackgroundPlayback) {
         const videos = new Map();
-        const shouldPlay = (video) => videos.get(video) === true && !document.hidden && video.isConnected;
+        const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+        const shouldPlay = (video) => !reducedMotion.matches && videos.get(video) === true && !document.hidden && video.isConnected;
         const update = (video) => {
           if (!video.isConnected) {
             video.pause();
@@ -32,6 +31,10 @@ nonisolated enum PartBackgroundVideoPlayback {
           }
         });
         document.addEventListener("visibilitychange", () => videos.forEach((_, video) => update(video)));
+        reducedMotion.addEventListener("change", () => videos.forEach((_, video) => {
+          if (reducedMotion.matches) { video.pause(); video.load(); }
+          update(video);
+        }));
         window.foundryBackgroundPlayback = {
           observe(video) {
             if (videos.has(video)) return;
@@ -41,9 +44,7 @@ nonisolated enum PartBackgroundVideoPlayback {
           }
         };
       }
-      root.querySelectorAll("video.foundry-background-video").forEach((video) => {
-        if (video.closest("[data-foundry-id]") === root) window.foundryBackgroundPlayback.observe(video);
-      });
+      document.querySelectorAll("video.background-video").forEach(video => window.foundryBackgroundPlayback.observe(video));
     })();
     """#
 }

@@ -8,9 +8,6 @@ struct FrameworkBreakpointSwitchRow: View {
     var body: some View {
         GridRow {
             Label(screen.id.shortTitle, systemImage: screen.id.systemImage)
-            Text("\(Int(screen.minimumWidth)) px").monospacedDigit()
-            Text(screen.container.unit == .auto ? "Fluid" : "\(Int(screen.container.value)) px")
-                .monospacedDigit()
             if screen.id == .mobile {
                 Text("Always on").foregroundStyle(.secondary)
             } else {

@@ -29,17 +29,7 @@
 :instance .fx-values dd:empty::before { content: "(empty)"; color: var(--fx-muted); }
 
 /* Demo boxes: a visible baseline the group then paints over. */
-:instance .fx-target { display: flex; align-items: center; justify-content: center; min-height: 140px; padding: 14px 18px; border-radius: 8px; background: #e2e8f0; color: var(--fx-ink); font-size: 13px; }
+:instance .fx-target { display: flex; align-items: center; justify-content: center; min-height: 140px; padding: 14px 18px; border-radius: 8px; color: var(--fx-ink); font-size: 13px; }
 :instance .fx-caption { position: relative; padding: 4px 10px; border-radius: 999px; background: rgba(255, 255, 255, .85); color: var(--fx-ink); }
 
-/* Video needs a positioned, isolated host; colours, images and gradients do not.
-   Neither declaration comes from the group. */
-:instance .fx-host {
-    position: relative;
-    isolation: isolate;
-    {{ control.background.css }}
-}
-:instance .fx-host:hover { {{ control.background.hover.css }} }
-
-/* supportsHover: false — one rule is enough. */
-:instance .fx-panel { {{ control.panel.css }} }
+/* Background classes supply selected paint and decorative video positioning. */

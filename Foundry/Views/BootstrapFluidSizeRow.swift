@@ -21,7 +21,7 @@ struct BootstrapFluidSizeRow: View {
                     HStack(spacing: 14) {
                         let label = ["Minimum", "Base", "Viewport", "Maximum"][index]
                         Text(label).foregroundStyle(.secondary).frame(width: 150, alignment: .leading)
-                        Slider(value: $components[index], in: 0...max(10, components[index]), step: 0.025)
+                        FrameworkSlider(value: $components[index], range: 0...max(10, components[index]), step: 0.025)
                             .accessibilityLabel("\(token.label) \(label)")
                         FrameworkNumberField(title: label, value: $components[index], unit: index == 2 ? "vw" : "rem", step: 0.025, precision: 3)
                     }

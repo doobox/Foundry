@@ -1,16 +1,16 @@
 <article class="foundry-showcase {{ part.class }}" {{ part.attributes }}>
     <p class="fx-kicker">Control group · background</p>
     <h2>Background group</h2>
-    <p class="fx-lede">Paints a colour, image or gradient behind an element. This example explicitly adds video to backgroundTypes and supplies a positioned, isolated host. If Layout controls that host, restrict its position options to Relative, Absolute, Fixed and Sticky.</p>
+    <p class="fx-lede">Paints a Bootstrap colour, image or gradient behind an element. This example explicitly adds decorative video to backgroundTypes.</p>
 
     <section class="fx-form">
         <h3>Background</h3>
         <p>The full group. Set Type to Static or Hover in the Inspector; the box below is the host, with <code>control.background.video</code> as its first child. Hover it to see the hover state.</p>
-        <div class="fx-demo"><div class="fx-target fx-host">{{ control.background.video }}<span class="fx-caption">Background host — hover me</span></div></div>
+        <div class="fx-demo"><div class="fx-target fx-host {{ control.background.classes }}">{{ control.background.video }}<span class="fx-caption">Background host — hover me</span></div></div>
         <dl class="fx-values">
             <dt>control.background.css</dt><dd>{{ control.background.css }}</dd>
             <dt>control.background.hover.css</dt><dd>{{ control.background.hover.css }}</dd>
-            <dt>control.background.video</dt><dd>{{ if control.background.video }}A foundry-background-layer element, inserted in the host above{{ endif }}</dd>
+            <dt>control.background.video</dt><dd>{{ if control.background.video }}A background-layer element, inserted in the host above{{ endif }}</dd>
             <dt>control.background.color</dt><dd>{{ control.background.color }}</dd>
             <dt>control.background.image</dt><dd>{{ control.background.image }}</dd>
             <dt>control.background.position</dt><dd>{{ control.background.position }}</dd>
@@ -25,7 +25,6 @@
             <dt>control.background.backgroundState</dt><dd>{{ control.background.backgroundState }}</dd>
             <dt>control.background.backgroundStyle</dt><dd>{{ control.background.backgroundStyle }}</dd>
             <dt>control.background.backgroundColor</dt><dd>{{ control.background.backgroundColor }}</dd>
-            <dt>control.background.backgroundColor.contrastColor</dt><dd>{{ control.background.backgroundColor.contrastColor }}</dd>
             <dt>control.background.backgroundImage</dt><dd>{{ control.background.backgroundImage }}</dd>
             <dt>control.background.backgroundImage.position</dt><dd>{{ control.background.backgroundImage.position }}</dd>
             <dt>control.background.backgroundImage.width</dt><dd>{{ control.background.backgroundImage.width }}</dd>
@@ -60,7 +59,7 @@
     <section class="fx-form">
         <h3>Colour and gradient only</h3>
         <p><code>"backgroundTypes": ["colour", "gradient"]</code> hides Image and Video; <code>"supportsHover": false</code> removes the Hover type, so one rule is enough. This one starts Static.</p>
-        <div class="fx-demo"><div class="fx-target fx-panel"><span class="fx-caption">Static only</span></div></div>
+        <div class="fx-demo"><div class="fx-target fx-panel {{ control.panel.classes }}"><span class="fx-caption">Static only</span></div></div>
         <dl class="fx-values">
             <dt>control.panel.css</dt><dd>{{ control.panel.css }}</dd>
             <dt>control.panel.color</dt><dd>{{ control.panel.color }}</dd>

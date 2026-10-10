@@ -4,6 +4,54 @@ import WebKit
 
 @MainActor
 struct BootstrapButtonTests {
+    @Test(.timeLimit(.minutes(1)), arguments: [PartTemplateEnvironment.canvas, .preview, .published])
+    func inheritedThemeFollowsParentWithoutOverridingExplicitChoice(environment: PartTemplateEnvironment) async throws {
+        await PartPackageCatalog.shared.waitUntilLoaded()
+        var inherited = PartNode.make(.button)
+        inherited.anchor = "inherited-button"
+        #expect(inherited.property(.init(rawValue: "theme")) == "inherit")
+        #expect(BootstrapPaletteTheme.resolve("inherit", framework: .standard) == "")
+        var explicit = PartNode.make(.button)
+        explicit.anchor = "explicit-button"
+        explicit.setProperty(.init(rawValue: "theme"), value: .choice("framework.primary"))
+        explicit = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(explicit))
+        #expect(explicit.property(.init(rawValue: "theme")) == "framework.primary")
+        var parent = PartNode.make(.container)
+        parent.anchor = "theme-parent"
+        parent.children = [inherited, explicit]
+        let page = Page(title: "Inherited theme", slug: "index", parts: [parent])
+        let html: String
+        if environment == .canvas {
+            html = HTMLPageRenderer().render(page: page, framework: .standard)
+        } else {
+            let bundle = StaticSiteRenderer(environment: environment).render(site: Site(name: "Themes", pages: [page]))
+            #expect(bundle.errors.isEmpty)
+            let source = try #require(bundle.file(at: "index.html")?.contents)
+            let css = try #require(bundle.file(at: "files/site.css")?.contents) + (try #require(bundle.file(at: "files/page.css")?.contents))
+            html = source.replacingOccurrences(of: "</head>", with: "<style>\(css)</style></head>")
+        }
+        let browser = BootstrapTokenBrowser()
+        try await browser.load(html)
+        let errors = try await browser.web.evaluateJavaScript("""
+            (()=>{const errors=[],parent=document.getElementById('theme-parent'),a=document.getElementById('inherited-button'),b=document.getElementById('explicit-button');
+            const ref=document.createElement('a');ref.href='#';document.body.append(ref);
+            const style=document.createElement('style');style.textContent='.btn{transition:none!important}';document.head.append(style);
+            if([...a.classList].some(c=>c.startsWith('theme-')))errors.push('inherit emitted theme class');
+            if(!b.classList.contains('theme-primary'))errors.push('explicit selection lost');
+            const check=(node,classes,label)=>{ref.className=classes;for(const key of ['color','backgroundColor','borderTopColor'])if(getComputedStyle(node)[key]!==getComputedStyle(ref)[key])errors.push(label+' '+key)};
+            for(const mode of ['light','dark']){
+              document.documentElement.dataset.bsTheme=mode;
+              for(const theme of ['', 'theme-danger','theme-warning']){
+                parent.classList.remove('theme-danger','theme-warning');if(theme)parent.classList.add(theme);
+                check(a,'btn btn-solid '+theme,mode+' inherited '+theme);
+                check(b,'btn btn-solid theme-primary',mode+' explicit '+theme);
+              }
+            }
+            return errors;})()
+            """) as? [String]
+        #expect(errors == [])
+    }
+
     @Test(.timeLimit(.minutes(1)), arguments: ["canvas-light", "canvas-dark", "export"])
     func buttonMatchesBootstrapComponentStyles(destination: String) async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
@@ -56,8 +104,8 @@ struct BootstrapButtonTests {
             }
             actualContainer.className = originalContainerClasses;
             referenceContainer.remove();
-            if (!actual.classList.contains('btn-solid') || !actual.classList.contains('theme-primary')) {
-                errors.push('Default button lacks Bootstrap 6 variant/theme');
+            if (!actual.classList.contains('btn-solid') || [...actual.classList].some(c => c.startsWith('theme-'))) {
+                errors.push('Default button must use solid styling and inherit its theme');
             }
             const original = actual.className;
             const properties = ['color', 'backgroundColor', 'borderTopColor', 'borderTopWidth',

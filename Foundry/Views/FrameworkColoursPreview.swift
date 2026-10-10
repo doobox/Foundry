@@ -47,9 +47,8 @@ final class FrameworkColourPreviewModel {
     }
 
     private func resetting(_ group: PreviewColourPalette.Group) -> [ColourPalette] {
-        guard group == .theme || group == .layer else { return storedPalettes }
         return storedPalettes.map { palette in
-            guard PreviewColourPalette(stored: palette).group == group,
+            guard palette.origin == .framework, PreviewColourPalette(stored: palette).group == group,
                   let role = FrameworkColorRole(rawValue: BootstrapPaletteTheme.definitionRole(palette)) else { return palette }
             return BootstrapColourCatalogue.palette(role: role)
         }
@@ -112,29 +111,30 @@ final class FrameworkColourPreviewModel {
 
     func canAddTheme(named name: String, excluding id: String? = nil) -> Bool {
         BootstrapPaletteTheme.validCustomRole(name)
-            && !storedPalettes.contains { $0.origin == .custom && $0.id != id && BootstrapPaletteTheme.nativeRole($0) == name }
+            && !storedPalettes.contains { $0.origin == .custom && $0.id != id && $0.name == name }
     }
 
     func renameTheme(id: String, name: String, undoManager: UndoManager?) {
         guard canAddTheme(named: name, excluding: id),
-              var palette = storedPalettes.first(where: { $0.id == id && $0.origin == .custom }),
-              let oldRole = BootstrapPaletteTheme.nativeRole(palette) else { return }
+              var palette = storedPalettes.first(where: { $0.id == id && $0.origin == .custom }) else { return }
+        let oldRole = palette.name
         palette.name = name
         palette.bootstrapTokens = Dictionary(uniqueKeysWithValues: palette.bootstrapTokens.map { token, value in
-            (token.hasPrefix(oldRole + "-") ? name + token.dropFirst(oldRole.count) : token, value)
+            (palette.colourKind == .theme && token.hasPrefix(oldRole + "-") ? name + token.dropFirst(oldRole.count) : token, value)
         })
         update(PreviewColourPalette(stored: palette), session: UUID(), undoManager: undoManager)
     }
 
-    func addTheme(named name: String) {
+    func addTheme(named name: String, kind: BootstrapColourKind = .theme) {
         guard canAddTheme(named: name) else { return }
-        let role = FrameworkColorRole(rawValue: name) ?? .primary
+        let role = FrameworkColorRole(rawValue: kind.sourceRole) ?? .primary
         let source = storedPalettes.resolvedPalette(id: "framework." + role.rawValue)
             ?? BootstrapColourCatalogue.palette(role: role)
         let preferredID = "custom." + name
         let id = storedPalettes.contains { $0.id == preferredID } ? "custom." + UUID().uuidString.lowercased() : preferredID
-        let palette = try! ColourPalette(id: id, name: name, origin: .custom,
+        var palette = try! ColourPalette(id: id, name: name, origin: .custom,
             shades: source.shades, lightDefaultShade: .seven, darkDefaultShade: .seven)
+        palette.customKind = kind
         storedPalettes.append(BootstrapPaletteTheme.applying(source, to: palette))
     }
 
@@ -154,9 +154,11 @@ final class FrameworkColourPreviewModel {
 
 struct PreviewColourPalette: Identifiable, Equatable {
     enum Group: String, CaseIterable {
-        case custom = "Custom Colours"
         case theme = "Bootstrap Theme Colours"
-        case layer = "Bootstrap Layer Colours"
+        case surface = "Bootstrap Surfaces"
+        case foreground = "Bootstrap Foregrounds"
+        case border = "Bootstrap Borders"
+        case link = "Bootstrap Link Colours"
         case standard = "Bootstrap Hue Scales"
     }
     static let steps = ColourShade.bootstrapLabels
@@ -172,10 +174,13 @@ struct PreviewColourPalette: Identifiable, Equatable {
     var lightDefaultShade: Int { storedValue.lightDefaultShade.rawValue - 1 }
     var darkDefaultShade: Int { storedValue.darkDefaultShade.rawValue - 1 }
     var group: Group {
-        switch storedValue.origin {
-        case .custom: .custom
-        case .standard: .standard
-        case .framework: Self.bootstrapLayerIDs.contains(id) ? .layer : .theme
+        if storedValue.origin == .standard { return .standard }
+        switch storedValue.colourKind {
+        case .theme: return .theme
+        case .surface: return .surface
+        case .foreground: return .foreground
+        case .border: return .border
+        case .link: return .link
         }
     }
     init(stored: ColourPalette) { storedValue = stored }
@@ -188,36 +193,39 @@ struct FrameworkColoursPreview: View {
     @Environment(\.undoManager) private var undoManager
     var canEditFramework = true
     var requestDelete: ((PreviewColourPalette) -> Void)? = nil
+    var tokenEditor: ProjectEditor? = nil
+    var framework: Framework = .standard
     @State private var mode: SiteAppearance = .light
     @State private var previews: [String: String] = [:]
     @State private var error: String?
     @State private var addingColour = false
     @State private var newColourName = ""
+    @State private var addingKind: BootstrapColourKind = .theme
 
     private var css: String {
-        var framework = Framework.standard
+        var framework = self.framework
         framework.colourPalettes = model.storedPalettes
-        return BootstrapColourCatalogue.sourceCSS + BootstrapColorCSS.export(framework: framework, mode: .both)
+        return BootstrapColourCatalogue.sourceCSS + BootstrapColorCSS.export(framework: framework, mode: .both) + BootstrapThemeCSS.render(framework: framework)
     }
 
     var body: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
                 if let error { Text(error).foregroundStyle(.red) }
-                ForEach([PreviewColourPalette.Group.custom, .theme, .layer], id: \.self) { group in
+                ForEach([BootstrapColourKind.theme, .surface, .foreground, .border], id: \.self) { kind in
+                    let group = PreviewColourPalette(stored: BootstrapColourCatalogue.palette(role: FrameworkColorRole(rawValue: kind.sourceRole)!)).group
                     FrameworkEditorCard {
                         HStack(spacing: 8) {
                             Text(group.rawValue).font(.headline).accessibilityAddTraits(.isHeader)
-                            if group == .custom {
-                                Button("Add colour", systemImage: "plus") {
+                                Button("Add custom colour", systemImage: "plus") {
                                     newColourName = ""
+                                    addingKind = kind
                                     addingColour = true
                                 }
                                 .labelStyle(.iconOnly)
                                 .buttonStyle(.plain)
                                 .frame(width: 24, height: 24)
                                 .help("Add colour")
-                            }
                             Spacer()
                             if model.canReset(group) {
                                 Button("Reset", systemImage: "arrow.counterclockwise") {
@@ -228,17 +236,21 @@ struct FrameworkColoursPreview: View {
                             }
                         }
                         let palettes = model.palettes.filter { $0.group == group }
-                        if group == .custom && palettes.isEmpty {
-                            Text("Extend the colours for your project.")
-                                .font(.callout).foregroundStyle(.secondary)
-                        }
                         ForEach(palettes) { palette in
                             BootstrapThemeTokenEditor(model: model, palette: palette, mode: mode,
-                                                      previews: previews, canEdit: group == .custom || canEditFramework,
-                                                      delete: group == .custom ? { requestDelete?(palette) } : nil)
+                                                      previews: previews, canEdit: palette.storedValue.origin == .custom || canEditFramework,
+                                                      delete: palette.storedValue.origin == .custom ? { requestDelete?(palette) } : nil)
                             if palette.id != palettes.last?.id { Divider() }
                         }
                     }
+                }
+                if let tokenEditor {
+                    BootstrapTokenColoursCard(section: .linkColours, framework: framework, editor: tokenEditor, mode: mode,
+                        model: model, customPreviews: previews, requestDelete: requestDelete, addCustom: {
+                            addingKind = .link
+                            newColourName = ""
+                            addingColour = true
+                        })
                 }
             }.padding(20)
         }
@@ -288,7 +300,7 @@ struct FrameworkColoursPreview: View {
                     Spacer()
                     Button("Cancel") { addingColour = false }.keyboardShortcut(.cancelAction)
                     Button("Add colour") {
-                        model.addTheme(named: newColourName)
+                        model.addTheme(named: newColourName, kind: addingKind)
                         addingColour = false
                     }.disabled(!model.canAddTheme(named: newColourName))
                         .keyboardShortcut(.defaultAction)
@@ -301,8 +313,7 @@ struct FrameworkColoursPreview: View {
         let snapshot = css
         let appearance = mode
         let allTokens = FrameworkColorRole.allCases.flatMap { BootstrapColourCatalogue.tokens(for: $0.rawValue) }
-            + model.storedPalettes.filter { $0.origin == .custom }.compactMap(BootstrapPaletteTheme.nativeRole)
-                .flatMap { BootstrapColourCatalogue.tokens(for: $0) }
+            + model.storedPalettes.filter { $0.origin == .custom }.flatMap(\.colourTokens)
         let tokens = Array(Set(allTokens)).sorted()
         do {
             let values = try await BootstrapScalePreviewResolver().resolve(
@@ -334,7 +345,7 @@ struct PreviewColourRibbon: View {
                 HStack {
                     Button("Duplicate", systemImage: "plus.square.on.square", action: duplicate)
                         .labelStyle(.iconOnly).help("Duplicate to Custom Colours")
-                    if palette.group == .custom {
+                    if palette.storedValue.origin == .custom {
                         Button("Delete", systemImage: "trash", action: delete).labelStyle(.iconOnly)
                     }
                 }.buttonStyle(.borderless)

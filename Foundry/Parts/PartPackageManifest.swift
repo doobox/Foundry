@@ -402,6 +402,8 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         case filters
         case transforms
         case typography
+        case linkStyling
+        case prose
         case display
         case alignment
         case flexbox
@@ -418,7 +420,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         /// definition and always renders as Foundry's own Advanced section.
         case advanced
 
-        var generatesBootstrapClasses: Bool { [.spacing, .flexbox, .gap, .display, .alignment, .typography, .grid, .sizing, .borders, .objectFit, .foreground].contains(self) }
+        var generatesBootstrapClasses: Bool { [.spacing, .flexbox, .gap, .display, .alignment, .typography, .linkStyling, .prose, .grid, .sizing, .borders, .objectFit, .foreground].contains(self) }
     }
 
     enum BackgroundStyle: String, Codable, CaseIterable, Hashable, Sendable {
@@ -437,11 +439,12 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
 
     let type: Kind
     let id: String?
-    /// Reveal-only descendant selector. Nil deliberately targets the part root.
+    /// Reveal or Link styling descendant selector. Nil targets the template element.
     let target: String?
     var namespace: String { id ?? "" }
     let backgroundTypes: [BackgroundStyle]
     let supportsHover: Bool
+    let colourSections: [String]
     /// Lets a part adjust a shared group's injected defaults (e.g. a
     /// different starting padding) without hand-declaring the whole group.
     let defaults: [String: PartPackageValue]
@@ -464,6 +467,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         target: String? = nil,
         backgroundTypes: [BackgroundStyle] = BackgroundStyle.defaultStyles,
         supportsHover: Bool = true,
+        colourSections: [String] = [],
         defaults: [String: PartPackageValue] = [:],
         visibleWhen: PartPackageVisibilityCondition? = nil,
         excludeControls: [String] = [],
@@ -474,6 +478,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         self.target = target
         self.backgroundTypes = backgroundTypes
         self.supportsHover = supportsHover
+        self.colourSections = colourSections
         self.defaults = defaults
         self.visibleWhen = visibleWhen
         self.excludeControls = excludeControls
@@ -486,6 +491,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         case target = "targetSelector"
         case backgroundTypes
         case supportsHover
+        case colourSections
         case defaults
         case visibleWhen
         case excludeControls
@@ -503,6 +509,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         backgroundTypes = try container.decodeIfPresent([BackgroundStyle].self, forKey: .backgroundTypes)
             ?? BackgroundStyle.defaultStyles
         supportsHover = try container.decodeIfPresent(Bool.self, forKey: .supportsHover) ?? true
+        colourSections = try container.decodeIfPresent([String].self, forKey: .colourSections) ?? []
         defaults = try container.decodeIfPresent([String: PartPackageValue].self, forKey: .defaults) ?? [:]
         visibleWhen = try container.decodeIfPresent(PartPackageVisibilityCondition.self, forKey: .visibleWhen)
         excludeControls = try container.decodeIfPresent([String].self, forKey: .excludeControls) ?? []
@@ -520,6 +527,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
             try container.encode(supportsHover, forKey: .supportsHover)
         }
         if !defaults.isEmpty { try container.encode(defaults, forKey: .defaults) }
+        if !colourSections.isEmpty { try container.encode(colourSections, forKey: .colourSections) }
         try container.encodeIfPresent(visibleWhen, forKey: .visibleWhen)
         if !excludeControls.isEmpty { try container.encode(excludeControls, forKey: .excludeControls) }
         if !allowedOptions.isEmpty { try container.encode(allowedOptions, forKey: .allowedOptions) }
@@ -625,14 +633,23 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
             }
 
             var property = original
-            if isOverlay, !includesHover {
-                var conditions: [PartPackageVisibilityCondition] = [
+            if isOverlay {
+                let media = ["image", "video"].filter { styleValues.contains($0) }
+                var modes: [PartPackageVisibilityCondition] = [.init(all: [
                     .init(id: "backgroundMode", value: .string("static")),
-                    .init(any: ["image", "video"].map {
+                    .init(any: media.map {
                         .init(id: "backgroundStyle", value: .string($0))
                     })
-                ]
-                if property.id == "backgroundOverlayColor" {
+                ])]
+                if includesHover {
+                    var sources = media.map { PartPackageVisibilityCondition(id: "backgroundStyle", value: .string($0)) }
+                    if hoverStyleValues.contains("image") {
+                        sources.append(.init(id: "backgroundHoverStyle", value: .string("image")))
+                    }
+                    modes.append(.init(all: [.init(id: "backgroundMode", value: .string("hover")), .init(any: sources)]))
+                }
+                var conditions: [PartPackageVisibilityCondition] = [.init(any: modes)]
+                if property.id.hasPrefix("backgroundOverlayColor") {
                     conditions.append(.init(id: "backgroundOverlayEnabled", value: .boolean(true)))
                 }
                 property.visibleWhen = .init(all: conditions)
@@ -664,7 +681,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
     private static func backgroundStyle(for propertyID: String) -> String? {
         if propertyID.contains("Gradient") { return "gradient" }
         if propertyID.contains("Video") { return "video" }
-        if propertyID == "backgroundColor" || propertyID == "backgroundHoverColor" { return "color" }
+        if propertyID.hasPrefix("backgroundColor") || propertyID.hasPrefix("backgroundHoverColor") { return "color" }
         if [
             "backgroundImage", "backgroundSize", "backgroundRepeat",
             "backgroundHoverImage", "backgroundHoverSize", "backgroundHoverRepeat"
@@ -720,8 +737,8 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
             {{ endif }}{{ endif }}
             """
         }
-        if type == .background, backgroundTypes.contains(.video) {
-            return PartBackgroundVideoPlayback.javaScript
+        if type == .background, backgroundTypes.contains(.video), let id {
+            return "{{ if !canvas }}{{ if control.\(id).video }}" + PartBackgroundVideoPlayback.javaScript + "{{ endif }}{{ endif }}"
         }
         guard type == .reveal, let id else { return "" }
         let script = #"""
@@ -1359,6 +1376,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         case frameworkStackingOrder
         case pageFolder
         case frameworkBorder
+        case borderSides
     case frameworkRadius
     case frameworkMargin
     case frameworkSpacing

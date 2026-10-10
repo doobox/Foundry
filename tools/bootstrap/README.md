@@ -1,42 +1,49 @@
-# Foundry Bootstrap stylesheet build
+# Bootstrap in Foundry
 
-Sass is a developer build tool only. Foundry does not ship Node or Sass, compile
-styles during editing, or store compiled CSS in a framework document.
+Foundry ships Bootstrap exactly as the Bootstrap team publishes it. There is no
+Sass, Node or npm step anywhere in the project.
 
-From the app repository root:
+## What is bundled
+
+`Foundry/Resources/BuiltInLibraries.bundle/Contents/Resources` holds three files
+copied byte-for-byte from the pinned npm release:
+
+- `bootstrap-<version>.min.css` and `bootstrap.min.css.map`
+- `bootstrap-<version>.bundle.min.js`
+
+`FoundryTests/BootstrapBundledLibraryTests.swift` pins their checksums and checks
+for the selectors Foundry relies on. Never edit these files by hand.
+
+## How Foundry adds to Bootstrap
+
+Everything Foundry contributes is plain CSS emitted by Swift after Bootstrap's
+sheet, in the same cascade layers:
+
+- `BootstrapColorCSS` emits edited colours and custom theme classes.
+- `BootstrapEditorCSS` emits edited component variables and the utilities for
+  project-named additions such as `text-hero` or `rounded-soft`.
+- `BootstrapSpacingCSS` emits the spacing families only when a site has custom
+  spacers, so a custom base value and a Bootstrap responsive step cascade correctly.
+- `BootstrapUtilityExtensionsCSS` emits the responsive text size, weight and
+  wrapping variants Bootstrap does not generate, and caps `.container` when a
+  framework disables a breakpoint.
+
+Bootstrap's utility scales (spacing steps, text sizes, weights, numbered radii and
+border widths, numeric z-index) are fixed, because Bootstrap bakes their values
+into the utility classes. The framework editor edits only variables that
+Bootstrap's components read.
+
+## Updating Bootstrap
 
 ```sh
-npm ci --prefix tools/bootstrap --ignore-scripts --omit=peer
-npm run build --prefix tools/bootstrap
-npm test --prefix tools/bootstrap
+tools/bootstrap/update.sh 6.0.0-beta.1
 ```
 
-`live.scss` configures Bootstrap 6.0.0-alpha.1 through its native Sass maps.
-Its spacing values reference `--spacer`, preserving Bootstrap's numeric steps,
-native classes, logical edges, negative-margin values and responsive variants.
-Container maximum widths reference CSS variables with Bootstrap defaults as
-fallbacks. Breakpoint thresholds remain the upstream defaults.
-
-`compiler.mjs` uses Dart Sass Embedded and Bootstrap's PostCSS prefixer plus
-Autoprefixer. The resulting `--bs-`-prefixed stylesheet is checked in as
-`Foundry/Resources/BuiltInLibraries.bundle/Contents/Resources/bootstrap-6.0.0-alpha.1-live.min.css`.
-Rebuild it when changing the Sass configuration or pinned dependencies. Normal
-Xcode builds need neither npm nor a compiler archive.
-
-`BootstrapThemeCSS` emits the small runtime settings sheet shared by canvas,
-preview and export. The base spacer stays at `1rem`; named additions update
-`--bs-spacer-NAME`. `BootstrapSpacingCSS` emits the extended spacing families
-in Bootstrap's utility layer and breakpoint order, preserving responsive
-precedence between standard and custom sizes. Disabled container sizes
-inherit the preceding enabled maximum, or `none` if no maximum is enabled.
-XL and 2XL are disabled by default. Canvas patches the framework style element
-in place, leaving the prepared Bootstrap stylesheet unchanged.
-
-Spacing values and breakpoint switches persist as ordinary model settings and
-support undo. Old base-spacer settings reset to the fixed default; old compiled
-payloads are ignored and are not written again. Colours continue to use their
-native Bootstrap token override sheet. Other framework sections still require
-their own Bootstrap migration; this is not a blanket runtime-token conversion.
-
-Tests cover computed browser styles, custom spacers, all 32 switch combinations,
-native responsive classes, persistence, undo and canvas/preview/export parity.
+The script downloads the npm tarball, keeps the whole package (including the Sass
+source) under `tools/bootstrap/upstream/` for reference, and copies the dist files
+into the bundle under versioned names. It then prints the steps that remain:
+update the version in `FoundryWebLibraryRegistry`, update the version and
+checksums in `BootstrapBundledLibraryTests`, run the Bootstrap browser tests, and
+review `BootstrapUtilityExtensionsCSS` against the release's utilities. Upstream
+selector or token changes can still require adapting Foundry's additions,
+especially between alpha releases.

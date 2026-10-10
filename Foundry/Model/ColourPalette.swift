@@ -15,6 +15,7 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
     var single = false
     /// Native Bootstrap scale; hex shades are previews for the macOS UI.
     var bootstrapHue: String?
+    var customKind: BootstrapColourKind?
     var bootstrapScale: BootstrapColourScale?
     var bootstrapTokens: [String: BootstrapTokenColour] = [:]
     /// Generated text colours are separate from manual token overrides.
@@ -94,7 +95,7 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
         return copy
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, origin, shades, lightDefaultShade, darkDefaultShade, generation, single, bootstrapHue, bootstrapScale, bootstrapTokens, bootstrapGeneratedContrast }
+    private enum CodingKeys: String, CodingKey { case id, name, origin, shades, lightDefaultShade, darkDefaultShade, generation, single, bootstrapHue, bootstrapScale, bootstrapTokens, bootstrapGeneratedContrast, customKind }
 
     init(from decoder: Decoder) throws {
         let values = try decoder.container(keyedBy: CodingKeys.self)
@@ -112,6 +113,7 @@ nonisolated struct ColourPalette: Codable, Equatable, Identifiable, Sendable {
                           generation: try values.decodeIfPresent(Generation.self, forKey: .generation))
         single = try values.decodeIfPresent(Bool.self, forKey: .single) ?? false
         bootstrapHue = try values.decodeIfPresent(String.self, forKey: .bootstrapHue)
+        customKind = try values.decodeIfPresent(BootstrapColourKind.self, forKey: .customKind)
         bootstrapScale = try values.decodeIfPresent(BootstrapColourScale.self, forKey: .bootstrapScale)
         bootstrapTokens = try values.decodeIfPresent([String: BootstrapTokenColour].self, forKey: .bootstrapTokens) ?? [:]
         bootstrapGeneratedContrast = try values.decodeIfPresent(BootstrapTokenColour.self, forKey: .bootstrapGeneratedContrast)

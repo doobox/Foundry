@@ -14,7 +14,7 @@ nonisolated struct PublishedPartHooks {
         let sharedSiteStyles = PartArtifactPlan.sitePackages(in: site).contains { !$0.siteCSS.isEmpty }
         retainsPageIdentity = customCode || sharedSiteStyles || plan.packages.contains { package in
             [package.instanceJavaScript, package.pageJavaScript,
-             package.renderDefinition.controlGroupJavaScript, package.pageCSS, package.siteCSS,
+             package.manifest.controlGroups.filter { $0.type != .background }.map(\.javaScript).joined(), package.pageCSS, package.siteCSS,
              package.instancePHP, package.pagePHP]
                 .contains { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
                 || !package.placedHTML.isEmpty

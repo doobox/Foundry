@@ -7,7 +7,7 @@
   "description": "Arrange child parts in Bootstrap flex rows or columns.",
   "group": "Layout",
   "icon": {
-    "symbol": "rectangle.3.group",
+    "file": "flex.svg",
     "tint": "blue"
   },
   "tags": [
@@ -33,6 +33,16 @@
         {
           "type": "flexbox",
           "id": "flexbox"
+        }
+      ]
+    },
+    {
+      "section": "Sizing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "sizing",
+          "id": "sizing"
         }
       ]
     },
@@ -71,6 +81,81 @@
       ]
     },
     {
+      "section": "Typography",
+      "systemImage": "textformat",
+      "controls": [
+        {
+          "type": "typography",
+          "id": "typography",
+          "excludeControls": [
+            "fontSize",
+            "fontStyle",
+            "lineHeight",
+            "textDecoration",
+            "textTransform",
+            "textWrap",
+            "wordWrap",
+            "userSelect",
+            "verticalAlignment"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Foreground",
+      "systemImage": "paintpalette",
+      "controls": [
+        {
+          "type": "foreground",
+          "id": "foreground",
+          "colourSections": [
+            "foregrounds",
+            "blackWhite"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Background",
+      "systemImage": "paintpalette",
+      "controls": [
+        {
+          "type": "background",
+          "id": "background",
+          "colourSections": [
+            "blackWhite",
+            "surfaces"
+          ],
+          "backgroundTypes": [
+            "colour",
+            "gradient",
+            "image"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Borders",
+      "systemImage": "square.dashed",
+      "controls": [
+        {
+          "type": "borders",
+          "id": "borders"
+        }
+      ]
+    },
+    {
+      "section": "Links",
+      "systemImage": "link",
+      "controls": [
+        {
+          "type": "linkStyling",
+          "id": "links",
+          "targetSelector": "a[href]:not(.btn)"
+        }
+      ]
+    },
+    {
       "section": "Display",
       "systemImage": "eye",
       "controls": [
@@ -88,6 +173,9 @@
           }
         }
       ]
+    },
+    {
+      "type": "advanced"
     }
   ]
 }

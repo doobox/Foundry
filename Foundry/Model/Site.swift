@@ -62,9 +62,10 @@ nonisolated struct ProjectFrameworkValues: Codable, Equatable, Sendable {
     var borderRadii: [FrameworkCustomDimension] = []
     var zIndexes: [FrameworkCustomDimension] = []
     var spacing: [CustomSpacingToken] = []
+    var bootstrapAdditions = BootstrapEditorTokens()
 
     private enum CodingKeys: String, CodingKey {
-        case fonts, fontSizes, shadows, colours, borderWidths, borderRadii, zIndexes, spacing
+        case fonts, fontSizes, shadows, colours, borderWidths, borderRadii, zIndexes, spacing, bootstrapAdditions
     }
 
     init() {}
@@ -79,6 +80,7 @@ nonisolated struct ProjectFrameworkValues: Codable, Equatable, Sendable {
         borderRadii = try container.decodeIfPresent([FrameworkCustomDimension].self, forKey: .borderRadii) ?? []
         zIndexes = try container.decodeIfPresent([FrameworkCustomDimension].self, forKey: .zIndexes) ?? []
         spacing = try container.decodeIfPresent([CustomSpacingToken].self, forKey: .spacing) ?? []
+        bootstrapAdditions = try container.decodeIfPresent(BootstrapEditorTokens.self, forKey: .bootstrapAdditions) ?? .init()
     }
 
     mutating func absorb(_ framework: Framework) {
@@ -90,9 +92,20 @@ nonisolated struct ProjectFrameworkValues: Codable, Equatable, Sendable {
         borderRadii = framework.borderRadii.custom
         zIndexes = framework.zIndexes.custom
         spacing = framework.spacing.custom
+        bootstrapAdditions = framework.bootstrapTokens.customAdditions
     }
 
     mutating func include(_ framework: Framework) {
+        let incoming = framework.bootstrapTokens.customAdditions
+        for (section, names) in incoming.custom {
+            for name in names where !(bootstrapAdditions.custom[section] ?? []).contains(name) {
+                bootstrapAdditions.custom[section, default: []].append(name)
+                guard let kind = BootstrapEditorSection(rawValue: section) else { continue }
+                for token in kind.customTokens(named: name) {
+                    bootstrapAdditions.values[token.id] = incoming.values[token.id]
+                }
+            }
+        }
         let names = Set(spacing.map(\.name))
         Self.mergeKeepingExisting(framework.spacing.custom.filter { !names.contains($0.name) }, into: &spacing, id: \.id)
         Self.mergeKeepingExisting(framework.typography.customFonts, into: &fonts, id: \.id)
@@ -105,6 +118,12 @@ nonisolated struct ProjectFrameworkValues: Codable, Equatable, Sendable {
 
     func applied(to framework: Framework) -> Framework {
         var result = framework
+        // Replace the saved theme's additions, including removals, without touching its defaults.
+        for key in result.bootstrapTokens.customAdditions.values.keys {
+            result.bootstrapTokens.values[key] = nil
+        }
+        result.bootstrapTokens.custom = bootstrapAdditions.custom
+        result.bootstrapTokens.values.merge(bootstrapAdditions.values) { _, project in project }
         result.spacing.custom = spacing
         Self.mergeReplacingExisting(fonts, into: &result.typography.customFonts, id: \.id)
         Self.mergeReplacingExisting(fontSizes, into: &result.typography.customFontSizes, id: \.id)

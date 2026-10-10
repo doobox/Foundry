@@ -33,16 +33,17 @@ struct CustomThemeColourTests {
         }
         #expect(try JSONDecoder().decode(ColourPalette.self, from: JSONEncoder().encode(generated)) == generated)
         model.update(PreviewColourPalette(stored: generated), session: UUID(), undoManager: nil)
-        #expect(model.canReset(.layer))
+        let group = PreviewColourPalette(stored: generated).group
+        #expect(model.canReset(group))
         #expect(model.canReset(.theme) == false)
         let edited = model.storedPalettes
         let undo = UndoManager()
         undo.groupsByEvent = false
         undo.beginUndoGrouping()
-        model.reset(.layer, undoManager: undo)
+        model.reset(group, undoManager: undo)
         undo.endUndoGrouping()
         #expect(model.storedPalettes == original)
-        #expect(model.canReset(.layer) == false)
+        #expect(model.canReset(group) == false)
         undo.undo()
         #expect(model.storedPalettes == edited)
         undo.redo()

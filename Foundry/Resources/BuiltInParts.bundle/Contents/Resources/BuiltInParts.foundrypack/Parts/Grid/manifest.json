@@ -50,6 +50,16 @@
       ]
     },
     {
+      "section": "Sizing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "sizing",
+          "id": "sizing"
+        }
+      ]
+    },
+    {
       "section": "Alignment",
       "systemImage": "align.horizontal.center",
       "controls": [
@@ -80,6 +90,81 @@
       ]
     },
     {
+      "section": "Typography",
+      "systemImage": "textformat",
+      "controls": [
+        {
+          "type": "typography",
+          "id": "typography",
+          "excludeControls": [
+            "fontSize",
+            "fontStyle",
+            "lineHeight",
+            "textDecoration",
+            "textTransform",
+            "textWrap",
+            "wordWrap",
+            "userSelect",
+            "verticalAlignment"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Foreground",
+      "systemImage": "paintpalette",
+      "controls": [
+        {
+          "type": "foreground",
+          "id": "foreground",
+          "colourSections": [
+            "foregrounds",
+            "blackWhite"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Background",
+      "systemImage": "paintpalette",
+      "controls": [
+        {
+          "type": "background",
+          "id": "background",
+          "colourSections": [
+            "blackWhite",
+            "surfaces"
+          ],
+          "backgroundTypes": [
+            "colour",
+            "gradient",
+            "image"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Borders",
+      "systemImage": "square.dashed",
+      "controls": [
+        {
+          "type": "borders",
+          "id": "borders"
+        }
+      ]
+    },
+    {
+      "section": "Links",
+      "systemImage": "link",
+      "controls": [
+        {
+          "type": "linkStyling",
+          "id": "links",
+          "targetSelector": "a[href]:not(.btn)"
+        }
+      ]
+    },
+    {
       "section": "Display",
       "systemImage": "eye",
       "controls": [
@@ -97,6 +182,9 @@
           }
         }
       ]
+    },
+    {
+      "type": "advanced"
     }
   ]
 }

@@ -27,7 +27,15 @@
   "inspector": [
     {
       "section": "Content",
-      "controls": []
+      "controls": [
+        {
+          "type": "prose",
+          "id": "prose"
+        }
+      ]
+    },
+    {
+      "type": "advanced"
     }
   ]
 }

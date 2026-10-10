@@ -21,6 +21,10 @@
           "value": "font-body"
         },
         {
+          "title": "font-heading",
+          "value": "font-heading"
+        },
+        {
           "title": "font-monospace",
           "value": "font-monospace"
         }
@@ -30,7 +34,7 @@
       "type": "select",
       "id": "fontSize",
       "label": "Font size",
-      "responsive": false,
+      "responsive": true,
       "defaults": {
         "base": "none"
       },
@@ -85,7 +89,7 @@
       "type": "select",
       "id": "textSize",
       "label": "Text size",
-      "responsive": false,
+      "responsive": true,
       "defaults": {
         "base": "none"
       },
@@ -163,7 +167,7 @@
       "type": "select",
       "id": "fontWeight",
       "label": "Weight",
-      "responsive": false,
+      "responsive": true,
       "defaults": {
         "base": "none"
       },
@@ -323,7 +327,7 @@
       "type": "select",
       "id": "textWrap",
       "label": "Wrapping",
-      "responsive": false,
+      "responsive": true,
       "defaults": {
         "base": "none"
       },
@@ -347,6 +351,10 @@
         {
           "title": "text-pretty",
           "value": "text-pretty"
+        },
+        {
+          "title": "text-truncate",
+          "value": "text-truncate"
         }
       ]
     },
@@ -366,6 +374,76 @@
         {
           "title": "text-break",
           "value": "text-break"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "userSelect",
+      "label": "Text selection",
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "user-select-auto",
+          "value": "user-select-auto"
+        },
+        {
+          "title": "user-select-text",
+          "value": "user-select-text"
+        },
+        {
+          "title": "user-select-all",
+          "value": "user-select-all"
+        },
+        {
+          "title": "user-select-none",
+          "value": "user-select-none"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "verticalAlignment",
+      "label": "Vertical alignment",
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "align-baseline",
+          "value": "align-baseline"
+        },
+        {
+          "title": "align-top",
+          "value": "align-top"
+        },
+        {
+          "title": "align-middle",
+          "value": "align-middle"
+        },
+        {
+          "title": "align-bottom",
+          "value": "align-bottom"
+        },
+        {
+          "title": "align-text-bottom",
+          "value": "align-text-bottom"
+        },
+        {
+          "title": "align-text-top",
+          "value": "align-text-top"
         }
       ]
     }

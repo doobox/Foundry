@@ -181,6 +181,9 @@ struct InspectorPaletteMenu: View {
     let palettes: [ColourPalette]
     let selectedID: String
     var tokenPreviews: [String: String] = [:]
+    var allowsInherit = false
+    var tokenSections: [String] = []
+    var linksOnly = false
     let select: (String) -> Void
     @State private var search = ""
 
@@ -202,10 +205,26 @@ struct InspectorPaletteMenu: View {
                 .accessibilityLabel("Search colours")
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 4) {
-                    ForEach([ColourPalette.Origin.custom, .framework, .standard], id: \.self) { group in
-                        let matches = filtered.filter { $0.origin == group }
+                    if allowsInherit {
+                        Button { select("inherit") } label: {
+                            HStack(spacing: 8) {
+                                InheritColourSwatch()
+                                Text("Inherit")
+                                Spacer(minLength: 4)
+                                if selectedID == "inherit" { Image(systemName: "checkmark") }
+                            }
+                            .padding(6)
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        .accessibilityAddTraits(selectedID == "inherit" ? .isSelected : [])
+                    }
+                    PartColourTokenPicker(previews: tokenPreviews, sections: tokenSections, selectedID: selectedID, palettes: palettes, linksOnly: linksOnly, search: search, select: select)
+                    ForEach([ColourPalette.Origin.framework], id: \.self) { group in
+                        let matches = linksOnly ? [] : filtered.filter { BootstrapPaletteTheme.nativeRole($0) != nil }
                         if !matches.isEmpty {
-                            Text(group == .custom ? "Custom Colours" : (group == .framework ? "Framework Colours" : "Bootstrap Hue Scales"))
+                            Text("Theme Colours")
                                 .font(.caption).foregroundStyle(.secondary)
                                 .padding(.top, 6)
                                 .accessibilityAddTraits(.isHeader)
@@ -230,10 +249,10 @@ struct InspectorPaletteMenu: View {
                             }
                         }
                     }
-                    if filtered.isEmpty { Text("No matching colours").foregroundStyle(.secondary).padding(6) }
+                    if filtered.isEmpty && tokenSections.isEmpty { Text("No matching colours").foregroundStyle(.secondary).padding(6) }
                 }
             }
-            .frame(maxHeight: 320)
+            .frame(height: 400)
         }
     }
 }

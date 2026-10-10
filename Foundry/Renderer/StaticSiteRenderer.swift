@@ -807,7 +807,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                         packageIdentifier: package.manifest.identifier,
                         instanceID: resolved.id
                     )
-                    return scopedCSS
+                    let background = PartPackageBackgroundResolver.stylesheet(packageProperties(resolved, framework: site.framework, assetPrefix: assetPrefix, assets: assets, site: site, breakpoint: breakpoint))
+                    return scopedCSS + background
                 }
                 return nil
             }.joined()
@@ -864,7 +865,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 instanceID: node.id
             )
             let custom = PartTemplateRenderer.scopedCustomCSS(node.customCSS, instanceID: node.id)
-            return custom.isEmpty ? scoped : scoped + "\n" + custom
+            let background = PartPackageBackgroundResolver.stylesheet(packageProperties(node, framework: site.framework, assetPrefix: assetPrefix, assets: assets, site: site))
+            return [scoped, custom, background].filter { !$0.isEmpty }.joined(separator: "\n")
         }.joined(separator: "\n")
         let pagePackageStyles = PartArtifactPlan(page: page).packages.compactMap { package -> String? in
             guard !package.pageCSS.isEmpty else { return nil }
@@ -893,8 +895,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             packageAssetPrefix: packageAssetPrefix,
             assets: assets
         )
+        // Derive and deduplicate only the current page's local themes. No registry
+        // survives a render, so deleting the last user removes the rule.
+        let paletteStyles = Set(nodes.map { BootstrapPartUtilityCSS.render(node: $0, framework: site.framework) }).sorted().joined(separator: "\n")
         return CSSTidy.tidy(
-            [instanceStyles, pagePackageStyles, responsiveStyles]
+            [instanceStyles, paletteStyles, pagePackageStyles, responsiveStyles]
                 .filter { !$0.isEmpty }
                 .joined(separator: "\n")
         )
@@ -1204,7 +1209,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         PartPackageBackgroundResolver.resolve(
             &values,
             properties: manifestProperties,
-            enablesEditorMarkup: false
+            enablesEditorMarkup: false,
+            instanceID: node.id
         )
         PartPackageControlGroupCSSResolver.resolve(&values, properties: manifestProperties)
         let resolved = PartPackageDerivedValueResolver.resolve(

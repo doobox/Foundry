@@ -1,0 +1,30 @@
+{
+  "type": "prose",
+  "name": "Bootstrap prose",
+  "systemImage": "doc.text",
+  "controls": [
+    {
+      "type": "select",
+      "id": "style",
+      "label": "Style",
+      "responsive": false,
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "prose",
+          "value": "prose"
+        },
+        {
+          "title": "not-prose",
+          "value": "not-prose"
+        }
+      ]
+    }
+  ]
+}

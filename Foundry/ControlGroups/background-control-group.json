@@ -151,17 +151,13 @@
       }
     },
     {
-      "allowsCustom": true,
       "defaults": {
-        "base": {
-          "palette": "background"
-        }
+        "base": "framework.primary"
       },
       "id": "backgroundColor",
       "label": "Colour",
-      "opacity": true,
-      "responsive": true,
-      "type": "frameworkColor",
+      "responsive": false,
+      "type": "themeColor",
       "visibleWhen": {
         "all": [
           {
@@ -190,6 +186,100 @@
           }
         ]
       }
+    },
+    {
+      "type": "select",
+      "id": "backgroundColorVariant",
+      "label": "Surface",
+      "defaults": {
+        "base": "bg"
+      },
+      "options": [
+        {
+          "title": "Solid",
+          "value": "bg"
+        },
+        {
+          "title": "Subtle",
+          "value": "bg-subtle"
+        },
+        {
+          "title": "Muted",
+          "value": "bg-muted"
+        },
+        {
+          "title": "Transparent",
+          "value": "transparent"
+        }
+      ],
+      "visibleWhen": {
+        "all": [
+          {
+            "any": [
+              {
+                "id": "backgroundMode",
+                "value": "static"
+              },
+              {
+                "all": [
+                  {
+                    "id": "backgroundMode",
+                    "value": "hover"
+                  },
+                  {
+                    "id": "backgroundState",
+                    "value": "normal"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "backgroundStyle",
+            "value": "color"
+          }
+        ]
+      }
+    },
+    {
+      "type": "slider",
+      "id": "backgroundColorOpacity",
+      "label": "Opacity (%)",
+      "step": 10,
+      "defaults": {
+        "base": 100
+      },
+      "visibleWhen": {
+        "all": [
+          {
+            "any": [
+              {
+                "id": "backgroundMode",
+                "value": "static"
+              },
+              {
+                "all": [
+                  {
+                    "id": "backgroundMode",
+                    "value": "hover"
+                  },
+                  {
+                    "id": "backgroundState",
+                    "value": "normal"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "backgroundStyle",
+            "value": "color"
+          }
+        ]
+      },
+      "minimum": 0,
+      "maximum": 100,
+      "editableValue": true
     },
     {
       "defaults": {
@@ -471,17 +561,13 @@
       }
     },
     {
-      "allowsCustom": true,
       "defaults": {
-        "base": {
-          "palette": "background"
-        }
+        "base": "framework.primary"
       },
       "id": "backgroundGradientFrom",
       "label": "From colour",
-      "opacity": true,
-      "responsive": true,
-      "type": "frameworkColor",
+      "responsive": false,
+      "type": "themeColor",
       "visibleWhen": {
         "all": [
           {
@@ -510,6 +596,46 @@
           }
         ]
       }
+    },
+    {
+      "type": "slider",
+      "id": "backgroundGradientFromOpacity",
+      "label": "Opacity (%)",
+      "step": 10,
+      "defaults": {
+        "base": 100
+      },
+      "visibleWhen": {
+        "all": [
+          {
+            "any": [
+              {
+                "id": "backgroundMode",
+                "value": "static"
+              },
+              {
+                "all": [
+                  {
+                    "id": "backgroundMode",
+                    "value": "hover"
+                  },
+                  {
+                    "id": "backgroundState",
+                    "value": "normal"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "backgroundStyle",
+            "value": "gradient"
+          }
+        ]
+      },
+      "minimum": 0,
+      "maximum": 100,
+      "editableValue": true
     },
     {
       "defaults": {
@@ -553,17 +679,13 @@
       }
     },
     {
-      "allowsCustom": true,
       "defaults": {
-        "base": {
-          "palette": "accent"
-        }
+        "base": "framework.accent"
       },
       "id": "backgroundGradientTo",
       "label": "To colour",
-      "opacity": true,
-      "responsive": true,
-      "type": "frameworkColor",
+      "responsive": false,
+      "type": "themeColor",
       "visibleWhen": {
         "all": [
           {
@@ -592,6 +714,46 @@
           }
         ]
       }
+    },
+    {
+      "type": "slider",
+      "id": "backgroundGradientToOpacity",
+      "label": "Opacity (%)",
+      "step": 10,
+      "defaults": {
+        "base": 100
+      },
+      "visibleWhen": {
+        "all": [
+          {
+            "any": [
+              {
+                "id": "backgroundMode",
+                "value": "static"
+              },
+              {
+                "all": [
+                  {
+                    "id": "backgroundMode",
+                    "value": "hover"
+                  },
+                  {
+                    "id": "backgroundState",
+                    "value": "normal"
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "backgroundStyle",
+            "value": "gradient"
+          }
+        ]
+      },
+      "minimum": 0,
+      "maximum": 100,
+      "editableValue": true
     },
     {
       "defaults": {
@@ -717,17 +879,13 @@
       }
     },
     {
-      "allowsCustom": true,
       "defaults": {
-        "base": {
-          "palette": "background"
-        }
+        "base": "framework.primary"
       },
       "id": "backgroundHoverColor",
       "label": "Colour",
-      "opacity": true,
-      "responsive": true,
-      "type": "frameworkColor",
+      "responsive": false,
+      "type": "themeColor",
       "visibleWhen": {
         "all": [
           {
@@ -744,6 +902,76 @@
           }
         ]
       }
+    },
+    {
+      "type": "select",
+      "id": "backgroundHoverColorVariant",
+      "label": "Surface",
+      "defaults": {
+        "base": "bg"
+      },
+      "options": [
+        {
+          "title": "Solid",
+          "value": "bg"
+        },
+        {
+          "title": "Subtle",
+          "value": "bg-subtle"
+        },
+        {
+          "title": "Muted",
+          "value": "bg-muted"
+        },
+        {
+          "title": "Transparent",
+          "value": "transparent"
+        }
+      ],
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "backgroundMode",
+            "value": "hover"
+          },
+          {
+            "id": "backgroundState",
+            "value": "hover"
+          },
+          {
+            "id": "backgroundHoverStyle",
+            "value": "color"
+          }
+        ]
+      }
+    },
+    {
+      "type": "slider",
+      "id": "backgroundHoverColorOpacity",
+      "label": "Opacity (%)",
+      "step": 10,
+      "defaults": {
+        "base": 100
+      },
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "backgroundMode",
+            "value": "hover"
+          },
+          {
+            "id": "backgroundState",
+            "value": "hover"
+          },
+          {
+            "id": "backgroundHoverStyle",
+            "value": "color"
+          }
+        ]
+      },
+      "minimum": 0,
+      "maximum": 100,
+      "editableValue": true
     },
     {
       "defaults": {
@@ -965,17 +1193,13 @@
       }
     },
     {
-      "allowsCustom": true,
       "defaults": {
-        "base": {
-          "palette": "background"
-        }
+        "base": "framework.primary"
       },
       "id": "backgroundHoverGradientFrom",
       "label": "From colour",
-      "opacity": true,
-      "responsive": true,
-      "type": "frameworkColor",
+      "responsive": false,
+      "type": "themeColor",
       "visibleWhen": {
         "all": [
           {
@@ -992,6 +1216,34 @@
           }
         ]
       }
+    },
+    {
+      "type": "slider",
+      "id": "backgroundHoverGradientFromOpacity",
+      "label": "Opacity (%)",
+      "step": 10,
+      "defaults": {
+        "base": 100
+      },
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "backgroundMode",
+            "value": "hover"
+          },
+          {
+            "id": "backgroundState",
+            "value": "hover"
+          },
+          {
+            "id": "backgroundHoverStyle",
+            "value": "gradient"
+          }
+        ]
+      },
+      "minimum": 0,
+      "maximum": 100,
+      "editableValue": true
     },
     {
       "defaults": {
@@ -1023,17 +1275,13 @@
       }
     },
     {
-      "allowsCustom": true,
       "defaults": {
-        "base": {
-          "palette": "accent"
-        }
+        "base": "framework.accent"
       },
       "id": "backgroundHoverGradientTo",
       "label": "To colour",
-      "opacity": true,
-      "responsive": true,
-      "type": "frameworkColor",
+      "responsive": false,
+      "type": "themeColor",
       "visibleWhen": {
         "all": [
           {
@@ -1050,6 +1298,34 @@
           }
         ]
       }
+    },
+    {
+      "type": "slider",
+      "id": "backgroundHoverGradientToOpacity",
+      "label": "Opacity (%)",
+      "step": 10,
+      "defaults": {
+        "base": 100
+      },
+      "visibleWhen": {
+        "all": [
+          {
+            "id": "backgroundMode",
+            "value": "hover"
+          },
+          {
+            "id": "backgroundState",
+            "value": "hover"
+          },
+          {
+            "id": "backgroundHoverStyle",
+            "value": "gradient"
+          }
+        ]
+      },
+      "minimum": 0,
+      "maximum": 100,
+      "editableValue": true
     },
     {
       "defaults": {
@@ -1135,16 +1411,73 @@
       }
     },
     {
-      "type": "frameworkColor",
+      "type": "themeColor",
       "id": "backgroundOverlayColor",
       "label": "Overlay colour",
-      "opacity": true,
-      "responsive": true,
+      "responsive": false,
       "defaults": {
-        "base": {
-          "palette": "standard.black",
-          "opacity": 0.2
-        }
+        "base": "token:black"
+      },
+      "visibleWhen": {
+        "all": [
+          {
+            "any": [
+              {
+                "all": [
+                  {
+                    "id": "backgroundMode",
+                    "value": "static"
+                  },
+                  {
+                    "any": [
+                      {
+                        "id": "backgroundStyle",
+                        "value": "image"
+                      },
+                      {
+                        "id": "backgroundStyle",
+                        "value": "video"
+                      }
+                    ]
+                  }
+                ]
+              },
+              {
+                "all": [
+                  {
+                    "id": "backgroundMode",
+                    "value": "hover"
+                  },
+                  {
+                    "any": [
+                      {
+                        "id": "backgroundStyle",
+                        "value": "image"
+                      },
+                      {
+                        "id": "backgroundHoverStyle",
+                        "value": "image"
+                      }
+                    ]
+                  }
+                ]
+              }
+            ]
+          },
+          {
+            "id": "backgroundOverlayEnabled",
+            "value": true
+          }
+        ]
+      }
+    },
+    {
+      "type": "slider",
+      "id": "backgroundOverlayColorOpacity",
+      "label": "Overlay opacity (%)",
+      "step": 10,
+      "defaults": {
+        "base": 20
       },
       "visibleWhen": {
         "all": [
@@ -1198,7 +1531,9 @@
           }
         ]
       },
-      "allowsCustom": true
+      "minimum": 0,
+      "maximum": 100,
+      "editableValue": true
     }
   ],
   "name": "Background",

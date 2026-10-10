@@ -19,7 +19,6 @@ struct FrameworkEditorPresentationTests {
 
     /// Opt-in visual QA using the production views. Run with
     /// FOUNDRY_CAPTURE_FRAMEWORK_UI=1 (or TEST_RUNNER_FOUNDRY_CAPTURE_FRAMEWORK_UI=1 through xcodebuild).
-    /// Breakpoints also captures mixed Auto, px, vw, and % containers, including a disabled custom value.
     /// PNGs and measurement notes are written outside the repository, without changing user defaults.
     @Test(.enabled(if: ProcessInfo.processInfo.environment["FOUNDRY_CAPTURE_FRAMEWORK_UI"] == "1"))
     func captureNativeSectionsAtRepresentativeWindowSizes() async throws {
@@ -27,8 +26,7 @@ struct FrameworkEditorPresentationTests {
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
 
         let sections: [FrameworkWindowSection] = [
-            .colors, .screens, .fontFamily, .fontSize, .spacing,
-            .shadows, .borderWidth, .borderRadius, .zIndex
+            .colors, .screens, .fontFamily, .extensions, .advanced
         ].filter {
             let requested = ProcessInfo.processInfo.environment["FOUNDRY_FRAMEWORK_UI_SECTION"]
             return requested == nil || $0.rawValue == requested
@@ -42,9 +40,9 @@ struct FrameworkEditorPresentationTests {
         var measurements: [String] = []
 
         for section in sections {
-            let variants = section == .screens ? ["", "-mixed-units"] : (section == .fontFamily ? ["", "-google", "-google-variable", "-uploaded"] : [""])
+            let variants = section == .fontFamily ? ["", "-google", "-google-variable", "-uploaded"] : [""]
             for variant in variants {
-                let document = FoundryDocument(site: fixtureSite(mixedContainerUnits: !variant.isEmpty))
+                let document = FoundryDocument(site: fixtureSite())
                 if variant.hasPrefix("-google") {
                     document.site.framework.typography.bodyFont = .init(
                         family: "ABeeZee",
@@ -139,7 +137,7 @@ struct FrameworkEditorPresentationTests {
         )
     }
 
-    private func fixtureSite(mixedContainerUnits: Bool = false) -> Site {
+    private func fixtureSite() -> Site {
         var framework = Framework.standard
         framework.typography.customFontSizes = [
             .init(id: "user-layout-card-title", title: "Card title", size: 1.375, lineHeight: 1.25)
@@ -155,13 +153,6 @@ struct FrameworkEditorPresentationTests {
         ]
         framework.screens.update(.extraLarge) { $0.isEnabled = false }
         framework.screens.update(.doubleExtraLarge) { $0.isEnabled = false }
-        if mixedContainerUnits {
-            framework.screens.update(.small) { $0.container = .init(value: 600, unit: .pixels) }
-            framework.screens.update(.medium) { $0.container = .init(value: 92, unit: .viewportWidth) }
-            framework.screens.update(.large) { $0.container = .init(value: 90, unit: .percent) }
-            // Retained custom values remain visible when a breakpoint is disabled.
-            framework.screens.update(.extraLarge) { $0.container = .init(value: 1_200, unit: .pixels) }
-        }
         return Site(name: "Framework Layout QA", pages: [Page(title: "Home", slug: "index")], framework: framework)
     }
 

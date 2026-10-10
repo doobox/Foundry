@@ -435,6 +435,7 @@ nonisolated enum PartPackageAdapter {
         case .frameworkMargin: .frameworkMargin
         case .frameworkSpacing: .frameworkSpacing
         case .frameworkBorder: .derived
+        case .borderSides: .frameworkBorderWidth
         case .frameworkRadius: .frameworkRadius
         case .edges, .corners: .derived // Unreachable: boxLengthProperties handles these first.
         case .fontWeight: .fontWeight(font: control.font)
@@ -498,6 +499,9 @@ nonisolated enum PartPackageAdapter {
         }
         if control == .frameworkRadius, let value = PartPackageFrameworkRadiusControl.defaultValue(value) {
             return .frameworkRadius(value)
+        }
+        if control == .borderSides, let borders = BootstrapBorderClasses.defaultValue(value) {
+            return .frameworkBorderWidth(borders)
         }
         if control == .frameworkMargin, let margin = PartPackageFrameworkMarginControl.defaultValue(value) {
             return .frameworkMargin(margin)

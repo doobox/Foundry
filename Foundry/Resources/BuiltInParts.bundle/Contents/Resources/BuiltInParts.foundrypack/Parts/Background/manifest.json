@@ -1,0 +1,52 @@
+{
+  "id": "foundry.layout.background",
+  "title": "Background",
+  "author": "Foundry",
+  "version": "1.0.0",
+  "minimumAPIVersion": 1,
+  "description": "Background group.",
+  "group": "Layout",
+  "icon": {
+    "symbol": "rectangle",
+    "tint": "green"
+  },
+  "tags": [
+    "Bootstrap",
+    "layout",
+    "background"
+  ],
+  "assets": [],
+  "libraries": [
+    {
+      "id": "bootstrap",
+      "majorVersion": 6
+    }
+  ],
+  "templates": {
+    "html": "part.html"
+  },
+  "inspector": [
+    {
+      "section": "Background",
+      "systemImage": "paintpalette",
+      "controls": [
+        {
+          "type": "background",
+          "id": "background",
+          "colourSections": [
+            "surfaces"
+          ],
+          "backgroundTypes": [
+            "colour",
+            "gradient",
+            "image",
+            "video"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ]
+}

@@ -83,16 +83,10 @@ struct FrameworkWindowContent: View {
                 FrameworkLibraryBrowser(document: document, undoManager: session.editor.undoManager)
             case .fontFamily:
                 FrameworkFontSettings(framework: document.site.framework, assets: document.site.assets, session: session)
-            case .fontSize:
-                BootstrapTokenSettings(section: .fontSize, framework: document.site.framework, editor: session.editor)
-            case .spacing:
-                FrameworkSpacingSettings(framework: document.site.framework, session: session)
-            case .borderWidth:
-                BootstrapTokenSettings(section: .borderWidth, framework: document.site.framework, editor: session.editor)
-            case .borderRadius:
-                BootstrapTokenSettings(section: .borderRadius, framework: document.site.framework, editor: session.editor)
-            case .zIndex:
-                BootstrapTokenSettings(section: .zIndex, framework: document.site.framework, editor: session.editor)
+            case .extensions:
+                FrameworkExtensionsSettings(framework: document.site.framework, session: session)
+            case .advanced:
+                FrameworkAdvancedSettings(framework: document.site.framework, editor: session.editor)
             default:
                 FrameworkSettingsDetail(
                     section: selectedSection,
@@ -124,35 +118,25 @@ struct FrameworkWindowContent: View {
     }
 }
 
+/// Framework editor pages. Colours and Fonts are the everyday settings. Extensions
+/// adds project-named values alongside Bootstrap's fixed utility scales. Advanced
+/// gathers the variables Bootstrap's components read, collapsed for people who
+/// want them. Nothing here edits a Bootstrap utility class.
 enum FrameworkWindowSection: String, CaseIterable, Identifiable, Hashable {
     case frameworks
     case screens
     case colors
     case fontFamily
-    case fontSize
-    case spacing
-    case shadows
-    case borderWidth
-    case borderRadius
-    case zIndex
-    case fontWeight, body, links, focusRing, controls
+    case extensions
+    case advanced
 
     var id: String { rawValue }
 
     static let settings: [FrameworkWindowSection] = [
         .colors,
         .fontFamily,
-        .fontSize,
-        .fontWeight,
-        .body,
-        .spacing,
-        .shadows,
-        .borderWidth,
-        .borderRadius,
-        .zIndex,
-        .links,
-        .focusRing,
-        .controls
+        .extensions,
+        .advanced
     ]
 
     var title: String {
@@ -161,17 +145,8 @@ enum FrameworkWindowSection: String, CaseIterable, Identifiable, Hashable {
         case .screens: "Breakpoints"
         case .colors: "Colours"
         case .fontFamily: "Fonts"
-        case .fontSize: "Font Size & Line Height"
-        case .fontWeight: "Font Weight"
-        case .body: "Body Typography"
-        case .links: "Links"
-        case .focusRing: "Focus Ring"
-        case .controls: "Buttons & Inputs"
-        case .spacing: "Spacing"
-        case .shadows: "Shadows"
-        case .borderWidth: "Border Width"
-        case .borderRadius: "Border Radius"
-        case .zIndex: "Stacking Order"
+        case .extensions: "Extensions"
+        case .advanced: "Advanced"
         }
     }
 
@@ -181,17 +156,8 @@ enum FrameworkWindowSection: String, CaseIterable, Identifiable, Hashable {
         case .screens: "ruler"
         case .colors: "paintpalette"
         case .fontFamily: "text.alignleft"
-        case .fontSize: "textformat.size"
-        case .fontWeight: "bold"
-        case .body: "textformat"
-        case .links: "link"
-        case .focusRing: "viewfinder"
-        case .controls: "rectangle.and.hand.point.up.left"
-        case .spacing: "arrow.left.and.right"
-        case .shadows: "square.stack"
-        case .borderWidth: "square"
-        case .borderRadius: "circle"
-        case .zIndex: "square.stack.3d.up"
+        case .extensions: "plus.square.on.square"
+        case .advanced: "slider.horizontal.3"
         }
     }
 
@@ -200,25 +166,15 @@ enum FrameworkWindowSection: String, CaseIterable, Identifiable, Hashable {
         case .frameworks:
             "Choose a saved framework or create one from System UI."
         case .screens:
-            "Define responsive breakpoints and the maximum container width at each size."
+            "Choose which Bootstrap breakpoints the site uses. A disabled size keeps the previous container width."
         case .colors:
             "Customize Bootstrap theme roles and adaptive background, foreground and border layers."
         case .fontFamily:
             "Choose the typefaces used for body text, headings and monospaced content."
-        case .fontSize:
-            "Adjust each framework font size and its line height."
-        case .fontWeight, .body, .links, .focusRing, .controls:
-            "Edit Bootstrap's shared design tokens."
-        case .spacing:
-            "Adjust the spacing scale used by framework-aware part controls."
-        case .shadows:
-            "Define reusable shadow styles for depth, elevation and inset effects."
-        case .borderWidth:
-            "Set the width represented by each framework border token."
-        case .borderRadius:
-            "Set the corner radius represented by each framework radius token."
-        case .zIndex:
-            "Set the stacking order represented by each framework layering token."
+        case .extensions:
+            "Add project-named spacing, text sizes, corners, shadows and stacking values alongside Bootstrap's fixed scales."
+        case .advanced:
+            "Fine-tune the variables Bootstrap's components read: body typography, links, focus ring, buttons and inputs, shadows, border width, corners and stacking order."
         }
     }
 }
@@ -242,12 +198,12 @@ struct FrameworkSettingsDetail: View {
 
     var body: some View {
         Group {
-            if let bootstrapSection = BootstrapEditorSection(rawValue: section.rawValue) {
-                BootstrapTokenSettings(section: bootstrapSection, framework: framework, editor: editor)
+            if section == .advanced {
+                FrameworkAdvancedSettings(framework: framework, editor: editor)
             } else if section == .fontFamily {
                 FrameworkFontSettings(framework: framework, assets: assets, session: session)
-            } else if section == .spacing {
-                FrameworkSpacingSettings(framework: framework, session: session)
+            } else if section == .extensions {
+                FrameworkExtensionsSettings(framework: framework, session: session)
             } else if section == .screens {
                 FrameworkBreakpointSettings(screens: framework.screens, editor: editor, canEdit: session.canEditFramework)
             } else if section == .colors {

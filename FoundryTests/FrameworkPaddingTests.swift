@@ -7,7 +7,7 @@ import Testing
 struct FrameworkPaddingTests {
     @Test func singleSpacingSwitchesBetweenFrameworkAndCustomModes() {
         var value = FrameworkSingleSpacingValue()
-        #expect(value.selection.token == "sm")
+        #expect(value.selection.token == "none")
         #expect(!value.selection.isCustom)
         value.setUsesFrameworkTokens(false)
         #expect(value.selection.isCustom)
@@ -18,7 +18,7 @@ struct FrameworkPaddingTests {
         value.setUsesFrameworkTokens(true)
         #expect(!value.selection.isCustom)
         // Nothing snaps: the token survives the round trip untouched…
-        #expect(value.selection.token == "sm")
+        #expect(value.selection.token == "none")
         value.setUsesFrameworkTokens(false)
         // …and so does the custom amount.
         #expect(value.selection.amount == 1.6)
@@ -28,18 +28,18 @@ struct FrameworkPaddingTests {
         for invalid: PartPackageValue in [.string("auto"), .string("10px"), .number(-1),
             .object(["value": .number(-1), "unit": .string("px")]),
             .object(["value": .number(1), "unit": .string("auto")]),
-            .object(["top": .string("sm")])] {
+            .object(["top": .string("3")])] {
             #expect(PartPackageFrameworkPaddingControl.defaultValue(invalid) == nil)
         }
         let initial = try #require(PartPackageFrameworkPaddingControl.defaultValue(.object([
-            "top": .string("sm"), "right": .string("none"), "bottom": .string("lg"),
+            "top": .string("3"), "right": .string("none"), "bottom": .string("7"),
             "left": .object(["value": .number(2), "unit": .string("rem")])
         ])))
         #expect(!initial.verticalLinked && !initial.horizontalLinked)
         #expect(try JSONDecoder().decode(FrameworkPaddingValue.self, from: JSONEncoder().encode(initial)) == initial)
         guard case .object(let output) = PartPackageFrameworkPaddingControl.resolved(initial, framework: .standard) else { return }
-        #expect(output["css"] == .string("var(--foundry-space-sm) 0 var(--foundry-space-lg) 2.0rem"))
-        #expect(output["values"] == .object(["top": .number(1), "right": .number(0), "bottom": .number(2), "left": .number(2)]))
+        #expect(output["css"] == .string("var(--bs-spacer-3) 0 var(--bs-spacer-7) 2.0rem"))
+        #expect(output["values"] == .object(["top": .number(0.5), "right": .number(0), "bottom": .number(1.5), "left": .number(2)]))
         #expect(output["units"] == .object(["top": .string("rem"), "right": .string(""), "bottom": .string("rem"), "left": .string("rem")]))
     }
 
@@ -84,13 +84,13 @@ struct FrameworkPaddingTests {
         var state = FrameworkPaddingValue()
         state.unlinkAll()
         var padding = state.value(for: .bottom)
-        padding.token = "lg"
+        padding.token = "7"
         state.set(padding, for: .bottom)
         state.togglePair(using: .bottom)
-        #expect(state.value(for: .top).token == "sm")
-        #expect(state.value(for: .bottom).token == "sm")
-        #expect(state.value(for: .left).token == "sm")
-        padding.token = "xl"
+        #expect(state.value(for: .top).token == "none")
+        #expect(state.value(for: .bottom).token == "none")
+        #expect(state.value(for: .left).token == "none")
+        padding.token = "9"
         state.set(padding, for: .top)
         #expect(state.value(for: .bottom) == padding)
         state.togglePair(using: .top)
@@ -102,30 +102,30 @@ struct FrameworkPaddingTests {
         var state = FrameworkPaddingValue()
         state.togglePair(using: .top)
         var customTop = state.value(for: .top)
-        customTop.token = "xl"
+        customTop.token = "9"
         state.set(customTop, for: .top)
         state.togglePair(using: .right)
         #expect(state.verticalLinked && state.horizontalLinked)
         // Pairs stay independent even with both links on: the horizontal link
         // syncs left/right only, and the vertical pair keeps its value.
-        #expect(state.value(for: .top).token == "xl")
-        #expect(state.value(for: .bottom).token == "xl")
-        #expect(state.value(for: .left).token == "sm")
-        #expect(state.value(for: .right).token == "sm")
+        #expect(state.value(for: .top).token == "9")
+        #expect(state.value(for: .bottom).token == "9")
+        #expect(state.value(for: .left).token == "none")
+        #expect(state.value(for: .right).token == "none")
     }
 
     @Test func togglingTheSecondPairLeavesTheOtherPairUntouchedHorizontalFirst() {
         var state = FrameworkPaddingValue()
         state.togglePair(using: .left)
         var customLeft = state.value(for: .left)
-        customLeft.token = "xl"
+        customLeft.token = "9"
         state.set(customLeft, for: .left)
         state.togglePair(using: .bottom)
         #expect(state.verticalLinked && state.horizontalLinked)
-        #expect(state.value(for: .left).token == "xl")
-        #expect(state.value(for: .right).token == "xl")
-        #expect(state.value(for: .top).token == "sm")
-        #expect(state.value(for: .bottom).token == "sm")
+        #expect(state.value(for: .left).token == "9")
+        #expect(state.value(for: .right).token == "9")
+        #expect(state.value(for: .top).token == "none")
+        #expect(state.value(for: .bottom).token == "none")
     }
 
     @Test func defaultsStartUnlinkedAndTogglingLinksOneAxis() {
@@ -142,13 +142,13 @@ struct FrameworkPaddingTests {
         state.togglePair(using: .top)
         state.togglePair(using: .left)
         var padding = state.value(for: .top)
-        padding.token = "lg"
+        padding.token = "7"
         state.set(padding, for: .top)
-        #expect(state.value(for: .bottom).token == "lg")
-        #expect(state.value(for: .left).token == "sm")
-        #expect(state.value(for: .right).token == "sm")
+        #expect(state.value(for: .bottom).token == "7")
+        #expect(state.value(for: .left).token == "none")
+        #expect(state.value(for: .right).token == "none")
         state.unlinkAll()
-        #expect(state.value(for: .bottom).token == "lg")
+        #expect(state.value(for: .bottom).token == "7")
     }
 
     @Test func linkAllUsesTop() {
@@ -161,7 +161,7 @@ struct FrameworkPaddingTests {
         state.set(custom, for: .right)
         #expect(!state.allEqual)
         #expect(!state.value(for: .top).isCustom)
-        #expect(state.value(for: .right).token == "sm")
+        #expect(state.value(for: .right).token == "none")
         state.linkAll()
         #expect(state.verticalLinked && state.horizontalLinked)
         #expect(state.values.allSatisfy { $0 == FrameworkPaddingValue.EdgeValue() })
@@ -171,10 +171,10 @@ struct FrameworkPaddingTests {
         var state = FrameworkPaddingValue()
         state.unlinkAll()
         var left = state.value(for: .left)
-        left.token = "xl"
+        left.token = "9"
         state.set(left, for: .left)
         state.togglePair(using: .right)
         #expect(state.value(for: .right) == left)
-        #expect(state.value(for: .top).token == "sm")
+        #expect(state.value(for: .top).token == "none")
     }
 }

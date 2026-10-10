@@ -1,18 +1,14 @@
 import Foundation
+import CryptoKit
 
-/// Collapses the Background control group's many selections into the handful
-/// of finished CSS values a template actually writes. The group hands over
-/// values like every other group: no generated stylesheet, no injected markup,
-/// no placement macro.
-///
-/// Every value is always present, so templates need no conditionals — an
-/// untouched background resolves to `transparent` and `none`, and the hover
-/// layer mirrors the static one unless hover is switched on.
+/// Resolves Bootstrap background classes, selected-layer CSS and decorative
+/// video markup. An untouched background adds no classes or stylesheet.
 nonisolated enum PartPackageBackgroundResolver {
     static func resolve(
         _ values: inout [String: PartPackageValue],
         properties: [PartPackageProperty],
-        enablesEditorMarkup: Bool
+        enablesEditorMarkup: Bool,
+        instanceID: UUID = UUID(uuid: (0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0))
     ) {
         for members in PartPackageControlGroupCSSResolver.groups(in: properties).values {
             guard let source = members.first?.controlGroupSource, source.type == .background else { continue }
@@ -24,12 +20,58 @@ nonisolated enum PartPackageBackgroundResolver {
                       localID == "backgroundImage" || localID == "backgroundHoverImage" else { continue }
                 local[localID + "FocalPoint"] = .string(focalPosition(values[PartPackageAdapter.imageFocalPointKey(for: member.id).rawValue]))
             }
+            let rawColour = string(local["backgroundColor"]) ?? ""
+            let variant = string(local["backgroundColorVariant"]) ?? "bg"
+            for member in members where member.control.type == .themeColor {
+                guard let id = member.controlGroupSource?.localID,
+                      let selected = string(local[id]), selected.hasPrefix("theme-") || PartColourToken.parse(selected) != nil else { continue }
+                let role = string(local[id + "Variant"]) ?? "bg"
+                local[id] = .string(BootstrapBackgroundColour.paint(selected, role: role, opacity: number(local[id + "Opacity"]) ?? 100))
+            }
             resolveLayerValues(&local, enablesEditorMarkup: enablesEditorMarkup)
+            let mode = string(local["backgroundMode"]) ?? "none"
+            let style = string(local["backgroundStyle"]) ?? "color"
+            var classes = ""
+            var stylesheet = ""
+            if mode != "none" {
+                let name = "background--" + SHA256.hash(data: Data((instanceID.uuidString + source.namespace).utf8)).prefix(12).map { String(format: "%02x", $0) }.joined()
+                let selector = "." + name
+                classes = name
+                let css = string(local["background.css"]) ?? ""
+                let opacity = number(local["backgroundColorOpacity"]) ?? 100
+                if mode == "static", style == "color", rawColour.hasPrefix("theme-"),
+                   rawColour != "theme-reset", opacity.isFinite, (0...100).contains(opacity), opacity.truncatingRemainder(dividingBy: 10) == 0 {
+                    classes = variant == "transparent" || opacity == 0 ? "bg-transparent" : variant + "-" + rawColour.dropFirst(6)
+                    if opacity > 0, opacity < 100, variant != "transparent" { classes += " bg-\(Int(opacity))" }
+                } else {
+                    stylesheet = selector + "{\(css)}"
+                    if mode == "hover" {
+                        let trigger = string(local["hoverTrigger"]) ?? "self"
+                        var hover = selector + ":hover"
+                        if trigger == "parent" { hover = ":where(*:hover) > " + selector }
+                        if trigger == "custom", let id = PartAnchorValidator.validated(string(local["hoverTriggerID"])) { hover = "body:has(#\(id):hover) " + selector }
+                        stylesheet += hover + "{\(string(local["background.hover.css"]) ?? "")}"
+                    }
+                    if style == "video" {
+                        classes += " position-relative"
+                        stylesheet += selector + "{isolation:isolate}" + selector + " > .background-layer{position:absolute;inset:0;z-index:-1;overflow:hidden;border-radius:inherit;pointer-events:none}"
+                        stylesheet += selector + " > .background-layer > :is(img,video){width:100%;height:100%;object-fit:cover}"
+                        stylesheet += selector + " > .background-layer::after{content:\"\";position:absolute;inset:0;background:var(--background-overlay,transparent)}"
+                    }
+                    stylesheet = "@layer utilities{" + stylesheet + "}"
+                }
+            }
+            local["background.classes"] = .string(classes)
+            local["background.stylesheet"] = .string(stylesheet)
             for (key, value) in local where key.hasPrefix("background.") {
                 guard case .string(let output) = value else { continue }
                 PartPackageControlGroupCSSResolver.insertRaw(output, at: source.namespace + key.dropFirst("background".count), into: &values)
             }
         }
+    }
+
+    static func stylesheet(_ values: [String: PartPackageValue]) -> String {
+        values.keys.sorted().filter { $0.hasSuffix(".stylesheet") }.compactMap { string(values[$0]) }.joined(separator: "\n")
     }
 
     private static func resolveLayerValues(_ values: inout [String: PartPackageValue], enablesEditorMarkup: Bool) {
@@ -80,7 +122,7 @@ nonisolated enum PartPackageBackgroundResolver {
                 "background-repeat: \(repeatValue);"
             ]
             if let videoOverlay {
-                declarations.append("--foundry-background-overlay: \(videoOverlay);")
+                declarations.append("--background-overlay: \(videoOverlay);")
             }
             return declarations.joined(separator: " ")
         }
@@ -140,7 +182,7 @@ nonisolated enum PartPackageBackgroundResolver {
 
     private static func overlayColor(values: [String: PartPackageValue]) -> String? {
         guard boolean(values["backgroundOverlayEnabled"]) == true else { return nil }
-        return string(values["backgroundOverlayColor"]) ?? "#00000033"
+        return string(values["backgroundOverlayColor"]) ?? BootstrapBackgroundColour.paint("token:black", opacity: 20)
     }
 
     private static func gradient(prefix: String, values: [String: PartPackageValue]) -> String {
@@ -167,21 +209,21 @@ nonisolated enum PartPackageBackgroundResolver {
         let poster = string(values[prefix + "Video.poster"]) ?? ""
         let href = string(values[prefix + "Video.href"]) ?? ""
         guard !poster.isEmpty || !href.isEmpty else { return "" }
-        let classes = "foundry-background-video"
+        let classes = "background-video"
         let media: String
         // The canvas never loads the movie: a poster still stands in for it.
-        if enablesEditorMarkup {
+        if enablesEditorMarkup || href.isEmpty {
             guard !poster.isEmpty else { return "" }
             media = #"<img class="\#(classes)" src="\#(escapeAttribute(poster))" alt="" aria-hidden="true">"#
         } else {
             let posterAttribute = poster.isEmpty ? "" : #" poster="\#(escapeAttribute(poster))""#
             let loops = boolean(values[prefix + "VideoLoop"]) ?? true
             let loopAttribute = loops ? " loop" : ""
-            media = #"<video class="\#(classes)" src="\#(escapeAttribute(href))"\#(posterAttribute) autoplay muted\#(loopAttribute) playsinline aria-hidden="true"></video>"#
+            media = #"<video class="\#(classes)" src="\#(escapeAttribute(href))"\#(posterAttribute) muted\#(loopAttribute) playsinline preload="none" tabindex="-1" aria-hidden="true"></video>"#
         }
         // Only this decorative layer clips. Its positioned, isolated host is
         // an explicit part-template requirement, not a side effect of .css.
-        return #"<div class="foundry-background-layer" aria-hidden="true">\#(media)</div>"#
+        return #"<div class="background-layer" aria-hidden="true">\#(media)</div>"#
     }
 
     private static func percentage(_ value: Double) -> String {

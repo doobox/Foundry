@@ -5,15 +5,33 @@ nonisolated struct BootstrapEditorTokens: Codable, Equatable, Sendable {
     var values: [String: String] = [:]
     var custom: [String: [String]] = [:]
 
+    /// Project-owned additions only; edits to Bootstrap's built-in tokens stay with the theme.
+    var customAdditions: Self {
+        let sections = custom.filter { BootstrapEditorSection(rawValue: $0.key)?.allowsCustom == true }
+        let ids = Set(sections.flatMap { key, names in
+            names.flatMap { BootstrapEditorSection(rawValue: key)?.customTokens(named: $0).map(\.id) ?? [] }
+        })
+        return Self(values: values.filter { ids.contains($0.key) }, custom: sections)
+    }
+
     func value(_ token: BootstrapEditorToken) -> String {
         guard let value = values[token.id], BootstrapEditorToken.safeValue(value) else { return token.defaultValue }
         return value
     }
     func tokens(in section: BootstrapEditorSection) -> [BootstrapEditorToken] {
-        section.tokens + (custom[section.rawValue] ?? []).flatMap { section.customTokens(named: $0) }
+        section.tokens + customTokens(in: section)
+    }
+    func customTokens(in section: BootstrapEditorSection) -> [BootstrapEditorToken] {
+        (custom[section.rawValue] ?? []).flatMap { section.customTokens(named: $0) }
     }
     func isChanged(_ section: BootstrapEditorSection) -> Bool {
         section.tokens.contains { values[$0.id] != nil }
+    }
+    /// Only Bootstrap's component tokens and the project's own additions accept edits.
+    func isEditable(_ token: BootstrapEditorToken) -> Bool {
+        BootstrapEditorSection.allCases.contains { section in
+            section.tokens.contains { $0.id == token.id } || customTokens(in: section).contains { $0.id == token.id }
+        }
     }
 }
 
@@ -47,49 +65,64 @@ nonisolated struct BootstrapEditorToken: Identifiable, Sendable {
     }
 }
 
+/// Bootstrap's editable settings, limited to tokens whose variables Bootstrap's own
+/// components read. Scales that Bootstrap bakes into utilities (text sizes, weights,
+/// spacing steps, numbered radii and borders, numeric z-index) are not editable;
+/// their sections carry only project-named additions.
 nonisolated enum BootstrapEditorSection: String, CaseIterable, Sendable {
-    case fontSize, fontWeight, borderWidth, borderRadius, shadows, zIndex, body, links, focusRing, controls
+    case fontSize, borderWidth, borderRadius, shadows, shadowColours, blackWhite, colourScales, zIndex, body, links, linkColours, focusRing, controls
 
     var title: String {
         switch self {
-        case .fontSize: "Font Sizes & Line Heights"
-        case .fontWeight: "Font Weights"
-        case .borderWidth: "Border Widths"
-        case .borderRadius: "Border Radius"
+        case .fontSize: "Text Sizes"
+        case .borderWidth: "Border Width"
+        case .borderRadius: "Corners"
         case .shadows: "Shadows"
+        case .shadowColours: "Shadow Colour"
+        case .blackWhite: "Black & White"
+        case .colourScales: "Colour Scales"
         case .zIndex: "Z-index"
         case .body: "Body Typography"
         case .links: "Links"
+        case .linkColours: "Link Colours"
         case .focusRing: "Focus Ring"
         case .controls: "Buttons & Inputs"
         }
     }
 
+    /// Bootstrap's fixed utility scales. Offered to parts as shipped; never edited.
     static let sizes = ["xs", "sm", "md", "lg", "xl", "2xl", "3xl", "4xl", "5xl", "6xl"]
     static let weights = ["lighter", "light", "normal", "medium", "semibold", "bold", "bolder"]
-    static let levels = ["n1", "0", "1", "2", "3", "menu", "sticky", "fixed", "drawer", "dialog", "popover", "tooltip", "toast"]
+    /// Component stacking layers. Bootstrap's components read these variables.
+    static let levels = ["menu", "sticky", "fixed", "drawer", "dialog", "popover", "tooltip", "toast"]
     var allowsCustom: Bool { [.fontSize, .borderWidth, .borderRadius, .shadows, .zIndex].contains(self) }
 
     var tokens: [BootstrapEditorToken] {
         switch self {
         case .fontSize:
-            return Self.sizes.flatMap { [BootstrapEditorToken("font-size-" + $0, "fs-" + $0), BootstrapEditorToken("line-height-" + $0, "Line height", range: 0.5...3, step: 0.05)] }
-        case .fontWeight:
-            return Self.weights.map { .init("font-weight-" + $0, "fw-" + $0, range: 1...1000, step: 100) }
+            return []
         case .borderWidth:
-            return [.init("border-width", "Default", range: 0...12, step: 0.5), .init("border-width-keyline", "border-keyline", range: 0...12, step: 0.5)]
-                + (1...5).map { .init("border-width-\($0)", "border-\($0)", fallback: "\($0)px", range: 0...12, step: 0.5) }
+            return [.init("border-width", "Components", range: 0...12, step: 0.5)]
         case .borderRadius:
-            return (0...9).map { .init("radius-\($0)", "rounded-\($0)", range: 0...5) } + [.init("radius-pill", "rounded-pill", range: 0...50)]
+            return [.init("radius-5", "Buttons and inputs", range: 0...5), .init("radius-7", "Cards", range: 0...5), .init("radius-pill", "Pill", range: 0...50)]
         case .shadows:
-            return ["", "-xs", "-sm", "-lg", "-xl", "-inset"].map { .init("box-shadow" + $0, $0 == "-inset" ? "Inset" : ($0.isEmpty ? "shadow" : "shadow" + $0)) }
-                + [.init("shadow-color", "Colour"), .init("shadow-strength-light", "Light strength", fallback: "1", range: 0...5, step: 0.1), .init("shadow-strength-dark", "Dark strength", fallback: "2.4", range: 0...5, step: 0.1)]
+            return [.init("shadow-strength-light", "Light strength", fallback: "1", range: 0...5, step: 0.1), .init("shadow-strength-dark", "Dark strength", fallback: "2.4", range: 0...5, step: 0.1)]
+        case .shadowColours:
+            return [.init("shadow-color", "Shadow")]
+        case .blackWhite:
+            return [.init("black", "Black"), .init("white", "White")]
+        case .colourScales:
+            return BootstrapColourCatalogue.hues.flatMap { hue in
+                ColourShade.allCases.map { .init("\(hue)-\($0.bootstrapLabel)", $0.bootstrapLabel) }
+            }
         case .zIndex:
             return Self.levels.map { .init("z-" + $0, "z-" + $0, range: -10...1100, step: 1) }
         case .body:
             return [.init("body-font-size", "Font size", range: 0.5...3), .init("body-font-weight", "Font weight"), .init("body-line-height", "Line height", range: 0.5...3, step: 0.05), .init("heading-color", "Heading colour"), .init("code-font-size", "Code size", range: 50...150, step: 1), .init("code-color", "Code colour")]
         case .links:
-            return ["link-color", "link-hover-color", "link-decoration", "link-underline-offset"].map { .init($0) }
+            return ["link-decoration", "link-underline-offset"].map { .init($0) }
+        case .linkColours:
+            return [.init("link-color", "Link"), .init("link-hover-color", "Link hover")]
         case .focusRing:
             return [.init("focus-ring-width", "Width", range: 0...12, step: 0.5), .init("focus-ring-offset", "Offset", range: -10...10, step: 0.5), .init("focus-ring-color", "Colour")]
         case .controls:
@@ -103,7 +136,7 @@ nonisolated enum BootstrapEditorSection: String, CaseIterable, Sendable {
 
     func customTokens(named name: String) -> [BootstrapEditorToken] {
         switch self {
-        case .fontSize: [.init("font-size-" + name, "fs-" + name, fallback: "1rem"), .init("line-height-" + name, "Line height", fallback: "1.5", range: 0.5...3, step: 0.05)]
+        case .fontSize: [.init("font-size-" + name, "text-" + name, fallback: "1rem")]
         case .borderWidth: [.init("border-width-" + name, "border-" + name, fallback: "1px", range: 0...12, step: 0.5)]
         case .borderRadius: [.init("radius-" + name, "rounded-" + name, fallback: "0.5rem", range: 0...5)]
         case .shadows: [.init("box-shadow-" + name, "shadow-" + name, fallback: BootstrapColourCatalogue.declarations["--bs-box-shadow"]!)]

@@ -18,6 +18,7 @@ nonisolated enum BootstrapPaletteTheme {
 
     static func nativeRole(_ palette: ColourPalette) -> String? {
         if palette.origin == .custom, palette.id.hasPrefix("custom.") {
+            guard palette.colourKind == .theme else { return nil }
             let role = palette.name
             return validCustomRole(role) ? role : nil
         }
@@ -34,12 +35,12 @@ nonisolated enum BootstrapPaletteTheme {
     }
 
     static func definitionRole(_ palette: ColourPalette) -> String {
-        palette.origin == .custom ? "primary" : String(palette.id.dropFirst("framework.".count))
+        palette.origin == .custom ? palette.colourKind.sourceRole : String(palette.id.dropFirst("framework.".count))
     }
 
     /// Apply a generated native theme without changing a custom colour's saved identity.
     static func applying(_ source: ColourPalette, to target: ColourPalette) -> ColourPalette {
-        guard target.origin == .custom, let role = nativeRole(target) else { return source }
+        guard target.origin == .custom else { return source }
         var result = target
         try! result.replaceShades(source.shades)
         result.setLightDefault(source.lightDefaultShade)
@@ -47,9 +48,8 @@ nonisolated enum BootstrapPaletteTheme {
         result.bootstrapHue = source.bootstrapHue
         result.bootstrapScale = source.bootstrapScale
         result.bootstrapGeneratedContrast = source.bootstrapGeneratedContrast
-        let sourceRole = definitionRole(source)
         result.bootstrapTokens = Dictionary(uniqueKeysWithValues: source.bootstrapTokens.map {
-            ($0.key.replacingOccurrences(of: sourceRole + "-", with: role + "-"), $0.value)
+            (target.colourToken($0.key), $0.value)
         })
         return result
     }
@@ -63,6 +63,8 @@ nonisolated enum BootstrapPaletteTheme {
     }
 
     static func resolve(_ selection: String, framework: Framework) -> String {
+        if selection == "inherit" { return "" }
+        if PartColourToken.parse(selection) != nil { return selection }
         guard let palette = framework.colourPalettes.resolvedPalette(id: paletteID(selection)),
               let role = nativeRole(palette) else { return "theme-reset" }
         return "theme-" + role

@@ -4,6 +4,14 @@ import Testing
 @testable import Foundry
 
 struct BackgroundMediaTests {
+    @Test(arguments: [false, true])
+    func imageOnlyPartsRetainOverlayControls(hover: Bool) throws {
+        let group = PartPackageControlGroup(type: .background, id: "surface", backgroundTypes: [.colour, .gradient, .image], supportsHover: hover)
+        let overlay = try #require(group.properties.first { $0.id == "surface.backgroundOverlayEnabled" })
+        #expect(PartPackageVisibilityEvaluator.isVisible(overlay.visibleWhen, values: [
+            "surface.backgroundMode": .choice("static"), "surface.backgroundStyle": .choice("image")
+        ]))
+    }
     @Test(arguments: ["color", "gradient", "image"], [false, true])
     func overlayStaysConstantAcrossDifferentBackgroundStyles(otherStyle: String, imageOnHover: Bool) {
         let group = PartPackageControlGroup(type: .background, id: "surface")
@@ -26,11 +34,11 @@ struct BackgroundMediaTests {
         let toggle = try #require(controls.first { $0.id == "surface.backgroundOverlayEnabled" })
         let color = try #require(controls.first { $0.id == "surface.backgroundOverlayColor" })
         #expect(toggle.defaultValue == .boolean(false))
-        #expect(color.defaultValue == .object(["palette": .string("standard.black"), "opacity": .number(0.2)]))
-        #expect(color.control.type == .frameworkColor)
-        #expect(color.control.opacity == true)
+        #expect(color.defaultValue == .string("token:black"))
+        #expect(color.control.type == .themeColor)
+        #expect(controls.first { $0.id == "surface.backgroundOverlayColorOpacity" }?.defaultValue == .number(20))
         #expect(controls.contains { $0.id.contains("OverlayGradient") } == false)
-        #expect(controls.filter { $0.id.contains("Overlay") }.count == 2)
+        #expect(controls.filter { $0.id.contains("Overlay") }.count == 3)
         #expect(controls.contains { $0.id.contains("HoverOverlay") } == false)
         for styles: [PartPackageControlGroup.BackgroundStyle] in [[.colour], [.gradient]] {
             let plain = PartPackageControlGroup(type: .background, id: "surface", backgroundTypes: styles)
@@ -81,20 +89,24 @@ struct BackgroundMediaTests {
             "surface.backgroundOverlayEnabled": .boolean(enabled)
         ]
         PartPackageBackgroundResolver.resolve(&values, properties: group.properties, enablesEditorMarkup: editor)
-        let color = enabled ? "#00000033" : "transparent"
-        #expect(values["surface.css"]?.stringValue.contains("--foundry-background-overlay: \(color);") == true)
+        let color = enabled ? BootstrapBackgroundColour.paint("token:black", opacity: 20) : "transparent"
+        #expect(values["surface.css"]?.stringValue.contains("--background-overlay: \(color);") == true)
         #expect(values["surface.video"]?.stringValue.contains(editor ? "<img " : "<video ") == true)
-        #expect(values["surface.video"]?.stringValue.contains("foundry-background-layer") == true)
+        #expect(values["surface.video"]?.stringValue.contains("background-layer") == true)
     }
 
     @Test @MainActor func playbackTracksVisibilityWithoutRestartingFinishedClips() throws {
         let context = try #require(JSContext())
         context.evaluateScript(#"""
         var window = this;
+        var motionChanged;
+        var motion = {matches:false, addEventListener(name, fn) {motionChanged=fn;}};
+        function matchMedia() {return motion;}
         var callback, visibilityChanged, observed = 0, unobserved = 0;
         var video = {
           isConnected: true, ended: false, loop: true, currentTime: 12,
-          plays: 0, pauses: 0,
+          plays: 0, pauses: 0, loads:0,
+          load() { this.loads++; },
           pause() { this.pauses++; },
           play() { this.plays++; return { then(fn) { fn(); return { catch() {} }; } }; },
           closest() { return root; }
@@ -102,7 +114,7 @@ struct BackgroundMediaTests {
         var childVideo = { closest() { return {}; } };
         var root = { querySelectorAll() { return [video, childVideo]; } };
         var document = {
-          hidden: false, querySelector() { return root; },
+          hidden: false, querySelectorAll() { return [video]; },
           addEventListener(name, fn) { visibilityChanged = fn; }
         };
         function IntersectionObserver(fn) {
@@ -140,6 +152,8 @@ struct BackgroundMediaTests {
         context.evaluateScript(PartBackgroundVideoPlayback.javaScript)
         context.evaluateScript("visibility(true); visibility(false); var beforeCompletion = video.pauses; completePlay()")
         #expect(context.evaluateScript("video.pauses === beforeCompletion + 1")?.toBool() == true)
+        context.evaluateScript("motion.matches=true; motionChanged(); var playsBeforeMotion=video.plays; visibility(true)")
+        #expect(context.evaluateScript("video.loads===1 && video.plays===playsBeforeMotion")?.toBool() == true)
         context.evaluateScript("delete window.IntersectionObserver")
         context.evaluateScript(PartBackgroundVideoPlayback.javaScript)
         #expect(context.evaluateScript("observed === 2")?.toBool() == true)

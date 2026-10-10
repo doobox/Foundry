@@ -37,7 +37,7 @@ struct BootstrapBaselineTests {
         #expect(Set(packages.map { $0.manifest.identifier }) == Set([
             "foundry.content.button", "foundry.layout.container", "foundry.content.paragraph",
             "foundry.layout.flex", "foundry.layout.grid", "foundry.content.html",
-            "foundry.media.svg", "foundry.media.image"
+            "foundry.media.svg", "foundry.media.image", "foundry.content.card", "foundry.layout.background"
         ]))
         let container = try #require(PartType.container.definition.package)
         #expect(container.css.isEmpty)
@@ -77,7 +77,9 @@ struct BootstrapBaselineTests {
             #expect(body.contains("data-foundry-") == false)
             #expect(body.contains("foundry-package-") == false)
             #expect(body.contains("c-\(button.id.uuidString.lowercased())") == false)
-            #expect(body.contains("btn btn-solid theme-primary"))
+            // A default Button inherits any enclosing theme, so it carries no theme class of its own.
+            #expect(body.contains("btn btn-solid"))
+            #expect(body.contains("theme-") == false)
             #expect(body.contains(BootstrapLayout.containerClass(width, screens: site.framework.screens)))
             let css = bundle.files.filter { $0.path.hasSuffix(".css") }.map(\.contents).joined()
             #expect(css.contains("Foundry CSS 1") == false)

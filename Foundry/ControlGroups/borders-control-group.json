@@ -4,165 +4,13 @@
   "systemImage": "square.dashed",
   "controls": [
     {
-      "type": "select",
-      "id": "border",
-      "label": "Border",
+      "type": "borderSides",
+      "id": "sides",
+      "label": "Sides",
       "responsive": false,
       "defaults": {
         "base": "none"
-      },
-      "options": [
-        {
-          "title": "Inherit",
-          "value": "none"
-        },
-        {
-          "title": "border",
-          "value": "border"
-        },
-        {
-          "title": "border-0",
-          "value": "border-0"
-        }
-      ]
-    },
-    {
-      "type": "select",
-      "id": "borderTop",
-      "label": "Border top",
-      "responsive": false,
-      "defaults": {
-        "base": "none"
-      },
-      "options": [
-        {
-          "title": "Inherit",
-          "value": "none"
-        },
-        {
-          "title": "border-top",
-          "value": "border-top"
-        },
-        {
-          "title": "border-top-0",
-          "value": "border-top-0"
-        }
-      ]
-    },
-    {
-      "type": "select",
-      "id": "borderEnd",
-      "label": "Border end",
-      "responsive": false,
-      "defaults": {
-        "base": "none"
-      },
-      "options": [
-        {
-          "title": "Inherit",
-          "value": "none"
-        },
-        {
-          "title": "border-end",
-          "value": "border-end"
-        },
-        {
-          "title": "border-end-0",
-          "value": "border-end-0"
-        }
-      ]
-    },
-    {
-      "type": "select",
-      "id": "borderBottom",
-      "label": "Border bottom",
-      "responsive": false,
-      "defaults": {
-        "base": "none"
-      },
-      "options": [
-        {
-          "title": "Inherit",
-          "value": "none"
-        },
-        {
-          "title": "border-bottom",
-          "value": "border-bottom"
-        },
-        {
-          "title": "border-bottom-0",
-          "value": "border-bottom-0"
-        }
-      ]
-    },
-    {
-      "type": "select",
-      "id": "borderStart",
-      "label": "Border start",
-      "responsive": false,
-      "defaults": {
-        "base": "none"
-      },
-      "options": [
-        {
-          "title": "Inherit",
-          "value": "none"
-        },
-        {
-          "title": "border-start",
-          "value": "border-start"
-        },
-        {
-          "title": "border-start-0",
-          "value": "border-start-0"
-        }
-      ]
-    },
-    {
-      "type": "select",
-      "id": "borderX",
-      "label": "Border x",
-      "responsive": false,
-      "defaults": {
-        "base": "none"
-      },
-      "options": [
-        {
-          "title": "Inherit",
-          "value": "none"
-        },
-        {
-          "title": "border-x",
-          "value": "border-x"
-        },
-        {
-          "title": "border-x-0",
-          "value": "border-x-0"
-        }
-      ]
-    },
-    {
-      "type": "select",
-      "id": "borderY",
-      "label": "Border y",
-      "responsive": false,
-      "defaults": {
-        "base": "none"
-      },
-      "options": [
-        {
-          "title": "Inherit",
-          "value": "none"
-        },
-        {
-          "title": "border-y",
-          "value": "border-y"
-        },
-        {
-          "title": "border-y-0",
-          "value": "border-y-0"
-        }
-      ]
+      }
     },
     {
       "type": "select",
@@ -200,6 +48,61 @@
         {
           "title": "border-5",
           "value": "border-5"
+        }
+      ]
+    },
+    {
+      "type": "select",
+      "id": "style",
+      "label": "Style",
+      "responsive": false,
+      "defaults": {
+        "base": "inherit"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "inherit"
+        },
+        {
+          "title": "solid",
+          "value": "solid"
+        },
+        {
+          "title": "dashed",
+          "value": "dashed"
+        },
+        {
+          "title": "dotted",
+          "value": "dotted"
+        },
+        {
+          "title": "double",
+          "value": "double"
+        },
+        {
+          "title": "none",
+          "value": "none"
+        },
+        {
+          "title": "hidden",
+          "value": "hidden"
+        },
+        {
+          "title": "groove",
+          "value": "groove"
+        },
+        {
+          "title": "ridge",
+          "value": "ridge"
+        },
+        {
+          "title": "inset",
+          "value": "inset"
+        },
+        {
+          "title": "outset",
+          "value": "outset"
         }
       ]
     },
@@ -269,6 +172,38 @@
           "value": "rounded-pill"
         }
       ]
+    },
+    {
+      "type": "toggle",
+      "id": "colourEnabled",
+      "label": "Border colour",
+      "defaults": {
+        "base": false
+      }
+    },
+    {
+      "type": "themeColor",
+      "id": "theme",
+      "label": "Colour",
+      "defaults": {
+        "base": "framework.primary"
+      },
+      "visibleWhen": {
+        "id": "colourEnabled",
+        "value": true
+      }
+    },
+    {
+      "type": "toggle",
+      "id": "subtle",
+      "label": "Subtle colour",
+      "defaults": {
+        "base": false
+      },
+      "visibleWhen": {
+        "id": "colourEnabled",
+        "value": true
+      }
     }
   ]
 }

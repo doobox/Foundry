@@ -1,11 +1,12 @@
 import Foundation
 
 /// Bootstrap 6 alpha.1 spacing utility definitions, emitted without runtime Sass.
-/// Re-emit the complete spacing family when extending it so responsive defaults
-/// still follow custom base rules in the cascade (and vice versa).
+/// Only sites with custom spacers need this. The complete family is re-emitted then,
+/// so a responsive Bootstrap step still beats a custom base value in the cascade
+/// (and vice versa); Bootstrap's own values are unchanged.
 nonisolated enum BootstrapSpacingCSS {
     static func render(_ spacing: SpacingTokens) -> String {
-        guard !spacing.custom.isEmpty || spacing.values != SpacingTokens.multipliers else { return "" }
+        guard !spacing.custom.isEmpty else { return "" }
         let families: [(String, String)] = [
             ("m", "margin"), ("mx", "margin-inline"), ("my", "margin-block"),
             ("mt", "margin-block-start"), ("me", "margin-inline-end"),

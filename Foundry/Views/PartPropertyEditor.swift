@@ -239,7 +239,11 @@ struct PartPropertyEditor: View {
             )
         case .themeColor:
             ThemeColorPartControl(label: definition.label, framework: framework,
-                indicator: responsiveIndicator, selection: stringBinding(as: .choice))
+                indicator: responsiveIndicator,
+                tokenSections: colourTokenSections,
+                linksOnly: isLinkColour,
+                allowsInherit: part.type.definition.package?.manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource.map { [.foreground, .linkStyling].contains($0.type) } ?? true,
+                selection: stringBinding(as: .choice))
         case .choice(let choices):
             let availableChoices = choicesForCurrentContext(choices)
             if definition.presentation == .segmented {
@@ -288,6 +292,7 @@ struct PartPropertyEditor: View {
             .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Spacing")
         case .frameworkBorderWidth:
             FrameworkBorderWidthPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator,
+                bootstrapBorders: part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.control.type == .borderSides,
                 value: Binding(get: {
                     if case .frameworkBorderWidth(let value) = displayPart.propertyValue(definition.key) { return value }
                     if case .frameworkBorderWidth(let value) = definition.defaultValue { return value }
@@ -909,7 +914,7 @@ struct PartPropertyEditor: View {
     ) -> [PartPropertyChoice] {
         let custom = BootstrapCustomTokenClasses.choices(existing: choices.map(\.value), framework: framework)
         let choices = choices + custom.enumerated().map { index, value in
-            PartPropertyChoice(value: value, label: value, separatorBefore: index == 0)
+            PartPropertyChoice(value: value, label: BootstrapCustomTokenClasses.label(for: value, framework: framework), separatorBefore: index == 0)
         }
         if part.type == .container && definition.key.rawValue == "width" {
             return choices.filter { BootstrapLayout.allowsContainerClass($0.value, screens: framework.screens) }
@@ -1491,6 +1496,18 @@ struct PartPropertyEditor: View {
 
     private var isBootstrapSpacing: Bool {
         part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.controlGroupSource?.type == .spacing
+    }
+
+    private var colourTokenSections: [String] {
+        if isLinkColour { return ["links"] }
+        guard let manifest = part.type.definition.package?.manifest,
+              let source = manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource else { return [] }
+        if source.type == .borders { return ["borders", "blackWhite"] }
+        return manifest.controlGroups.first(where: { $0.namespace == source.namespace })?.colourSections ?? []
+    }
+
+    private var isLinkColour: Bool {
+        part.type.definition.package?.manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource?.type == .linkStyling
     }
 
     private var bootstrapGapPrefix: String? {

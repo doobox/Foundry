@@ -27,24 +27,8 @@
   },
   "inspector": [
     {
-      "section": "Text",
-      "systemImage": "textformat",
-      "controls": [
-        {
-          "type": "typography",
-          "id": "typography",
-          "excludeControls": [
-            "fontFamily",
-            "fontSize",
-            "fontStyle",
-            "fontWeight",
-            "lineHeight",
-            "textDecoration",
-            "textTransform",
-            "wordWrap"
-          ]
-        }
-      ]
+      "section": "Content",
+      "systemImage": "doc.text"
     },
     {
       "section": "Spacing",
@@ -57,8 +41,47 @@
       ]
     },
     {
-      "section": "Content",
-      "systemImage": "doc.text"
+      "section": "Typography",
+      "systemImage": "textformat",
+      "controls": [
+        {
+          "type": "typography",
+          "id": "typography",
+          "excludeControls": [
+            "fontSize",
+            "lineHeight",
+            "verticalAlignment"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Foreground",
+      "systemImage": "paintpalette",
+      "controls": [
+        {
+          "type": "foreground",
+          "id": "foreground",
+          "colourSections": [
+            "foregrounds",
+            "blackWhite"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Links",
+      "systemImage": "link",
+      "controls": [
+        {
+          "type": "linkStyling",
+          "id": "links",
+          "targetSelector": "a[href]:not(.btn)"
+        }
+      ]
+    },
+    {
+      "type": "advanced"
     }
   ]
 }

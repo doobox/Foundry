@@ -1,28 +1,43 @@
 {
   "type": "foreground",
-  "name": "Bootstrap foreground",
+  "name": "Foreground",
   "systemImage": "paintpalette",
   "controls": [
-    {
-      "type": "toggle",
-      "id": "enabled",
-      "label": "Theme colour",
-      "defaults": {
-        "base": false
-      }
-    },
     {
       "type": "themeColor",
       "id": "theme",
       "label": "Colour",
       "defaults": {
-        "base": "framework.primary"
-      },
-      "visibleWhen": {
-        "id": "enabled",
-        "value": true
-      },
-      "subtitle": "Colours currentColor artwork; explicit fills and strokes are preserved."
+        "base": "inherit"
+      }
+    },
+    {
+      "type": "select",
+      "id": "variant",
+      "label": "Variant",
+      "responsive": false,
+      "defaults": { "base": "normal" },
+      "options": [
+        { "title": "Normal", "value": "normal" },
+        { "title": "Emphasis", "value": "emphasis" },
+        { "title": "Contrast", "value": "contrast" }
+      ],
+      "visibleWhen": { "all": [
+        { "id": "theme", "operation": "!=", "value": "inherit" },
+        { "id": "theme", "operation": "notContains", "value": "token:" }
+      ] }
+    },
+    {
+      "type": "slider",
+      "id": "opacity",
+      "label": "Opacity",
+      "responsive": false,
+      "minimum": 0,
+      "maximum": 100,
+      "step": 10,
+      "editableValue": true,
+      "defaults": { "base": 100 },
+      "visibleWhen": { "id": "theme", "operation": "!=", "value": "inherit" }
     }
   ]
 }

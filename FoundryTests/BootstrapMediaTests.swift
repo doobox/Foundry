@@ -50,7 +50,6 @@ struct BootstrapMediaTests {
         var part = PartNode.make(.svg)
         part.anchor = "paint"
         part.setProperty(.init(rawValue: "source"), value: .url(asset.reference))
-        part.setProperty(.init(rawValue: "foreground.enabled"), value: .boolean(true))
         part.setProperty(.init(rawValue: "foreground.theme"), value: .choice("framework.primary"))
         part.setProperty(.init(rawValue: "fillEnabled"), value: .boolean(enabled))
         part.setProperty(.init(rawValue: "strokeEnabled"), value: .boolean(enabled))
@@ -94,7 +93,7 @@ struct BootstrapMediaTests {
         #expect(package.css.isEmpty)
         #expect(package.instanceJavaScript.isEmpty)
         #expect(type.definition.allowsChildren == false)
-        #expect(package.manifest.controlGroups.allSatisfy { $0.type.generatesBootstrapClasses })
+        #expect(package.manifest.controlGroups.allSatisfy { $0.type.generatesBootstrapClasses || $0.type == .advanced })
     }
 
     @Test(arguments: [PartTemplateEnvironment.canvas, .preview, .published])
@@ -129,7 +128,6 @@ struct BootstrapMediaTests {
         svg.anchor = "art"
         svg.setProperty(.init(rawValue: "source"), value: .url(asset.reference))
         svg.setProperty(PartPackageAdapter.imageAltKey(for: "source"), value: .string("Two colours"))
-        svg.setProperty(.init(rawValue: "foreground.enabled"), value: .boolean(true))
         svg.setProperty(.init(rawValue: "foreground.theme"), value: .choice("framework.primary"))
         svg.setProperty(.init(rawValue: "sizing.width"), value: .choice("w-50"))
         svg.setProperty(.init(rawValue: "sizing.height"), value: .choice("h-auto"))

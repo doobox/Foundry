@@ -1549,7 +1549,7 @@ struct PartPackageTests {
         #expect(manifest.resolvedProperties.first?.id == "background.backgroundMode")
         #expect(manifest.resolvedProperties.first?.defaultValue == .string("none"))
         #expect(manifest.resolvedProperties.contains { $0.id == "background.backgroundImage" && $0.control.type == .image })
-        #expect(manifest.resolvedProperties.contains { $0.id == "background.backgroundGradientFrom" && $0.control.type == .frameworkColor })
+        #expect(manifest.resolvedProperties.contains { $0.id == "background.backgroundGradientFrom" && $0.control.type == .themeColor })
         #expect(manifest.resolvedProperties.contains { $0.id == "background.backgroundVideo" && $0.control.type == .video })
         let videoLoop = try #require(manifest.resolvedProperties.first { $0.id == "background.backgroundVideoLoop" })
         #expect(videoLoop.defaultValue == .boolean(true))
@@ -1760,12 +1760,12 @@ struct PartPackageTests {
         ]
         let published = resolved(videoValues)
         let publishedVideo = published["background.video"]?.stringValue ?? ""
-        #expect(publishedVideo.contains(#"class="foundry-background-video""#))
+        #expect(publishedVideo.contains(#"class="background-video""#))
         #expect(publishedVideo.contains(#"src="assets/film&amp;trailer.mp4""#))
         #expect(publishedVideo.contains(#"poster="data:image/jpeg;base64,poster-frame""#))
-        #expect(publishedVideo.contains("autoplay muted loop playsinline"))
+        #expect(publishedVideo.contains("muted loop playsinline"))
         #expect(published["background.videoCSS"] == nil)
-        #expect(publishedVideo.hasPrefix(#"<div class="foundry-background-layer" aria-hidden="true">"#))
+        #expect(publishedVideo.hasPrefix(#"<div class="background-layer" aria-hidden="true">"#))
         #expect(publishedVideo.hasSuffix("</video></div>"))
         let publishedCSS = published["background.css"]?.stringValue ?? ""
         #expect(publishedCSS.contains("position: relative") == false)
@@ -1785,7 +1785,7 @@ struct PartPackageTests {
 
         let canvas = resolved(videoValues, enablesEditorMarkup: true)
         let canvasVideo = canvas["background.video"]?.stringValue ?? ""
-        #expect(canvasVideo.contains(#"<img class="foundry-background-video""#))
+        #expect(canvasVideo.contains(#"<img class="background-video""#))
         #expect(canvasVideo.contains(#"src="data:image/jpeg;base64,poster-frame""#))
         #expect(!canvasVideo.contains("<video"))
         #expect(!canvasVideo.contains("autoplay"))
@@ -2089,7 +2089,7 @@ struct PartPackageTests {
             "background.backgroundVideo.href": .string("assets/film.mp4"),
             "background.backgroundVideo.poster": .string("assets/film.jpg")
         ])
-        #expect(html.contains(#"<video class="foundry-background-video" src="assets/film.mp4""#))
+        #expect(html.contains(#"<video class="background-video" src="assets/film.mp4""#))
         #expect(!html.contains("&lt;"))
     }
 
@@ -2099,7 +2099,7 @@ struct PartPackageTests {
             ("spacing", ["margin", "padding"]),
             ("gap", ["gap", "rowGap", "columnGap"]),
             ("sizing", ["width", "height", "minWidth", "maxWidth", "minHeight", "maxHeight", "aspectRatio"]),
-            ("borders", ["border", "borderTop", "borderEnd", "borderBottom", "borderStart", "borderX", "borderY", "width", "radius"]),
+            ("borders", ["sides", "width", "style", "radius", "colourEnabled", "theme", "subtle"]),
             ("effects", ["effectsEnabled", "frameworkShadow"]),
             ("layout", ["position", "zIndexMode", "zIndex", "offsets", "offset", "offsetEdges", "overflow"]),
             ("display", ["display", "visibility"]),
@@ -2422,7 +2422,7 @@ struct PartPackageTests {
         let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
 
         #expect(manifest.resolvedProperties.map(\.id) == [
-            "before", "borders.border", "borders.borderTop", "borders.borderEnd", "borders.borderBottom", "borders.borderStart", "borders.borderX", "borders.borderY", "borders.width", "borders.radius", "after"
+            "before", "borders.sides", "borders.width", "borders.style", "borders.radius", "borders.colourEnabled", "borders.theme", "borders.subtle", "after"
         ])
         #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
     }

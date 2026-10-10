@@ -8,14 +8,14 @@ struct FrameworkMarginTests {
     @Test func autoNegativeAndPersistence() throws {
         let value = try #require(PartPackageFrameworkMarginControl.defaultValue(.object([
             "top": .object(["value": .number(-2), "unit": .string("rem")]),
-            "right": .string("auto"), "bottom": .string("none"), "left": .string("sm")
+            "right": .string("auto"), "bottom": .string("none"), "left": .string("3")
         ])))
         #expect(try JSONDecoder().decode(FrameworkMarginValue.self, from: JSONEncoder().encode(value)) == value)
         #expect(throws: (any Error).self) { try JSONDecoder().decode(FrameworkPaddingValue.self, from: JSONEncoder().encode(value)) }
         guard case .object(let result) = PartPackageFrameworkMarginControl.resolved(value, framework: .standard),
               case .object(let amounts) = result["values"],
               case .object(let units) = result["units"] else { Issue.record("Missing output"); return }
-        #expect(result["css"] == .string("-2.0rem auto 0 var(--foundry-space-sm)"))
+        #expect(result["css"] == .string("-2.0rem auto 0 var(--bs-spacer-3)"))
         #expect(amounts["top"] == .number(-2))
         #expect(amounts["right"] == nil)
         #expect(units["right"] == .string(""))

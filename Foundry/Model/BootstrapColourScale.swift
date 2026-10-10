@@ -8,7 +8,7 @@ nonisolated struct BootstrapColourScale: Codable, Hashable, Sendable {
     init?(base: String) {
         let value = base.trimmingCharacters(in: .whitespacesAndNewlines)
         let number = #"(?:\d+(?:\.\d*)?|\.\d+)"#
-        let pattern = "^oklch\\(\\s*(\(number))%\\s+(\(number))\\s+(\(number))\\s*\\)$"
+        let pattern = "^oklch\\(\\s*(\(number))%\\s+(\(number))\\s+(\(number))(?:deg)?\\s*\\)$"
         guard let regex = try? NSRegularExpression(pattern: pattern),
               let match = regex.firstMatch(in: value, range: NSRange(value.startIndex..., in: value)) else { return nil }
         let numbers = (1...3).compactMap { index -> Double? in

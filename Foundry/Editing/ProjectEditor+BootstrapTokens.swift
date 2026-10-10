@@ -1,7 +1,30 @@
 import Foundation
 
 extension ProjectEditor {
+    func setBootstrapColourScale(_ hue: String, scale: BootstrapColourScale) {
+        guard BootstrapColourCatalogue.hues.contains(hue) else { return }
+        mutate(actionName: "Customise \(hue.capitalized) Scale", impact: .framework) { site in
+            for shade in ColourShade.allCases {
+                let token = BootstrapEditorToken("\(hue)-\(shade.bootstrapLabel)")
+                let value = scale.expression(at: shade)
+                site.framework.bootstrapTokens.values[token.id] = value == token.defaultValue ? nil : value
+            }
+        }
+    }
+
+    func setBootstrapColourGroup(_ section: BootstrapEditorSection, base: String) {
+        guard section == .linkColours || section == .shadowColours,
+              BootstrapEditorToken.safeValue(base), let token = section.tokens.first else { return }
+        mutate(actionName: "Customise \(section.title)", impact: .framework) { site in
+            site.framework.bootstrapTokens.values[token.id] = base == token.defaultValue ? nil : base
+            // Bootstrap's native hover expression derives from the link colour.
+            if section == .linkColours { site.framework.bootstrapTokens.values["link-hover-color"] = nil }
+        }
+    }
+
     func setBootstrapToken(_ token: BootstrapEditorToken, value: String) {
+        // Bootstrap's utility scales ship fixed; only component tokens and project additions change.
+        guard document.site.framework.bootstrapTokens.isEditable(token) else { return }
         guard BootstrapEditorToken.safeValue(value) else { return }
         guard document.site.framework.bootstrapTokens.value(token) != value else { return }
         mutate(actionName: "Edit Bootstrap \(token.label)", impact: .framework) {
@@ -21,6 +44,7 @@ extension ProjectEditor {
               name.range(of: "^[a-z0-9]+(?:-[a-z0-9]+)*$", options: .regularExpression) != nil,
               !["none", "auto", "inherit", "initial", "unset", "pill", "circle", "size", "top", "bottom", "start", "end", "current", "black", "white", "opacity", "keyline", "inset"].contains(name),
               !BootstrapColourCatalogue.themeRoles.contains(name) else { return false }
+        if section == .fontSize && (BootstrapEditorSection.sizes + ["wrap", "nowrap", "balance", "pretty", "truncate", "center", "break", "lowercase", "uppercase", "capitalize"]).contains(name) { return false }
         let tokens = document.site.framework.bootstrapTokens.tokens(in: section)
         return section.customTokens(named: name).allSatisfy { custom in !tokens.contains { $0.id == custom.id } }
     }
@@ -46,6 +70,7 @@ extension ProjectEditor {
             for (prefix, replacement) in mappings { site.replacePartFrameworkReference(prefix + name, with: replacement) }
             site.framework.bootstrapTokens.custom[section.rawValue]?.removeAll { $0 == name }
             for token in section.customTokens(named: name) { site.framework.bootstrapTokens.values[token.id] = nil }
+            if section == .fontSize { site.framework.bootstrapTokens.values["line-height-" + name] = nil }
         }
     }
 

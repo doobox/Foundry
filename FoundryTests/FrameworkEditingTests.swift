@@ -8,20 +8,21 @@ struct FrameworkEditingTests {
     func frameworkChangesUseTheSelectedFrameworkLayout() throws {
         let document = FoundryDocument()
         let editor = ProjectEditor(document: document, undoManager: nil)
+        // Breakpoint widths are Bootstrap's; a framework only chooses which sizes are enabled.
         var framework = Framework.standard
-        framework.screens.update(.medium) { $0.minimumWidth = 850; $0.container.value = 750 }
+        framework.screens.update(.extraLarge) { $0.isEnabled = true }
         let customID = UUID()
         editor.selectFramework(framework, sourceID: customID)
         #expect(document.site.framework.screens == framework.screens)
         editor.selectFramework(.standard, sourceID: UUID())
-        #expect(document.site.framework.screens == .standard)
+        #expect(document.site.framework.screens == Framework.standard.screens)
         editor.selectFramework(framework, sourceID: customID)
         #expect(document.site.framework.screens == framework.screens)
         #expect(document.site.framework.savedSettings.screens == framework.screens)
         let decoded = try JSONDecoder().decode(Site.self, from: JSONEncoder().encode(document.site))
         #expect(decoded.framework.screens == framework.screens)
         editor.resetFramework(.standard, sourceID: customID)
-        #expect(document.site.framework.screens == .standard)
+        #expect(document.site.framework.screens == Framework.standard.screens)
     }
 
     @Test
@@ -86,11 +87,7 @@ struct FrameworkEditingTests {
         document.site.frameworkSourceID = builtIn.id
         let editor = ProjectEditor(document: document, undoManager: nil)
         editor.setFrameworkScreenEnabled(.extraLarge, value: false)
-        editor.setFrameworkScreenMinimumWidth(.medium, value: 820)
-        editor.setFrameworkScreenContainerUnit(.mobile, value: .percent)
-        editor.setFrameworkScreenContainerWidth(.mobile, value: 92)
-        #expect(document.site.framework.screens.screen(.medium).minimumWidth == 820)
-        #expect(document.site.framework.screens.screen(.mobile).container.value == 92)
+        #expect(document.site.framework.screens.screen(.extraLarge).isEnabled == false)
         #expect(builtIn.hasModifiedSettings(in: document.site.framework))
         let savedProject = try FoundryDocument.decoder.decode(Site.self, from: FoundryDocument.encoder.encode(document.site))
         #expect(savedProject.framework.screens == document.site.framework.screens)
@@ -347,20 +344,22 @@ struct FrameworkEditingTests {
         let systemFramework = document.site.framework
         let alternateID = UUID()
         var alternateFramework = systemFramework
-        alternateFramework.colors.accent = "#112233"
+        alternateFramework.bootstrapTokens.values["link-color"] = "#112233"
+        let linkColour = BootstrapEditorToken("link-color")
 
-        editor.setFrameworkColor(.accentColor, value: "#AABBCC")
+        editor.setBootstrapToken(linkColour, value: "#AABBCC")
         editor.selectFramework(alternateFramework, sourceID: alternateID)
 
-        #expect(document.site.framework.colors.accent == "#112233")
+        #expect(document.site.framework.bootstrapTokens.values["link-color"] == "#112233")
 
-        editor.setFrameworkColor(.accentColor, value: "#445566")
+        editor.setBootstrapToken(linkColour, value: "#445566")
         editor.selectFramework(systemFramework, sourceID: FrameworkBundleStore.systemFrameworkID)
 
-        #expect(document.site.framework.colors.accent == systemFramework.colors.accent)
+        // Edits belong to the framework they were made under and return with it.
+        #expect(document.site.framework.bootstrapTokens.values["link-color"] == "#AABBCC")
 
         editor.selectFramework(alternateFramework, sourceID: alternateID)
-        #expect(document.site.framework.colors.accent == "#445566")
+        #expect(document.site.framework.bootstrapTokens.values["link-color"] == "#445566")
     }
 
     @Test
@@ -383,7 +382,7 @@ struct FrameworkEditingTests {
         var site = TestSiteFixtures.populatedSite()
         let partID = try #require(site.pages.first?.parts.first?.id)
         let marginKey = PartProperty.Key(rawValue: "frameworkMargin")
-        let margin = try #require(PartPackageFrameworkMarginControl.defaultValue(.string("lg")))
+        let margin = try #require(PartPackageFrameworkMarginControl.defaultValue(.string("7")))
         site.updatePart(id: partID) {
             $0.setProperty(.init(rawValue: "background.backgroundColor"), value: .token(.accentColor))
             $0.setProperty(marginKey, value: .frameworkMargin(margin))
@@ -395,50 +394,6 @@ struct FrameworkEditingTests {
 
         #expect(part.propertyValue(.init(rawValue: "background.backgroundColor")) == .token(.accentColor))
         #expect(part.propertyValue(marginKey) == .frameworkMargin(margin))
-    }
-
-    @Test
-    func rendererResolvesPartTokensThroughFramework() async throws {
-        await PartPackageCatalog.shared.waitUntilLoaded()
-        var framework = Framework.standard
-        framework.colors.accent = "#123ABC"
-        var container = PartNode.make(.section)
-        container.setProperty(.init(rawValue: "background.backgroundMode"), value: .choice("static"))
-        container.setProperty(.init(rawValue: "background.backgroundColor"), value: .packageColor(.init(
-            source: FrameworkColorRole.accent.rawValue,
-            customColor: "#000000",
-            opacity: 1
-        )))
-        let page = Page(title: "Tokens", slug: "tokens", parts: [container])
-
-        let html = HTMLPageRenderer().render(page: page, framework: framework)
-
-        #expect(html.contains("background-color: #123ABC"))
-    }
-
-    @Test @MainActor
-    func paragraphColorAppliesOptedInOpacityToPaletteAndCustomColors() async {
-        await PartPackageCatalog.shared.waitUntilLoaded()
-        var paragraph = PartNode.make(.paragraph)
-        paragraph.setProperty(.init(rawValue: "textColor"), value: .packageColor(.init(
-            source: FrameworkColorRole.accent.rawValue,
-            customColor: "#000000",
-            opacity: 0.5
-        )))
-
-        let page = Page(title: "Colour", slug: "colour", parts: [paragraph])
-        let frameworkdHTML = HTMLPageRenderer().render(page: page, framework: .standard)
-
-        #expect(frameworkdHTML.contains("color: color-mix(in oklch, var(--bs-indigo-500) 50%, transparent)"))
-
-        paragraph.setProperty(.init(rawValue: "textColor"), value: .packageColor(.init(
-            source: PartFrameworkValueSelection.manualCustom,
-            customColor: "#123456",
-            opacity: 0.5
-        )))
-        let customPage = Page(title: "Colour", slug: "colour", parts: [paragraph])
-        let customHTML = HTMLPageRenderer().render(page: customPage, framework: .standard)
-        #expect(customHTML.contains("color: \(PartTemplateRenderer.colorWithAlpha("#123456", alpha: 0.5))"))
     }
 
     @Test
@@ -659,19 +614,13 @@ struct FrameworkEditingTests {
     }
 
     @Test
-    func frameworkScreensPersistContainerUnitsAndDriveResponsiveRanges() throws {
+    func frameworkScreensDriveResponsiveRanges() throws {
+        // Breakpoint widths are Bootstrap's; only enabling a size is a framework choice.
         let document = FoundryDocument()
-        let editor = ProjectEditor(document: document, undoManager: UndoManager())
-
-        editor.setFrameworkScreenMinimumWidth(.medium, value: 820)
-        editor.setFrameworkScreenContainerUnit(.large, value: .viewportWidth)
-        editor.setFrameworkScreenContainerWidth(.large, value: 92)
-
         #expect(ResponsiveBreakpoint.forViewportWidth(575, screens: document.site.framework.screens) == .mobile)
         #expect(ResponsiveBreakpoint.forViewportWidth(576, screens: document.site.framework.screens) == .small)
-        #expect(ResponsiveBreakpoint.forViewportWidth(819, screens: document.site.framework.screens) == .small)
-        #expect(ResponsiveBreakpoint.forViewportWidth(820, screens: document.site.framework.screens) == .medium)
-        #expect(document.site.framework.screens.containerCSS.contains("92vw"))
+        #expect(ResponsiveBreakpoint.forViewportWidth(767, screens: document.site.framework.screens) == .small)
+        #expect(ResponsiveBreakpoint.forViewportWidth(768, screens: document.site.framework.screens) == .medium)
 
         let data = try FoundryDocument.encoder.encode(document.site)
         let decoded = try FoundryDocument.decoder.decode(Site.self, from: data)
@@ -697,12 +646,13 @@ struct FrameworkEditingTests {
     func canvasScreenPresetsFollowEnabledFrameworkBreakpoints() {
         var screens = ScreenTokens.standard
         screens.update(.small) { $0.isEnabled = false }
-        screens.update(.medium) { $0.minimumWidth = 800 }
+        screens.update(.extraLarge) { $0.isEnabled = true }
+        screens.update(.doubleExtraLarge) { $0.isEnabled = true }
 
         #expect(screens.enabledScreens.map(\.id).contains(.small) == false)
-        #expect(screens.canvasWidth(for: screens.screen(.medium)) == 800)
-        #expect(screens.activeScreen(for: 799).id == .mobile)
-        #expect(screens.activeScreen(for: 800).id == .medium)
+        #expect(screens.canvasWidth(for: screens.screen(.medium)) == 768)
+        #expect(screens.activeScreen(for: 767).id == .mobile)
+        #expect(screens.activeScreen(for: 768).id == .medium)
         #expect(screens.enabledScreens.map(\.id).contains(.extraLarge))
         #expect(screens.enabledScreens.map(\.id).contains(.doubleExtraLarge))
         #expect(screens.activeScreen(for: 1_600).id == .doubleExtraLarge)

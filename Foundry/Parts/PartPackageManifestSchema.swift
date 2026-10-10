@@ -46,7 +46,7 @@ nonisolated enum PartPackageManifestSchema {
     private static let assetKeys: Set<String> = ["path", "scope"]
     private static let renditionKeys: Set<String> = ["id", "maximumDimension"]
     private static let controlGroupKeys: Set<String> = [
-        "type", "id", "targetSelector", "backgroundTypes", "supportsHover", "defaults", "visibleWhen", "excludeControls", "allowedOptions"
+        "type", "id", "targetSelector", "backgroundTypes", "supportsHover", "colourSections", "defaults", "visibleWhen", "excludeControls", "allowedOptions"
     ]
     private static let sectionKeys: Set<String> = ["section", "systemImage", "visibleWhen", "controls"]
 
@@ -447,19 +447,27 @@ nonisolated enum PartPackageManifestSchema {
             diagnostics.append(.init(severity: .error, location: location + ".id", message: "Control group '\(type)' requires an id. Use a unique name for each instance."))
         }
         if let targetSelector = controlGroup["targetSelector"] {
-            if type != "reveal" {
-                diagnostics.append(.init(severity: .error, location: location + ".targetSelector", message: "targetSelector is available only on Reveal groups; place other groups through their template output."))
+            if !["reveal", "linkStyling"].contains(type) {
+                diagnostics.append(.init(severity: .error, location: location + ".targetSelector", message: "targetSelector is available on Reveal and Link styling groups."))
             } else if let selector = targetSelector as? String,
                       !selector.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                      !selector.contains("{{"), !selector.contains("}}") {
+                      !selector.contains("{{"), !selector.contains("}}"),
+                      (type != "linkStyling" || BootstrapEditorToken.safeValue(selector)) {
                 // CSS selector syntax is checked by the browser against the
                 // rendered part. Manifest targets are literal, not templates.
             } else {
-                diagnostics.append(.init(severity: .error, location: location + ".targetSelector", message: "Reveal targetSelector must be a non-empty literal CSS selector, without template expressions."))
+                diagnostics.append(.init(severity: .error, location: location + ".targetSelector", message: "targetSelector must be a non-empty literal CSS selector, without template expressions or CSS declarations."))
             }
         }
         optionalStringArray("backgroundTypes", in: controlGroup, location: location, into: &diagnostics)
         optionalBoolean("supportsHover", in: controlGroup, location: location, into: &diagnostics)
+        optionalStringArray("colourSections", in: controlGroup, location: location, into: &diagnostics)
+        if controlGroup["colourSections"] != nil, !["background", "foreground"].contains(controlGroup["type"] as? String ?? "") {
+            diagnostics.append(.init(severity: .error, location: location + ".colourSections", message: "colourSections applies to background and foreground control groups. Links always use link colours."))
+        }
+        if let sections = controlGroup["colourSections"] as? [String], sections.contains(where: { !PartColourToken.sectionIDs.contains($0) }) {
+            diagnostics.append(.init(severity: .error, location: location + ".colourSections", message: "Unknown colour section. Use blackWhite, surfaces, foregrounds, borders, links or shadow."))
+        }
         if let visibleWhen = controlGroup["visibleWhen"] as? [String: Any] {
             unknownKeys(in: visibleWhen, allowed: visibleWhenKeys, location: "\(location).visibleWhen", into: &diagnostics)
             validateVisibility(visibleWhen, location: "\(location).visibleWhen", into: &diagnostics)
@@ -789,7 +797,7 @@ nonisolated enum PartPackageManifestSchema {
             }
             return
         }
-        if (type == .frameworkSpacing || type == .frameworkPadding || type == .frameworkMargin || type == .frameworkRadius) {
+        if (type == .frameworkSpacing || type == .frameworkPadding || type == .frameworkMargin || type == .frameworkRadius || type == .borderSides) {
             var allowed: Set<String> = ["type", "id", "label", "subtitle", "default", "responsive", "tooltip", "visibleWhen", "valueAvailability"]
             // Only the single-value control renders one declaration, so only
             // it can name the CSS its `none` token emits.
@@ -1166,7 +1174,7 @@ nonisolated enum PartPackageManifestSchema {
         )
         for key in ["default", "trueValue", "falseValue", "argument1", "argument2"] {
             if key == "default" && type == .frameworkColor { continue }
-            if key == "default" && (type == .frameworkSpacing || type == .frameworkPadding || type == .frameworkMargin || type == .frameworkBorder || type == .frameworkRadius || type == .edges || type == .corners) { continue }
+            if key == "default" && (type == .frameworkSpacing || type == .frameworkPadding || type == .frameworkMargin || type == .frameworkBorder || type == .borderSides || type == .frameworkRadius || type == .edges || type == .corners) { continue }
             if key == "default" && type == .frameworkFont && property[key] is [String: Any] { continue }
             optionalPartValue(key, in: property, location: location, into: &diagnostics)
         }

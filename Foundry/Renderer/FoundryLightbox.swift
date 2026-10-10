@@ -163,7 +163,7 @@ nonisolated enum FoundryLightbox {
         config.dataset.connected = 'true';
         let trigger;
         const media = Array.from(root.querySelectorAll('[data-foundry-youtube-play],video,iframe,img,svg')).find(node =>
-          !config.contains(node) && !node.closest('.foundry-background-layer') && node.closest('[data-foundry-id]') === root);
+          !config.contains(node) && !node.closest('.background-layer') && node.closest('[data-foundry-id]') === root);
         const customTrigger = own(root, config, '[data-foundry-lightbox-trigger]');
         if (customTrigger) {
           const actions = Array.from(customTrigger.querySelectorAll(interactive));

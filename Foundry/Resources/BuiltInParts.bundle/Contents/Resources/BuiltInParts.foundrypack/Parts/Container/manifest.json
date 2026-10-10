@@ -73,6 +73,117 @@
       ]
     },
     {
+      "section": "Sizing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "sizing",
+          "id": "sizing",
+          "excludeControls": [
+            "width",
+            "minWidth",
+            "maxWidth"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Spacing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "spacing",
+          "id": "spacing"
+        }
+      ]
+    },
+    {
+      "section": "Typography",
+      "systemImage": "textformat",
+      "controls": [
+        {
+          "type": "typography",
+          "id": "typography",
+          "excludeControls": [
+            "fontSize",
+            "fontStyle",
+            "lineHeight",
+            "textDecoration",
+            "textTransform",
+            "textWrap",
+            "wordWrap",
+            "userSelect",
+            "verticalAlignment"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Content typography",
+      "systemImage": "doc.text",
+      "controls": [
+        {
+          "type": "prose",
+          "id": "prose"
+        }
+      ]
+    },
+    {
+      "section": "Foreground",
+      "systemImage": "paintpalette",
+      "controls": [
+        {
+          "type": "foreground",
+          "id": "foreground",
+          "colourSections": [
+            "foregrounds",
+            "blackWhite"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Background",
+      "systemImage": "paintpalette",
+      "controls": [
+        {
+          "type": "background",
+          "id": "background",
+          "colourSections": [
+            "blackWhite",
+            "surfaces"
+          ],
+          "backgroundTypes": [
+            "colour",
+            "gradient",
+            "image",
+            "video"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Borders",
+      "systemImage": "square.dashed",
+      "controls": [
+        {
+          "type": "borders",
+          "id": "borders"
+        }
+      ]
+    },
+    {
+      "section": "Links",
+      "systemImage": "link",
+      "controls": [
+        {
+          "type": "linkStyling",
+          "id": "links",
+          "targetSelector": "a[href]:not(.btn)"
+        }
+      ]
+    },
+    {
       "section": "Display",
       "systemImage": "eye",
       "controls": [
@@ -90,14 +201,7 @@
       ]
     },
     {
-      "section": "Spacing",
-      "systemImage": "arrow.up.left.and.arrow.down.right",
-      "controls": [
-        {
-          "type": "spacing",
-          "id": "spacing"
-        }
-      ]
+      "type": "advanced"
     }
   ]
 }

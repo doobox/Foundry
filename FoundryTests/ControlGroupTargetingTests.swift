@@ -59,7 +59,7 @@ struct ControlGroupTargetingTests {
         #expect(declarations.contains { $0.hasPrefix("overflow:") } == false)
         #expect(values["surface.videoCSS"] == nil)
         let markup = try #require(values["surface.video"]?.stringValue)
-        #expect(markup.hasPrefix(#"<div class="foundry-background-layer" aria-hidden="true""#))
+        #expect(markup.hasPrefix(#"<div class="background-layer" aria-hidden="true""#))
         #expect(markup.contains("<video"))
         #expect(markup.hasSuffix("</video></div>"))
     }

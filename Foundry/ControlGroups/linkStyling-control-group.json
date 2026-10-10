@@ -1,0 +1,41 @@
+{
+  "type": "linkStyling",
+  "name": "Bootstrap links",
+  "systemImage": "link",
+  "controls": [
+    {
+      "type": "themeColor",
+      "id": "colour",
+      "label": "Colour",
+      "defaults": {
+        "base": "inherit"
+      }
+    },
+    {
+      "type": "select",
+      "id": "decoration",
+      "label": "Decoration",
+      "defaults": {
+        "base": "none"
+      },
+      "options": [
+        {
+          "title": "Inherit",
+          "value": "none"
+        },
+        {
+          "title": "Always underline",
+          "value": "underline"
+        },
+        {
+          "title": "Underline on hover",
+          "value": "hover"
+        },
+        {
+          "title": "No underline",
+          "value": "off"
+        }
+      ]
+    }
+  ]
+}

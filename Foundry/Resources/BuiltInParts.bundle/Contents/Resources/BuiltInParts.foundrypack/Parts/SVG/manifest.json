@@ -36,43 +36,6 @@
       ]
     },
     {
-      "section": "Colour",
-      "controls": [
-        {
-          "type": "foreground",
-          "id": "foreground"
-        },
-        {
-          "type": "toggle",
-          "id": "fillEnabled",
-          "label": "Override fill",
-          "presentation": "switch",
-          "defaults": {
-            "base": false
-          },
-          "visibleWhen": {
-            "id": "foreground.enabled",
-            "value": true
-          },
-          "tooltip": "Recolours existing fill with the selected theme colour. Unpainted areas and clipping/mask geometry stay unchanged."
-        },
-        {
-          "type": "toggle",
-          "id": "strokeEnabled",
-          "label": "Override stroke",
-          "presentation": "switch",
-          "defaults": {
-            "base": false
-          },
-          "visibleWhen": {
-            "id": "foreground.enabled",
-            "value": true
-          },
-          "tooltip": "Recolours existing stroke with the selected theme colour. Unpainted areas and clipping/mask geometry stay unchanged."
-        }
-      ]
-    },
-    {
       "section": "Sizing",
       "controls": [
         {
@@ -96,6 +59,45 @@
       ]
     },
     {
+      "section": "Foreground",
+      "controls": [
+        {
+          "type": "foreground",
+          "id": "foreground"
+        },
+        {
+          "type": "toggle",
+          "id": "fillEnabled",
+          "label": "Override fill",
+          "presentation": "switch",
+          "defaults": {
+            "base": false
+          },
+          "visibleWhen": {
+            "id": "foreground.theme",
+            "operation": "!=",
+            "value": "inherit"
+          },
+          "tooltip": "Recolours existing fill with the selected theme colour. Unpainted areas and clipping/mask geometry stay unchanged."
+        },
+        {
+          "type": "toggle",
+          "id": "strokeEnabled",
+          "label": "Override stroke",
+          "presentation": "switch",
+          "defaults": {
+            "base": false
+          },
+          "visibleWhen": {
+            "id": "foreground.theme",
+            "operation": "!=",
+            "value": "inherit"
+          },
+          "tooltip": "Recolours existing stroke with the selected theme colour. Unpainted areas and clipping/mask geometry stay unchanged."
+        }
+      ]
+    },
+    {
       "section": "Display",
       "controls": [
         {
@@ -112,6 +114,9 @@
           }
         }
       ]
+    },
+    {
+      "type": "advanced"
     }
   ]
 }

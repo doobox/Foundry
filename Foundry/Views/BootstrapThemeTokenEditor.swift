@@ -16,13 +16,13 @@ struct BootstrapThemeTokenEditor: View {
 
     private var role: String { BootstrapPaletteTheme.nativeRole(palette.storedValue) ?? BootstrapPaletteTheme.definitionRole(palette.storedValue) }
     private var isTheme: Bool { BootstrapPaletteTheme.nativeRole(palette.storedValue) != nil }
-    private var tokens: [String] { BootstrapColourCatalogue.tokens(for: role) }
+    private var tokens: [String] { palette.storedValue.colourTokens }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
                 Text(palette.name).font(.headline)
-                if palette.group == .custom {
+                if palette.storedValue.origin == .custom {
                     Button("Rename colour", systemImage: "pencil") {
                         editedName = palette.name
                         renaming = true
@@ -91,7 +91,12 @@ struct BootstrapThemeTokenEditor: View {
     }
 
     private func label(_ token: String) -> String {
-        isTheme ? String(token.dropFirst(role.count + 1)) : token
+        if palette.storedValue.origin == .custom, palette.storedValue.colourKind != .theme {
+            let source = String(token.dropFirst(palette.storedValue.customTokenPrefix.count))
+            if palette.storedValue.colourKind == .link { return source == "link-color" ? "Link" : "Link hover" }
+            return source
+        }
+        return isTheme ? String(token.dropFirst(role.count + 1)) : token
     }
 
     private func open(token: String) {

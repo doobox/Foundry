@@ -1,6 +1,1 @@
-:instance {
-    position: relative;
-    isolation: isolate;
-    {{ control.background.css }}
-}
-:instance:hover { {{ control.background.hover.css }} }
+/* Background CSS is generated automatically for the selected options. */

@@ -513,21 +513,6 @@ struct ProjectEditor {
         }
     }
 
-    func setBootstrapSpacing(_ step: Int, value: Double) {
-        guard value.isFinite, value >= 0, document.site.framework.spacing.values.indices.contains(step),
-              document.site.framework.spacing.values[step] != value else { return }
-        mutate(actionName: "Edit Bootstrap Spacing", impact: .framework) {
-            $0.framework.spacing.values[step] = value
-        }
-    }
-
-    func resetBootstrapSpacing() {
-        guard document.site.framework.spacing.values != SpacingTokens.multipliers else { return }
-        mutate(actionName: "Reset Bootstrap Spacing", impact: .framework) {
-            $0.framework.spacing.values = SpacingTokens.multipliers
-        }
-    }
-
     func removeCustomSpacing(_ id: UUID, replacingWith replacement: String) {
         guard let token = document.site.framework.spacing.custom.first(where: { $0.id == id }),
               replacement != token.name,
@@ -541,31 +526,6 @@ struct ProjectEditor {
     func setFrameworkScreenEnabled(_ id: FrameworkScreenID, value: Bool) {
         mutate(actionName: "Enable Framework Screen", impact: .framework) { site in
             site.framework.screens.update(id) { $0.isEnabled = value }
-        }
-    }
-
-    func setFrameworkScreenMinimumWidth(_ id: FrameworkScreenID, value: Double) {
-        guard value.isFinite else { return }
-        mutate(actionName: "Edit Framework Screen Width", impact: .framework) { site in
-            site.framework.screens.update(id) { $0.minimumWidth = value }
-        }
-    }
-
-    func setFrameworkScreenContainerUnit(_ id: FrameworkScreenID, value: FrameworkContainerUnit) {
-        mutate(actionName: "Edit Framework Container Unit", impact: .framework) { site in
-            site.framework.screens.update(id) { screen in
-                screen.container.unit = value
-                if value == .auto {
-                    screen.container.value = screen.minimumWidth
-                }
-            }
-        }
-    }
-
-    func setFrameworkScreenContainerWidth(_ id: FrameworkScreenID, value: Double) {
-        guard value.isFinite else { return }
-        mutate(actionName: "Edit Framework Container Width", impact: .framework) { site in
-            site.framework.screens.update(id) { $0.container.value = value }
         }
     }
 

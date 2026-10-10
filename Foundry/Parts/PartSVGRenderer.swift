@@ -156,7 +156,7 @@ nonisolated enum PartSVGRenderer {
     static func insert(node: PartNode, package: LoadedPartPackage, assets: ProjectAssetContents,
                        canvas: Bool, into values: inout [String: PartPackageValue]) {
         let usesPaintOverrides = node.type == .svg &&
-            node.propertyValue(.init(rawValue: "foreground.enabled")) == .boolean(true)
+            node.property(.init(rawValue: "foreground.theme")) != "inherit"
         let overrideFill = usesPaintOverrides && node.propertyValue(.init(rawValue: "fillEnabled")) == .boolean(true)
         let overrideStroke = usesPaintOverrides && node.propertyValue(.init(rawValue: "strokeEnabled")) == .boolean(true)
         for definition in node.type.definition.properties {

@@ -1,0 +1,262 @@
+{
+  "id": "foundry.content.card",
+  "title": "Card",
+  "author": "Foundry",
+  "version": "1.0.0",
+  "minimumAPIVersion": 1,
+  "description": "A ready-made Bootstrap card with an image, title, text and button.",
+  "group": "Content",
+  "icon": {
+    "symbol": "rectangle.portrait.topthird.inset.filled",
+    "tint": "blue"
+  },
+  "tags": [
+    "Bootstrap",
+    "card",
+    "component"
+  ],
+  "assets": [],
+  "libraries": [
+    {
+      "id": "bootstrap",
+      "majorVersion": 6
+    }
+  ],
+  "templates": {
+    "html": "part.html"
+  },
+  "inspector": [
+    {
+      "section": "Content",
+      "systemImage": "doc.text",
+      "controls": [
+        {
+          "type": "image",
+          "id": "hero",
+          "label": "Image",
+          "tooltip": "Optional. Leave empty for a text-only card.",
+          "renditions": [
+            {
+              "id": "small",
+              "maximumDimension": 480
+            },
+            {
+              "id": "medium",
+              "maximumDimension": 960
+            },
+            {
+              "id": "large",
+              "maximumDimension": 1600
+            }
+          ]
+        },
+        {
+          "type": "select",
+          "id": "imagePlacement",
+          "label": "Image position",
+          "tooltip": "Start and End place the image beside the text using Bootstrap's horizontal card layout. In body shows it inside the padded area above the title.",
+          "defaults": {
+            "base": "top"
+          },
+          "options": [
+            {
+              "title": "Top",
+              "value": "top"
+            },
+            {
+              "title": "Bottom",
+              "value": "bottom"
+            },
+            {
+              "title": "Start",
+              "value": "start"
+            },
+            {
+              "title": "End",
+              "value": "end"
+            },
+            {
+              "title": "In body",
+              "value": "body"
+            }
+          ]
+        },
+        {
+          "type": "toggle",
+          "id": "showHeader",
+          "label": "Header",
+          "tooltip": "Adds a header strip above the card. A theme colour fills the header.",
+          "defaults": {
+            "base": false
+          }
+        },
+        {
+          "type": "toggle",
+          "id": "showButton",
+          "label": "Button",
+          "defaults": {
+            "base": true
+          }
+        }
+      ]
+    },
+    {
+      "section": "Button",
+      "systemImage": "inset.filled.capsule",
+      "visibleWhen": {
+        "id": "showButton",
+        "operation": "==",
+        "value": true
+      },
+      "controls": [
+        {
+          "type": "link",
+          "id": "destination",
+          "label": "Destination",
+          "absoluteURL": false,
+          "defaults": {
+            "base": "#"
+          }
+        },
+        {
+          "type": "themeColor",
+          "id": "buttonTheme",
+          "label": "Theme",
+          "defaults": {
+            "base": "framework.primary"
+          }
+        },
+        {
+          "type": "select",
+          "id": "buttonVariant",
+          "label": "Variant",
+          "defaults": {
+            "base": "btn-solid"
+          },
+          "options": [
+            {
+              "title": "Solid",
+              "value": "btn-solid"
+            },
+            {
+              "title": "Subtle",
+              "value": "btn-subtle"
+            },
+            {
+              "title": "Outline",
+              "value": "btn-outline"
+            },
+            {
+              "title": "Text",
+              "value": "btn-text"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Appearance",
+      "systemImage": "paintpalette",
+      "controls": [
+        {
+          "type": "select",
+          "id": "style",
+          "label": "Style",
+          "tooltip": "Subtle uses tinted theme surfaces. Translucent blurs whatever sits behind the card.",
+          "defaults": {
+            "base": ""
+          },
+          "options": [
+            {
+              "title": "Default",
+              "value": ""
+            },
+            {
+              "title": "Subtle",
+              "value": "card-subtle"
+            },
+            {
+              "title": "Translucent",
+              "value": "card-translucent"
+            }
+          ]
+        },
+        {
+          "type": "toggle",
+          "id": "useTheme",
+          "label": "Theme colour",
+          "tooltip": "Colours the border and header with a Bootstrap theme. Off keeps the neutral card.",
+          "defaults": {
+            "base": false
+          }
+        },
+        {
+          "type": "themeColor",
+          "id": "theme",
+          "label": "Theme",
+          "defaults": {
+            "base": "framework.primary"
+          },
+          "visibleWhen": {
+            "id": "useTheme",
+            "operation": "==",
+            "value": true
+          }
+        }
+      ]
+    },
+    {
+      "section": "Sizing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "sizing",
+          "id": "sizing",
+          "excludeControls": [
+            "minWidth",
+            "minHeight",
+            "maxHeight",
+            "aspectRatio"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Spacing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "spacing",
+          "id": "spacing"
+        }
+      ]
+    },
+    {
+      "section": "Typography",
+      "systemImage": "textformat",
+      "controls": [
+        {
+          "type": "typography",
+          "id": "typography",
+          "excludeControls": [
+            "fontFamily",
+            "fontSize",
+            "textSize",
+            "fontStyle",
+            "fontWeight",
+            "lineHeight",
+            "textDecoration",
+            "textTransform",
+            "textWrap",
+            "wordWrap",
+            "userSelect",
+            "verticalAlignment"
+          ]
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ]
+}

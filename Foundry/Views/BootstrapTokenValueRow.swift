@@ -38,7 +38,7 @@ struct BootstrapTokenValueRow: View {
                 .disabled(colourPreview == nil)
                 Spacer()
             } else if let (number, unit) = numeric {
-                Slider(value: $amount, in: min(token.range.lowerBound, number)...max(token.range.upperBound, number), step: token.step)
+                FrameworkSlider(value: $amount, range: min(token.range.lowerBound, number)...max(token.range.upperBound, number), step: token.step)
                     .accessibilityLabel(token.label)
                 FrameworkNumberField(title: token.label, value: $amount, unit: unit, step: token.step, precision: token.step >= 1 ? 0 : 3)
                     .onChange(of: amount) { _, updated in

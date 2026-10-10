@@ -520,7 +520,17 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             }
             let node = sourceNode.resolved(at: breakpoint, screens: framework.screens)
             let text = cachedText(.css, key: .init(node: ownValues(node))) {
-            var pieces: [String] = []
+            var pieces: [String] = [BootstrapPartUtilityCSS.render(node: node, framework: framework)]
+            if sourceNode.type.definition.package?.manifest.controlGroups.contains(where: { $0.type == .background }) == true {
+                pieces.append(PartPackageBackgroundResolver.stylesheet(packageProperties(sourceNode, framework: framework, assets: assets, breakpoint: .mobile)))
+                for level in ResponsiveBreakpoint.allCases.dropFirst() {
+                    guard let width = level.minimumWidth(in: framework.screens),
+                          sourceNode.responsiveOverrides?.contains(where: { $0.breakpoint == level }) == true else { continue }
+                    let resolved = sourceNode.resolved(at: level, screens: framework.screens)
+                    let css = PartPackageBackgroundResolver.stylesheet(packageProperties(resolved, framework: framework, assets: assets, breakpoint: level))
+                    if !css.isEmpty { pieces.append("@media(min-width:\(width)px){\(css)}") }
+                }
+            }
             if let package = node.type.definition.package {
                 let css = PartTemplateRenderer.render(
                     [package.css, package.editorCSS, package.renderDefinition.controlGroupCSS]
@@ -888,7 +898,8 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         PartPackageBackgroundResolver.resolve(
             &values,
             properties: manifestProperties,
-            enablesEditorMarkup: true
+            enablesEditorMarkup: true,
+            instanceID: node.id
         )
         PartPackageControlGroupCSSResolver.resolve(&values, properties: manifestProperties)
         let resolved = PartPackageDerivedValueResolver.resolve(

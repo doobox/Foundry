@@ -16,16 +16,25 @@ nonisolated enum BootstrapColorCSS {
         let palettes = FrameworkColorRole.allCases.map { role in
             framework.colourPalettes.resolvedPalette(id: "framework." + role.rawValue)
                 ?? BootstrapColourCatalogue.palette(role: role)
-        } + framework.colourPalettes.filter { $0.origin == .custom && BootstrapPaletteTheme.nativeRole($0) != nil }
+        } + framework.colourPalettes.filter { $0.origin == .custom && BootstrapPaletteTheme.validCustomRole($0.name) }
         for palette in palettes {
             let definition = BootstrapPaletteTheme.definitionRole(palette)
             let role = BootstrapPaletteTheme.nativeRole(palette) ?? definition
             let originalHue = BootstrapColourCatalogue.defaultHue(for: definition)
-            for sourceToken in BootstrapColourCatalogue.tokens(for: definition) {
-                let token = palette.origin == .custom ? sourceToken.replacingOccurrences(of: definition + "-", with: role + "-") : sourceToken
+            let sourceTokens = palette.origin == .custom ? palette.colourKind.sourceTokens : BootstrapColourCatalogue.tokens(for: definition)
+            for sourceToken in sourceTokens {
+                let token = palette.colourToken(sourceToken)
                 let name = "--bs-" + token
                 guard var expression = BootstrapColourCatalogue.declarations["--bs-" + sourceToken] else {
                     preconditionFailure("Bundled Bootstrap is missing \(name)")
+                }
+                if palette.origin == .custom, palette.colourKind == .link {
+                    for property in ["base", "fg"] {
+                        if let value = BootstrapColourCatalogue.declarations["--bs-primary-" + property] {
+                            expression = expression.replacingOccurrences(of: "var(--bs-primary-\(property))", with: value)
+                        }
+                    }
+                    expression = expression.replacingOccurrences(of: "var(--bs-link-color)", with: "var(--bs-\(palette.colourToken("link-color")))")
                 }
                 for shade in ColourShade.allCases {
                     expression = expression.replacingOccurrences(
@@ -45,7 +54,7 @@ nonisolated enum BootstrapColorCSS {
             + ":root:not([data-bs-theme]),:host:not([data-bs-theme]){color-scheme:\(colorScheme); }"
             + palettes.filter { $0.origin == .custom }.map(customClasses).joined()
             + "@layer utilities{" + BootstrapColourCatalogue.themeRoles.map {
-                ".underline-\($0){--bs-underline-color:var(--bs-\($0)-fg);text-decoration-color:var(--bs-underline-color)}"
+                ".underline-\($0){--bs-underline-color:var(--bs-\($0)-fg)}:where(.underline-\($0)){text-decoration-color:var(--bs-underline-color)}"
             }.joined() + "}"
     }
 
@@ -64,7 +73,7 @@ nonisolated enum BootstrapColorCSS {
             ("underline", "underline-color", "text-decoration-color", "fg")
         ]
         let rules = utilities.map { name, variable, property, token in
-            ".\(name)-\(role){--bs-\(variable):var(--bs-\(role)-\(token));\(property):var(--bs-\(variable))}"
+            ".\(name)-\(role){--bs-\(variable):var(--bs-\(role)-\(token))}:where(.\(name)-\(role)){\(property):var(--bs-\(variable))}"
         }.joined()
         return "@layer helpers{.theme-\(role){\(mappings)}}@layer utilities{\(rules).shadow-\(role){--bs-sc:var(--bs-\(role)-base)}}"
     }

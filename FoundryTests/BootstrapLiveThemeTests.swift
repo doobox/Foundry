@@ -68,16 +68,6 @@ struct BootstrapLiveThemeTests {
             """) as? [String: Any])
         #expect(result["values"] as? [String] == ["48px", "48px", "48px", "48px"])
         #expect(result["sameElement"] as? Bool == true)
-        undo.beginUndoGrouping()
-        editor.setBootstrapSpacing(5, value: 4)
-        undo.endUndoGrouping()
-        let editedStepCSS = String(decoding: try JSONEncoder().encode(BootstrapThemeCSS.render(framework: document.site.framework)), as: UTF8.self)
-        let nativeStep = try await view.evaluateJavaScript("""
-            document.getElementById('theme').textContent = \(editedStepCSS);
-            [getComputedStyle(document.getElementById('responsive')).paddingTop,
-             getComputedStyle(document.getElementById('reverse')).paddingTop]
-            """) as? [String]
-        #expect(nativeStep == ["64px", "48px"])
         print("Live Bootstrap stylesheet update and computed layout: \(result["milliseconds"] ?? "unknown") ms")
     }
 
@@ -128,7 +118,8 @@ struct BootstrapLiveThemeTests {
             #expect(screen.minimumWidth == ScreenTokens.standard.screen(id).minimumWidth)
             #expect(BootstrapLayout.allowsContainerClass(BootstrapLayout.classes[index], screens: framework.screens) == screen.isEnabled)
         }
-        #expect(BootstrapThemeCSS.render(framework: framework).contains("--bs-container-2xl:"))
+        // Bootstrap's containers are capped only where a disabled breakpoint would otherwise widen them.
+        #expect(BootstrapUtilityExtensionsCSS.containerCSS(framework.screens).isEmpty == (mask == 31))
         let decoded = try JSONDecoder().decode(Framework.self, from: JSONEncoder().encode(framework))
         #expect(decoded.screens == framework.screens)
     }
