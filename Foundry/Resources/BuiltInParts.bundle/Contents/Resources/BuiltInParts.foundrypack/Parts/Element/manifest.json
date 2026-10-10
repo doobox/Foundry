@@ -1,0 +1,60 @@
+{
+  "id": "foundry.layout.element",
+  "title": "Element",
+  "author": "Foundry",
+  "version": "1.0.0",
+  "minimumAPIVersion": 1,
+  "description": "A plain HTML element for grouping other parts. Choose its tag; it adds no styling of its own.",
+  "group": "Layout",
+  "icon": {
+    "symbol": "chevron.left.forwardslash.chevron.right",
+    "tint": "gray"
+  },
+  "tags": [
+    "layout",
+    "element",
+    "div",
+    "section",
+    "wrapper"
+  ],
+  "assets": [],
+  "libraries": [],
+  "templates": {
+    "html": "part.html"
+  },
+  "inspector": [
+    {
+      "section": "Element",
+      "systemImage": "chevron.left.forwardslash.chevron.right",
+      "controls": [
+        {
+          "type": "select",
+          "id": "element",
+          "label": "Element",
+          "tooltip": "The HTML tag used for this part. Choose the one that describes the content: Section for a themed group, Header and Footer for page or section headers and footers, Nav for navigation links, Aside for related side content.",
+          "responsive": false,
+          "defaults": {
+            "base": "div"
+          },
+          "options": [
+            { "title": "div", "value": "div" },
+            { "title": "section", "value": "section" },
+            { "title": "article", "value": "article" },
+            { "title": "aside", "value": "aside" },
+            { "title": "header", "value": "header" },
+            { "title": "footer", "value": "footer" },
+            { "title": "main", "value": "main" },
+            { "title": "nav", "value": "nav" },
+            { "title": "figure", "value": "figure" },
+            { "title": "blockquote", "value": "blockquote" },
+            { "title": "address", "value": "address" },
+            { "title": "span", "value": "span" }
+          ]
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ]
+}

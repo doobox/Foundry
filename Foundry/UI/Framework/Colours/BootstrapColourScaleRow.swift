@@ -39,25 +39,17 @@ struct BootstrapColourScaleRow: View {
                     }
                 }.labelsHidden().frame(width: 130)
             }
-            HStack(spacing: 0) {
-                ForEach(ColourShade.allCases, id: \.self) { shade in
-                    let token = hue + "-" + shade.bootstrapLabel
-                    Button { open(shade) } label: {
-                        VStack(spacing: 4) {
-                            Rectangle().fill(Color(hex: previews[token] ?? "") ?? .clear)
-                                .frame(height: 34)
-                                .clipShape(UnevenRoundedRectangle(
-                                    topLeadingRadius: shade == ColourShade.allCases.first ? 6 : 0,
-                                    bottomLeadingRadius: shade == ColourShade.allCases.first ? 6 : 0,
-                                    bottomTrailingRadius: shade == ColourShade.allCases.last ? 6 : 0,
-                                    topTrailingRadius: shade == ColourShade.allCases.last ? 6 : 0))
-                            Text(shade.bootstrapLabel).font(.caption2)
-                            Image(systemName: framework.bootstrapTokens.values[token] == nil ? "circle" : "pencil.circle.fill")
-                                .font(.caption2).foregroundStyle(.secondary)
-                        }.frame(maxWidth: .infinity).contentShape(Rectangle())
-                    }.buttonStyle(.plain).disabled(previews[token] == nil)
-                        .accessibilityLabel("Edit \(hue) \(shade.bootstrapLabel)")
-                        .help("--bs-\(token) · \(previews[token] ?? "")")
+            ColourSwatchStrip(swatches: ColourShade.allCases.map { shade in
+                let token = hue + "-" + shade.bootstrapLabel
+                return ColourSwatchStrip.Swatch(
+                    id: token,
+                    label: shade.bootstrapLabel,
+                    hex: previews[token],
+                    accessibilityLabel: "Edit \(hue) \(shade.bootstrapLabel)",
+                    help: "--bs-\(token) · \(previews[token] ?? "")")
+            }) { swatch in
+                if let shade = ColourShade.allCases.first(where: { hue + "-" + $0.bootstrapLabel == swatch.id }) {
+                    open(shade)
                 }
             }
         }

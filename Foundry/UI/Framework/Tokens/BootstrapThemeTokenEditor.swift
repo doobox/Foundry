@@ -38,31 +38,15 @@ struct BootstrapThemeTokenEditor: View {
                         .labelStyle(.iconOnly).disabled(!canEdit)
                 }
             }
-            HStack(spacing: 0) {
-                ForEach(tokens, id: \.self) { token in
-                    let hex = previews[token]
-                    Button { open(token: token) } label: {
-                        VStack(spacing: 4) {
-                            Rectangle().fill(Color(hex: hex ?? "") ?? .clear)
-                                .frame(height: 34)
-                                .clipShape(UnevenRoundedRectangle(
-                                    topLeadingRadius: token == tokens.first ? 6 : 0,
-                                    bottomLeadingRadius: token == tokens.first ? 6 : 0,
-                                    bottomTrailingRadius: token == tokens.last ? 6 : 0,
-                                    topTrailingRadius: token == tokens.last ? 6 : 0))
-                            Text(label(token)).font(.caption2).lineLimit(1).minimumScaleFactor(0.6)
-                            Image(systemName: palette.storedValue.bootstrapTokens[token] == nil ? "circle" : "pencil.circle.fill")
-                                .font(.caption2).foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(!canEdit || hex == nil)
-                    .accessibilityLabel("Edit \(palette.name) \(label(token)), \(mode.rawValue) mode")
-                    .help("\(token) · \(mode.rawValue) mode. Edit this token independently.")
-                }
-            }
+            ColourSwatchStrip(swatches: tokens.map { token in
+                ColourSwatchStrip.Swatch(
+                    id: token,
+                    label: label(token),
+                    hex: previews[token],
+                    isEnabled: canEdit,
+                    accessibilityLabel: "Edit \(palette.name) \(label(token)), \(mode.rawValue) mode",
+                    help: "\(token) · \(mode.rawValue) mode. Edit this token independently.")
+            }) { open(token: $0.id) }
         }
         .padding(.vertical, 8)
         .onChange(of: palette.storedValue) { _, value in

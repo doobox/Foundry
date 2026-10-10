@@ -57,29 +57,15 @@ struct BootstrapTokenColoursCard: View {
                     .frame(width: 150)
                 }
             }
-            HStack(spacing: 0) {
-                ForEach(section.tokens) { token in
-                    Button { open(token) } label: {
-                        VStack(spacing: 4) {
-                            Rectangle().fill(Color(hex: previews[token.id] ?? "") ?? .clear)
-                                .frame(height: 34)
-                                .clipShape(UnevenRoundedRectangle(
-                                    topLeadingRadius: token.id == section.tokens.first?.id ? 6 : 0,
-                                    bottomLeadingRadius: token.id == section.tokens.first?.id ? 6 : 0,
-                                    bottomTrailingRadius: token.id == section.tokens.last?.id ? 6 : 0,
-                                    topTrailingRadius: token.id == section.tokens.last?.id ? 6 : 0))
-                            Text(token.label).font(.caption2).lineLimit(1)
-                            Image(systemName: framework.bootstrapTokens.values[token.id] == nil ? "circle" : "pencil.circle.fill")
-                                .font(.caption2).foregroundStyle(.secondary)
-                        }
-                        .frame(maxWidth: .infinity)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .disabled(previews[token.id] == nil)
-                    .accessibilityLabel("Edit \(token.label) colour")
-                    .help("--bs-\(token.id). Click to edit this colour.")
-                }
+            ColourSwatchStrip(swatches: section.tokens.map { token in
+                ColourSwatchStrip.Swatch(
+                    id: token.id,
+                    label: token.label,
+                    hex: previews[token.id],
+                    accessibilityLabel: "Edit \(token.label) colour",
+                    help: "--bs-\(token.id). Click to edit this colour.")
+            }) { swatch in
+                if let token = section.tokens.first(where: { $0.id == swatch.id }) { open(token) }
             }
             if let error { Text(error).font(.callout).foregroundStyle(.secondary) }
             if let model {

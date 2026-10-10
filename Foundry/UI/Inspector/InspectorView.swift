@@ -1626,8 +1626,10 @@ private struct PartIdentityFields: View {
                 }
             }
 
-            InspectorRow(title: "Classes") {
-                TextField("Classes", text: $classes)
+            InspectorRow(title: "Classes", alignment: .top) {
+                // Starts three lines tall and grows with its content.
+                TextField("Classes", text: $classes, axis: .vertical)
+                    .lineLimit(3...12)
                     .frame(maxWidth: .infinity)
             }
 
@@ -1649,12 +1651,22 @@ private struct PartIdentityFields: View {
                         guard !Task.isCancelled else { return }
                         commitCSS()
                     }
-                    .frame(minHeight: 96)
-                    .padding(4)
-                    .background(.background, in: RoundedRectangle(cornerRadius: 5))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 5)
-                            .stroke(Color.secondary.opacity(0.25), lineWidth: 1)
+                    // Match the rounded text fields above: no editor
+                    // background or border, the same fill and corners,
+                    // three lines tall to start and growing with the text.
+                    .scrollContentBackground(.hidden)
+                    .frame(height: cssEditorHeight)
+                    .padding(.vertical, 3)
+                    .background(.fill.quaternary, in: RoundedRectangle(cornerRadius: 6))
+                    .overlay(alignment: .topLeading) {
+                        // TextEditor has no prompt, so show one like the fields above.
+                        if draftCSS.isEmpty {
+                            Text("CSS")
+                                .foregroundStyle(Color(nsColor: .placeholderTextColor))
+                                .padding(.leading, 5)
+                                .padding(.top, 3)
+                                .allowsHitTesting(false)
+                        }
                     }
                     .help("CSS for this part only. Declarations style the part itself, :hover { … } styles it when hovered, and h2 { … } styles elements inside it.")
             }
@@ -1686,6 +1698,14 @@ private struct PartIdentityFields: View {
         }
     }
     private var draftCSS: String { String(cssDraft.characters) }
+
+    /// Three lines tall when empty, growing one line per line of CSS up to twelve.
+    private var cssEditorHeight: CGFloat {
+        let lines = draftCSS.split(separator: "\n", omittingEmptySubsequences: false).count
+        let lineHeight = NSFont.monospacedSystemFont(ofSize: Self.cssFontSize, weight: .regular)
+            .boundingRectForFont.height
+        return CGFloat(min(max(lines, 3), 12)) * lineHeight + 10
+    }
 
     private func highlighted(_ css: String) -> AttributedString {
         SourceSyntaxHighlighter.highlight(css, language: .css, fontSize: Self.cssFontSize)

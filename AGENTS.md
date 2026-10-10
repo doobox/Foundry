@@ -12,7 +12,7 @@ Canvas editing identifiers and metadata must stay out of plain preview/export
 markup. Preview and export share the clean Bootstrap output contract. Retain
 output hooks only for authored styling or runtime behaviour that needs them.
 The old Foundry CSS generator and old built-in parts are removed; do not restore
-compatibility CSS. The baseline built-ins are Button, Container, Flex, Grid, Paragraph, HTML, SVG, Image and Card.
+compatibility CSS. The baseline built-ins are Button, Container, Element, Flex, Grid, Paragraph, HTML, SVG, Image and Card. Element is a plain HTML wrapper whose tag is chosen in the Inspector; it adds no Bootstrap classes.
 Card is the first ready-made Bootstrap component part: it composes native
 component markup with a small, semantic inspector and maps choices to classes
 in its template.

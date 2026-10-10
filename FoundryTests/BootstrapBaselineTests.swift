@@ -37,7 +37,8 @@ struct BootstrapBaselineTests {
         #expect(Set(packages.map { $0.manifest.identifier }) == Set([
             "foundry.content.button", "foundry.layout.container", "foundry.content.paragraph",
             "foundry.layout.flex", "foundry.layout.grid", "foundry.content.html",
-            "foundry.media.svg", "foundry.media.image", "foundry.content.card", "foundry.layout.background"
+            "foundry.media.svg", "foundry.media.image", "foundry.content.card", "foundry.layout.background",
+            "foundry.layout.element"
         ]))
         let container = try #require(PartType.container.definition.package)
         #expect(container.css.isEmpty)
