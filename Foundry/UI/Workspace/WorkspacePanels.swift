@@ -437,10 +437,6 @@ struct PartLibraryPanel: View {
     private var availableTypes: [PartType] {
         PartType.allCases.filter { type in
             let package = type.definition.package
-            // Showcase parts belong to the Developer panel's Controls tab,
-            // never among the parts a page is built from — even with hidden
-            // parts shown.
-            guard package?.isControlShowcase != true else { return false }
             let isDevelopmentPack = package?.isDevelopmentPack == true
             let showsInLibrary = package?.manifest.showsInPartLibrary ?? true
             return (showsInLibrary || showsHiddenParts)
@@ -459,7 +455,6 @@ struct PartLibraryPanel: View {
     private var hasDevelopmentParts: Bool {
         PartType.allCases.contains {
             $0.definition.package?.isDevelopmentPack == true
-                && $0.definition.package?.isControlShowcase != true
                 && (($0.definition.package?.manifest.showsInPartLibrary ?? true) || showsHiddenParts)
         }
     }
@@ -610,37 +605,9 @@ nonisolated private enum PartLibraryIconSize: String, CaseIterable, Identifiable
     }
 }
 
-/// The Developer panel's two sections: pack diagnostics, and the Controls
-/// showcase that demonstrates every control on a scratch page.
-nonisolated enum DeveloperPanelTab: String, CaseIterable, Identifiable {
-    case debugger
-    case controls
-
-    var id: String { rawValue }
-
-    var title: LocalizedStringResource {
-        switch self {
-        case .debugger: "Debugger"
-        case .controls: "Controls"
-        }
-    }
-}
-
 struct DeveloperPanel: View {
     @State private var catalog = PartPackageCatalog.shared
     @Environment(\.openWindow) private var openWindow
-    /// Always opens on the Debugger; the choice is not remembered.
-    @State private var tab = DeveloperPanelTab.debugger
-    /// The showcase currently on the scratch page, if any.
-    let selectedControl: PartType?
-    /// Shows a control's showcase on the scratch page.
-    let showControl: (PartType) -> Void
-    /// Drops the scratch page, returns to the page the developer was on and
-    /// unloads the showcase pack. Called when Controls stops being on screen:
-    /// another section chosen, another panel selected in the dock, or the
-    /// panel hidden.
-    let leaveControls: () -> Void
-
     var body: some View {
         let _ = catalog.revision
         VStack(spacing: 0) {
@@ -667,36 +634,12 @@ struct DeveloperPanel: View {
 
             Divider()
 
-            Picker("Developer section", selection: $tab) {
-                ForEach(DeveloperPanelTab.allCases) { tab in
-                    Text(tab.title).tag(tab)
-                }
-            }
-            .buttonSizing(.flexible)
-            .pickerStyle(.palette)
-            .controlSize(.small)
-            .labelsHidden()
-            .padding(12)
-
-            Divider()
-
-            switch tab {
-            case .debugger:
-                DeveloperIssuesView(
-                    issues: issues,
-                    summaryTitle: summaryTitle,
-                    summaryDescription: summaryDescription,
-                    reload: catalog.reloadAllPacks
-                )
-            case .controls:
-                ControlShowcaseList(selectedControl: selectedControl, showControl: showControl)
-            }
-        }
-        .onChange(of: tab) { _, tab in
-            if tab != .controls { leaveControls() }
-        }
-        .onDisappear {
-            if tab == .controls { leaveControls() }
+            DeveloperIssuesView(
+                issues: issues,
+                summaryTitle: summaryTitle,
+                summaryDescription: summaryDescription,
+                reload: catalog.reloadAllPacks
+            )
         }
     }
 
@@ -737,87 +680,6 @@ struct DeveloperPanel: View {
             parts.append(warningCount == 1 ? "1 warning" : "\(warningCount) warnings")
         }
         return parts.joined(separator: ", ")
-    }
-}
-
-/// Every control and control group, grouped as the developer reference is,
-/// each opening its showcase on the scratch page when clicked.
-private struct ControlShowcaseList: View {
-    let selectedControl: PartType?
-    let showControl: (PartType) -> Void
-    @State private var catalog = PartPackageCatalog.shared
-    @State private var searchText = ""
-
-    private static let groupOrder = [
-        "Text & Numbers", "Choices", "Colour", "Framework", "Spacing & Edges",
-        "Media & Links", "Structure", "Presentation", "Control Groups"
-    ]
-
-    var body: some View {
-        let _ = catalog.revision
-        VStack(spacing: 0) {
-            if !catalog.hasControlShowcase {
-                // The pack is read in only while this section is open.
-                VStack(spacing: 10) {
-                    ProgressView()
-                        .controlSize(.small)
-                    Text(catalog.isLoadingControlShowcase ? "Loading controls…" : "Controls unavailable")
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-            } else {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 18) {
-                    ForEach(sections) { section in
-                        VStack(alignment: .leading, spacing: 8) {
-                            Text(section.title)
-                                .font(.subheadline.weight(.semibold))
-                                .foregroundStyle(.secondary)
-                            Divider()
-                            ForEach(section.types) { type in
-                                PartLibraryTile(
-                                    type: type,
-                                    iconSize: .list,
-                                    isSelected: selectedControl == type,
-                                    select: { showControl(type) }
-                                )
-                            }
-                        }
-                    }
-                }
-                .padding(10)
-            }
-            .frame(maxHeight: .infinity)
-            .overlay {
-                if !searchText.isEmpty, sections.isEmpty {
-                    ContentUnavailableView.search(text: searchText)
-                        .allowsHitTesting(false)
-                }
-            }
-            Divider()
-            PanelSearchField(prompt: "Search Controls", text: $searchText)
-            }
-        }
-        .task { await catalog.loadControlShowcase() }
-    }
-
-    private var sections: [PartLibrarySection] {
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines)
-        let types = PartType.allCases.filter { type in
-            type.definition.package?.isControlShowcase == true
-                && (query.isEmpty || type.displayName.localizedCaseInsensitiveContains(query))
-        }
-        let grouped = Dictionary(grouping: types) { $0.definition.package?.manifest.category ?? "Other" }
-        let remaining = grouped.keys.filter { !Self.groupOrder.contains($0) }.sorted()
-        return (Self.groupOrder + remaining).compactMap { title in
-            guard let groupTypes = grouped[title], !groupTypes.isEmpty else { return nil }
-            return PartLibrarySection(
-                id: "showcase-\(title)",
-                title: title,
-                types: groupTypes.sorted { $0.displayName.localizedStandardCompare($1.displayName) == .orderedAscending }
-            )
-        }
     }
 }
 

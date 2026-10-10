@@ -22,7 +22,7 @@ final class TemplatePreviewRenderer {
         definition: ReusablePartDefinition,
         site: Site,
         assetContents: ProjectAssetContents,
-        pageBackground: PartPackageColorValue? = nil,
+        pageBackground: String? = nil,
         completion: @escaping @MainActor (Data?) -> Void
     ) {
         let page = Page(
@@ -36,7 +36,7 @@ final class TemplatePreviewRenderer {
         let html = HTMLPageRenderer(site: site, appearance: .light).render(
             page: page,
             language: site.language,
-            framework: site.framework,
+            theme: site.theme,
             assets: assetContents,
             breakpoint: .extraLarge
         )

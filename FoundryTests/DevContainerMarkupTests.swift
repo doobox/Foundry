@@ -16,7 +16,7 @@ struct DevContainerMarkupTests {
         #expect(width.control.options?.map(\.title) == ["Breakpoint", "Full", "Fit Content", "Custom"])
         #expect(width.defaultValue == .string("breakpoint"))
         let custom = try #require(properties.first { $0.id == "contentWidthSpacing" })
-        #expect(custom.control.type == .frameworkSpacing)
+        #expect(custom.control.type == .themeSpacing)
         #expect(custom.visibleWhen == .init(id: "contentWidth", value: .string("custom")))
         // Content height was removed: the section's Sizing height covers it.
         #expect(properties.contains { $0.id == "contentHeight" } == false)

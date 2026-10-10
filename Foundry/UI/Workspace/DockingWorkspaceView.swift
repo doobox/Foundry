@@ -9,7 +9,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     @Binding var canvasAppearance: SiteAppearance
     let appearanceMode: SiteAppearanceMode
     let openProjectSettings: () -> Void
-    let openFrameworkEditor: () -> Void
+    let openThemeEditor: () -> Void
     let previewSite: () -> Void
     let publishSite: () -> Void
     let publishingDestinations: [PublishingDestination]
@@ -37,6 +37,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
             toolbarContent: WorkspaceToolbarContent(
                 sidebarToggle: AnyView(sidebarToggleButton),
                 partUpdates: AnyView(partUpdatesButton),
+                theme: AnyView(themeEditorButton),
                 workspaces: AnyView(workspacePresetsMenu),
                 preview: AnyView(previewSiteButton),
                 settings: AnyView(projectSettingsButton),
@@ -95,7 +96,6 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                     screens: canvasScreens,
                     appearance: $canvasAppearance,
                     appearanceMode: appearanceMode,
-                    openFrameworkEditor: openFrameworkEditor,
                     dockBeside: dockBeside,
                     content: { panelContent(.canvas) }
                 )
@@ -224,6 +224,14 @@ struct DockingWorkspaceView<PanelContent: View>: View {
         Button("Preview Site", systemImage: "safari", action: previewSite)
             .labelStyle(.iconOnly)
             .help("Generate and open a production preview")
+    }
+
+    private var themeEditorButton: some View {
+        Button(action: openThemeEditor) {
+            Label("Theme Editor", systemImage: "theatermask.and.paintbrush")
+        }
+        .labelStyle(.iconOnly)
+        .help("Open Theme Editor")
     }
 
     private var projectSettingsButton: some View {
@@ -457,6 +465,7 @@ private struct WorkspaceManagementRow: View {
 private struct WorkspaceToolbarContent {
     let sidebarToggle: AnyView
     let partUpdates: AnyView?
+    let theme: AnyView
     let workspaces: AnyView
     let preview: AnyView
     let settings: AnyView
@@ -549,6 +558,7 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
         static let partUpdates = NSToolbarItem.Identifier("foundry.toolbar.part-updates")
         static let leadingSeparator = NSToolbarItem.Identifier("foundry.toolbar.sidebar-separator")
         static let workspaces = NSToolbarItem.Identifier("foundry.toolbar.workspaces")
+        static let theme = NSToolbarItem.Identifier("foundry.toolbar.theme")
         static let preview = NSToolbarItem.Identifier("foundry.toolbar.preview")
         static let settings = NSToolbarItem.Identifier("foundry.toolbar.settings")
         static let publish = NSToolbarItem.Identifier("foundry.toolbar.publish")
@@ -988,6 +998,12 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
         if window.toolbar !== editorToolbar {
             window.toolbar = editorToolbar
         }
+        // Include the new item in already-saved toolbar configurations too.
+        if !editorToolbar.items.contains(where: { $0.itemIdentifier == ToolbarIdentifier.theme }),
+           let workspaceIndex = editorToolbar.items.firstIndex(where: { $0.itemIdentifier == ToolbarIdentifier.workspaces }) {
+            editorToolbar.insertItem(withItemIdentifier: ToolbarIdentifier.theme, at: workspaceIndex)
+            editorToolbar.insertItem(withItemIdentifier: .space, at: workspaceIndex + 1)
+        }
         // A saved toolbar from the previous experiment may omit this item.
         if !editorToolbar.items.contains(where: { $0.itemIdentifier == ToolbarIdentifier.trailingSeparator }),
            let settingsIndex = editorToolbar.items.firstIndex(where: { $0.itemIdentifier == ToolbarIdentifier.settings }) {
@@ -1029,6 +1045,7 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
         switch identifier {
         case ToolbarIdentifier.sidebarToggle: return toolbarContent.sidebarToggle
         case ToolbarIdentifier.partUpdates: return toolbarContent.partUpdates
+        case ToolbarIdentifier.theme: return toolbarContent.theme
         case ToolbarIdentifier.workspaces: return toolbarContent.workspaces
         case ToolbarIdentifier.preview: return toolbarContent.preview
         case ToolbarIdentifier.settings: return toolbarContent.settings
@@ -1046,6 +1063,8 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
         var identifiers = [
             ToolbarIdentifier.sidebarToggle,
             ToolbarIdentifier.leadingSeparator,
+            ToolbarIdentifier.theme,
+            .space,
             ToolbarIdentifier.workspaces,
             .space,
             ToolbarIdentifier.preview,
@@ -1104,6 +1123,7 @@ private final class AppKitWorkspaceSplitViewController: NSSplitViewController, N
         switch identifier {
         case ToolbarIdentifier.sidebarToggle: "Sidebar"
         case ToolbarIdentifier.partUpdates: "Part Updates"
+        case ToolbarIdentifier.theme: "Theme Editor"
         case ToolbarIdentifier.workspaces: "Workspaces"
         case ToolbarIdentifier.preview: "Preview"
         case ToolbarIdentifier.settings: "Settings"
@@ -2111,7 +2131,6 @@ private struct FixedCanvasColumn<Content: View>: View {
     let screens: ScreenTokens
     @Binding var appearance: SiteAppearance
     let appearanceMode: SiteAppearanceMode
-    let openFrameworkEditor: () -> Void
     let dockBeside: (WorkspacePanel, UUID, Bool) -> Void
     @ViewBuilder let content: () -> Content
     @State private var leadingTargeted = false
@@ -2121,16 +2140,6 @@ private struct FixedCanvasColumn<Content: View>: View {
         VStack(spacing: 0) {
             HStack {
                 CanvasOptionsButton(options: $editorOptions)
-                Button(action: openFrameworkEditor) {
-                    Image(systemName: "shippingbox")
-                        .font(.system(size: 15, weight: .medium))
-                        .frame(width: 22, height: 22)
-                        .contentShape(Rectangle())
-                }
-                .buttonStyle(.plain)
-                .foregroundStyle(.secondary)
-                .accessibilityLabel("Framework Editor")
-                .help("Open Framework Editor")
                 Spacer()
                 HStack(spacing: 12) {
                     ForEach(screens.enabledScreens) { screen in
@@ -2198,12 +2207,12 @@ private struct FixedCanvasColumn<Content: View>: View {
         }
     }
 
-    private func selectBreakpoint(_ screen: FrameworkScreen) {
+    private func selectBreakpoint(_ screen: ThemeScreen) {
         viewportWidth = screens.canvasWidth(for: screen)
         CanvasBreakpointPreference.remember(viewportWidth)
     }
 
-    private func isSelected(_ screen: FrameworkScreen) -> Bool {
+    private func isSelected(_ screen: ThemeScreen) -> Bool {
         screens.activeScreen(for: viewportWidth).id == screen.id
     }
 

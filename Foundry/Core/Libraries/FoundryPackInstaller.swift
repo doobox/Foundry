@@ -18,8 +18,8 @@ enum FoundryPackInstaller {
         for url in pack.partURLs {
             _ = try PartPackageLoader.load(from: url)
         }
-        for url in pack.frameworkURLs {
-            _ = try FrameworkBundleStore.load(from: url)
+        for url in pack.themeURLs {
+            _ = try ThemeBundleStore.load(from: url)
         }
         for url in pack.templateURLs where ReusablePartLibrary.entry(at: url) == nil {
             throw FoundryPackLoadingError.invalidItem("Templates/\(url.lastPathComponent)")

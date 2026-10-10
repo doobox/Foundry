@@ -10,7 +10,7 @@ struct CollectionPartControl: View {
     let part: PartNode
     let selectedParts: [PartNode]
     let currentPage: Page?
-    let framework: Framework
+    let theme: Theme
     let assets: [ProjectAsset]
     let assetContents: ProjectAssetContents
     let pages: [Page]
@@ -36,7 +36,7 @@ struct CollectionPartControl: View {
                         part: part,
                         selectedParts: selectedParts,
                         currentPage: currentPage,
-                        framework: framework,
+                        theme: theme,
                         assets: assets,
                         assetContents: assetContents,
                         pages: pages,
@@ -112,7 +112,7 @@ struct CollectionPartControl: View {
                     fieldID: field.key.rawValue,
                     in: record,
                     at: field.isResponsive ? breakpoint : .mobile,
-                    screens: framework.screens
+                    screens: theme.screens
                 )
             )
         })

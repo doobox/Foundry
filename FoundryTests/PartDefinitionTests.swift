@@ -135,11 +135,7 @@ struct PartDefinitionTests {
             source: "base",
             customValue: "1rem"
         )))
-        #expect(decoded.propertyValue(.init(rawValue: "textColor")) == .packageColor(.init(
-            source: "foreground",
-            customColor: "#000000",
-            opacity: 1
-        )))
+        #expect(decoded.propertyValue(.init(rawValue: "foreground.colour")) == .choice("inherit"))
     }
 
     @Test
@@ -150,9 +146,7 @@ struct PartDefinitionTests {
         )
 
         #expect(!text.type.definition.properties.contains { ["typeface", "textSize"].contains($0.key.rawValue) })
-        #expect(text.propertyValue(.init(rawValue: "textColor")) == .packageColor(.init(
-            source: "foreground", customColor: "#000000", opacity: 1
-        )))
+        #expect(text.propertyValue(.init(rawValue: "foreground.colour")) == .choice("inherit"))
     }
 
     @Test
@@ -174,12 +168,12 @@ struct PartDefinitionTests {
         var text = PartNode.make(.paragraph)
         var button = PartNode.make(.button)
         container.setProperty(.init(rawValue: "borders.borderEnabled"), value: .boolean(true))
-        container.setProperty(.init(rawValue: "borders.frameworkBorder.width"), value: .frameworkBorderWidth(PartPackageFrameworkBorderWidthControl.defaultValue(.object(["value": .number(2), "unit": .string("px")]))!))
-        container.setProperty(.init(rawValue: "borders.frameworkBorderColour"), value: .packageColor(.init(source: "custom", customColor: "#ABCDEF", opacity: 1)))
-        container.setProperty(.init(rawValue: "borders.frameworkRadius"), value: .frameworkRadius(PartPackageFrameworkRadiusControl.defaultValue(.object(["value": .number(28), "unit": .string("px")]))!))
+        container.setProperty(.init(rawValue: "borders.themeBorder.width"), value: .themeBorderWidth(PartPackageThemeBorderWidthControl.defaultValue(.object(["value": .number(2), "unit": .string("px")]))!))
+        container.setProperty(.init(rawValue: "borders.frameworkBorderColour"), value: .color("#ABCDEF"))
+        container.setProperty(.init(rawValue: "borders.themeRadius"), value: .themeRadius(PartPackageThemeRadiusControl.defaultValue(.object(["value": .number(28), "unit": .string("px")]))!))
         // Section roots are always full width; a Flex carries the shared
         // sizing group's max-width control.
-        stack.setProperty(.init(rawValue: "sizing.maxWidth"), value: .frameworkSpacing(.init(
+        stack.setProperty(.init(rawValue: "sizing.maxWidth"), value: .themeSpacing(.init(
             selection: .init(token: "none", isCustom: true, amount: 920, unit: "px")
         )))
         text.setProperty(.init(rawValue: "typeface"), value: .choice("heading"))
@@ -191,7 +185,7 @@ struct PartDefinitionTests {
         container.children = [text, button]
 
         let page = Page(title: "Test", slug: "test", parts: [container, stack])
-        let html = HTMLPageRenderer().render(page: page, framework: .standard)
+        let html = HTMLPageRenderer().render(page: page, theme: .standard)
 
         #expect(html.contains("border-width: 2.0px"))
         #expect(html.contains("border-color: #ABCDEF"))
@@ -201,7 +195,7 @@ struct PartDefinitionTests {
         #expect(PartType.paragraph.definition.package!.css.contains("font-family: {{ control.font.family }}"))
         #expect(PartType.paragraph.definition.package!.css.contains("font-weight: {{ control.font.weight }}"))
         #expect(PartType.paragraph.definition.package!.css.contains("font-style: {{ control.font.style }}"))
-        // Font size is opt-in: the framework size only emits when Custom Size is enabled.
+        // Font size is opt-in: the theme size only emits when Custom Size is enabled.
         #expect(PartType.paragraph.definition.package!.css.contains("{{ if control.sizeEnabled }}"))
         #expect(PartType.paragraph.definition.package!.css.contains("font-size: {{ control.fontSize }}"))
         #expect(PartType.paragraph.definition.package!.css.contains("line-height: {{ control.fontSize.lineHeight }}"))
@@ -222,7 +216,7 @@ struct PartDefinitionTests {
         ]
         let html = HTMLPageRenderer().render(
             page: Page(title: "Parts", slug: "parts", parts: parts),
-            framework: .standard
+            theme: .standard
         )
 
         #expect(html.contains("class=\"foundry-flex"))
@@ -238,7 +232,7 @@ struct PartDefinitionTests {
         let unknown = PartNode(type: unknownType, children: [PartNode.make(.paragraph)])
         let html = HTMLPageRenderer().render(
             page: Page(title: "Unknown", slug: "unknown", parts: [unknown]),
-            framework: .standard
+            theme: .standard
         )
 
         #expect(html.contains("Missing part: com.example.gallery"))
@@ -255,7 +249,7 @@ struct PartDefinitionTests {
         )
         let html = HTMLPageRenderer().render(
             page: Page(title: "Missing", slug: "missing", parts: [unknown]),
-            framework: .standard
+            theme: .standard
         )
 
         #expect(html.contains("Missing part: Gallery — help: https://example.com/gallery/help"))

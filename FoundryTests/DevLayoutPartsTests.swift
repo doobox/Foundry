@@ -26,9 +26,9 @@ struct DevLayoutPartsTests {
         var site = Site(name: "Incremental", pages: [Page(title: "Home", slug: "index", parts: [grid])])
         func verify(_ site: Site, appearance: SiteAppearance = .light, breakpoint: ResponsiveBreakpoint = .extraLarge, revision: Int = 0) {
             let cached = HTMLPageRenderer(site: site, appearance: appearance, artifactCache: cache, packageRevision: revision)
-                .render(page: site.pages[0], language: site.language, framework: site.framework, assets: [:], breakpoint: breakpoint)
+                .render(page: site.pages[0], language: site.language, theme: site.theme, assets: [:], breakpoint: breakpoint)
             let fresh = HTMLPageRenderer(site: site, appearance: appearance)
-                .render(page: site.pages[0], language: site.language, framework: site.framework, assets: [:], breakpoint: breakpoint)
+                .render(page: site.pages[0], language: site.language, theme: site.theme, assets: [:], breakpoint: breakpoint)
             #expect(cached == fresh)
         }
         verify(site)
@@ -47,7 +47,7 @@ struct DevLayoutPartsTests {
         verify(site, breakpoint: .mobile)
         verify(site, revision: 1)
         let before = cache.statistics.misses
-        site.framework = .standard
+        site.theme = .standard
         site.pages[0].metadata.description = "Context changed"
         verify(site, revision: 1)
         #expect(cache.statistics.misses > before)
@@ -85,10 +85,10 @@ struct DevLayoutPartsTests {
             let updated = document.site
             let renderer = HTMLPageRenderer(site: updated)
             let pageStart = clock.now
-            let html = renderer.render(page: updated.pages[0], framework: updated.framework)
+            let html = renderer.render(page: updated.pages[0], theme: updated.theme)
             let pageTime = pageStart.duration(to: clock.now)
             let subtreeStart = clock.now
-            let subtree = renderer.renderSubtree(partID: grid.id, page: updated.pages[0], framework: updated.framework,
+            let subtree = renderer.renderSubtree(partID: grid.id, page: updated.pages[0], theme: updated.theme,
                 assets: document.assetContents, breakpoint: .mobile)
             let subtreeTime = subtreeStart.duration(to: clock.now)
             #expect(html.contains(insertedID.uuidString))
@@ -115,10 +115,10 @@ struct DevLayoutPartsTests {
             let renderer = HTMLPageRenderer(site: site)
             let clock = ContinuousClock()
             let start = clock.now
-            let html = renderer.render(page: site.pages[0], framework: site.framework)
+            let html = renderer.render(page: site.pages[0], theme: site.theme)
             let fullTime = start.duration(to: clock.now)
             let leafStart = clock.now
-            let leaf = renderer.renderSubtree(partID: grid.children[0].id, page: site.pages[0], framework: site.framework,
+            let leaf = renderer.renderSubtree(partID: grid.children[0].id, page: site.pages[0], theme: site.theme,
                 assets: [:], breakpoint: .extraLarge)
             let leafTime = leafStart.duration(to: clock.now)
             let exportStart = clock.now
@@ -295,7 +295,7 @@ struct DevLayoutPartsTests {
         #expect(movedGridItem)
         #expect(movedFlexItem)
         let site = Site(name: "Dev layouts", pages: [Page(title: "Home", slug: "index", parts: [container])])
-        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
         let exported = StaticSiteRenderer().render(site: site)
         let output = exported.files.map(\.contents).joined(separator: "\n")
         for rendered in [canvas, output] {

@@ -40,7 +40,7 @@ struct RemoteVideoTests {
         var part = PartNode(type: .video)
         part.setProperty(.init(rawValue: "source"), value: .url("https://example.com/movie.mp4?token=abc&v=2"))
         let site = Site(name: "Remote video", pages: [Page(title: "Home", slug: "index", parts: [part])])
-        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
         #expect(canvas.contains("Linked video"))
         #expect(canvas.contains("data-foundry-video-drop-zone"))
         #expect(canvas.contains("src=\"https://example.com/movie.mp4") == false)

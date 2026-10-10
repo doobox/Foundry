@@ -1,15 +1,7 @@
 {
-  "features" : [
-    "refractivity"
-  ],
   "fill-specializations" : [
     {
-      "value" : {
-        "linear-gradient" : [
-          "extended-srgb:1.00000,0.55294,0.15686,1.00000",
-          "extended-srgb:1.00000,0.21961,0.23529,1.00000"
-        ]
-      }
+      "value" : "system-light"
     },
     {
       "appearance" : "dark",
@@ -18,89 +10,68 @@
   ],
   "groups" : [
     {
-      "blur-material" : null,
       "layers" : [
         {
-          "blend-mode" : "normal",
-          "fill-specializations" : [
-            {
-              "value" : {
-                "automatic-gradient" : "extended-gray:1.00000,1.00000"
-              }
-            },
-            {
-              "appearance" : "dark",
-              "value" : {
-                "linear-gradient" : [
-                  "extended-srgb:1.00000,0.55294,0.15686,1.00000",
-                  "extended-srgb:1.00000,0.21961,0.23529,1.00000"
-                ]
-              }
-            }
-          ],
-          "image-name" : "bigf 2.svg",
-          "name" : "bigf 2"
+          "fill" : {
+            "automatic-gradient" : "extended-srgb:1.00000,0.21961,0.23529,1.00000"
+          },
+          "image-name" : "middle 2.svg",
+          "name" : "middle 2"
         }
       ],
-      "lighting" : "individual",
-      "name" : "Group",
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.3
+      }
+    },
+    {
+      "layers" : [
+        {
+          "fill" : {
+            "automatic-gradient" : "extended-srgb:1.00000,0.21961,0.23529,1.00000"
+          },
+          "image-name" : "topper 2.svg",
+          "name" : "topper 2"
+        }
+      ],
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
+      },
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.3
+      }
+    },
+    {
+      "layers" : [
+        {
+          "fill" : {
+            "automatic-gradient" : "extended-srgb:1.00000,0.21961,0.23529,1.00000"
+          },
+          "image-name" : "bot 2.svg",
+          "name" : "bot 2"
+        }
+      ],
       "position" : {
-        "scale" : 0.94,
+        "scale" : 1,
         "translation-in-points" : [
           0,
           0
         ]
       },
-      "refractivity" : {
-        "depth" : 0.3184765625,
-        "enabled" : true,
-        "strength" : 0.546015625
+      "shadow" : {
+        "kind" : "neutral",
+        "opacity" : 0.5
       },
-      "shadow-specializations" : [
-        {
-          "value" : {
-            "kind" : "layer-color",
-            "opacity" : 0.76
-          }
-        },
-        {
-          "appearance" : "dark",
-          "value" : {
-            "kind" : "layer-color",
-            "opacity" : 0.07
-          }
-        },
-        {
-          "appearance" : "tinted",
-          "value" : {
-            "kind" : "layer-color",
-            "opacity" : 0.5
-          }
-        }
-      ],
-      "specular" : true,
-      "translucency-specializations" : [
-        {
-          "value" : {
-            "enabled" : true,
-            "value" : 0.35
-          }
-        },
-        {
-          "appearance" : "dark",
-          "value" : {
-            "enabled" : true,
-            "value" : 0.28
-          }
-        },
-        {
-          "appearance" : "tinted",
-          "value" : {
-            "enabled" : true,
-            "value" : 0.61
-          }
-        }
-      ]
+      "translucency" : {
+        "enabled" : true,
+        "value" : 0.3
+      }
     }
   ],
   "supported-platforms" : {

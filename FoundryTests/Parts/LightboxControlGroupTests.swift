@@ -39,7 +39,7 @@ struct LightboxControlGroupTests {
         part.setProperty(.init(rawValue: "lightbox.enabled"), value: .boolean(true))
         part.setProperty(.init(rawValue: "link.destination"), value: .url("https://example.com"))
         let site = Site(name: "Lightbox", pages: [Page(title: "Home", slug: "index", parts: [part])])
-        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
         #expect(canvas.contains("dialog.showModal()") == false)
         #expect(canvas.contains("data-foundry-root-link=\"link\"") == false)
         let export = StaticSiteRenderer().render(site: site)

@@ -16,20 +16,20 @@ struct FontFileMetadataTests {
                 data: bytes
             )
         }
-        var framework = Framework.standard
-        framework.typography.bodyFont.family = "Arial"
-        framework.typography.bodyFont.source = .bundled(files: contents.map { $0.asset.reference })
+        var theme = Theme.standard
+        theme.typography.bodyFont.family = "Arial"
+        theme.typography.bodyFont.source = .bundled(files: contents.map { $0.asset.reference })
         let assets = ProjectAssetContents(Dictionary(uniqueKeysWithValues: contents.map { ($0.asset.id, $0) }))
-        let normal = FontFaceOptions(reference: "body", framework: framework, assets: assets, selectedStyle: "normal")
+        let normal = FontFaceOptions(reference: "body", theme: theme, assets: assets, selectedStyle: "normal")
         #expect(normal.verified)
         #expect(normal.weights == [400, 700])
         #expect(!normal.variableWeight)
-        let italic = FontFaceOptions(reference: "body", framework: framework, assets: assets, selectedStyle: "italic")
+        let italic = FontFaceOptions(reference: "body", theme: theme, assets: assets, selectedStyle: "italic")
         #expect(italic.weights == [400])
-        let bold = FontFaceOptions(reference: "body", framework: framework, assets: assets, selectedWeight: 700)
+        let bold = FontFaceOptions(reference: "body", theme: theme, assets: assets, selectedWeight: 700)
         #expect(bold.styles == ["normal"])
-        #expect(FontFaceOptions(reference: "custom:missing", framework: framework, assets: assets).missing)
-        #expect(!FontFaceOptions(reference: "heading", framework: framework, assets: assets).verified)
+        #expect(FontFaceOptions(reference: "custom:missing", theme: theme, assets: assets).missing)
+        #expect(!FontFaceOptions(reference: "heading", theme: theme, assets: assets).verified)
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: "/Library/Fonts/SF-Pro.ttf") && FileManager.default.fileExists(atPath: "/Library/Fonts/SF-Pro-Italic.ttf")))
@@ -51,14 +51,14 @@ struct FontFileMetadataTests {
             document.importAsset(data: try data(name), filename: "\(name).ttf", mediaType: "font/ttf", undoManager: nil)
         }
         let references = ids.map { "foundry-asset:\($0.uuidString)" }
-        editor.setFrameworkFontResources(Array(references.prefix(2)), reference: .role(.body))
-        let accepted = document.site.framework.typography.bodyFont
+        editor.setThemeFontResources(Array(references.prefix(2)), reference: .role(.body))
+        let accepted = document.site.theme.typography.bodyFont
         #expect(accepted.family == "Arial")
         #expect(accepted.weights == [400, 700])
-        editor.setFrameworkFontResources(references, reference: .role(.body))
-        #expect(document.site.framework.typography.bodyFont == accepted)
-        editor.setFrameworkFontResources([references[1]], reference: .role(.body))
-        #expect(document.site.framework.typography.bodyFont.weights == [700])
+        editor.setThemeFontResources(references, reference: .role(.body))
+        #expect(document.site.theme.typography.bodyFont == accepted)
+        editor.setThemeFontResources([references[1]], reference: .role(.body))
+        #expect(document.site.theme.typography.bodyFont.weights == [700])
     }
 
     private func data(_ name: String) throws -> Data {
@@ -94,10 +94,10 @@ struct FontFileMetadataTests {
                 data: bytes
             )
         }
-        var framework = Framework.standard
-        framework.typography.bodyFont.family = "Project Font"
-        framework.typography.bodyFont.source = .bundled(files: contents.map { $0.asset.reference })
-        let css = framework.fontSourceCSS(assets: ProjectAssetContents(Dictionary(uniqueKeysWithValues: contents.map { ($0.asset.id, $0) })), destination: .export)
+        var theme = Theme.standard
+        theme.typography.bodyFont.family = "Project Font"
+        theme.typography.bodyFont.source = .bundled(files: contents.map { $0.asset.reference })
+        let css = theme.fontSourceCSS(assets: ProjectAssetContents(Dictionary(uniqueKeysWithValues: contents.map { ($0.asset.id, $0) })), destination: .export)
         #expect(css.contains("font-style:normal;font-weight:400;"))
         #expect(css.contains("font-style:normal;font-weight:700;"))
         #expect(css.contains("font-style:italic;font-weight:400;"))

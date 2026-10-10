@@ -12,7 +12,7 @@ struct BootstrapCardTests {
         let node = PartNode.make(card)
         let page = Page(title: "Card", slug: "index", parts: [node])
         let site = Site(name: "Cards", pages: [page])
-        let canvas = HTMLPageRenderer().render(page: page, framework: site.framework)
+        let canvas = HTMLPageRenderer().render(page: page, theme: site.theme)
         let bundle = StaticSiteRenderer().render(site: site)
         #expect(bundle.errors.isEmpty)
         let exported = try #require(bundle.file(at: "index.html")?.contents)
@@ -75,7 +75,7 @@ struct BootstrapCardTests {
         var inBody = PartNode.make(card)
         inBody.setProperty(.init(rawValue: "imagePlacement"), value: .choice("body"))
         let inBodyPage = Page(title: "Card", slug: "index", parts: [inBody])
-        let inBodyCanvas = HTMLPageRenderer().render(page: inBodyPage, framework: .standard)
+        let inBodyCanvas = HTMLPageRenderer().render(page: inBodyPage, theme: .standard)
         // An in-body image sits inside the padded area, before the title, as Bootstrap's card-img example does.
         let bodyStart = try #require(inBodyCanvas.range(of: "<div class=\"card-body\">")).upperBound
         let imageSpot = try #require(inBodyCanvas[bodyStart...].range(of: "class=\"card-img")).lowerBound
@@ -120,7 +120,7 @@ struct BootstrapCardTests {
             html = document.contents.replacingOccurrences(of: "</head>", with: "<style>\(styles)</style></head>")
         } else {
             html = HTMLPageRenderer(appearance: destination == "canvas-dark" ? .dark : .light)
-                .render(page: page, framework: .standard)
+                .render(page: page, theme: .standard)
         }
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 800, height: 600))
         defer { webView.stopLoading() }

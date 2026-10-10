@@ -4,9 +4,9 @@ import Testing
 
 @MainActor
 struct CustomThemeColourTests {
-    @Test(.timeLimit(.minutes(1)), arguments: [FrameworkColorRole.background, .foreground, .border])
-    func layerGroupsGenerateEditAndReset(role: FrameworkColorRole) async throws {
-        let model = FrameworkColourPreviewModel()
+    @Test(.timeLimit(.minutes(1)), arguments: [ThemePaletteColorRole.background, .foreground, .border])
+    func layerGroupsGenerateEditAndReset(role: ThemePaletteColorRole) async throws {
+        let model = ThemeColourPreviewModel()
         model.addTheme(named: "brand")
         let original = model.storedPalettes
         let scale = try #require(BootstrapColourScale(base: "oklch(55% 0.12 250)"))
@@ -14,9 +14,9 @@ struct CustomThemeColourTests {
         #expect(generated.bootstrapScale == scale)
         #expect(generated.bootstrapTokens.isEmpty)
         #expect(generated.bootstrapGeneratedContrast == nil)
-        var framework = Framework.standard
-        framework.colourPalettes = [generated]
-        let css = BootstrapColourCatalogue.sourceCSS + BootstrapColorCSS.export(framework: framework, mode: .both)
+        var theme = Theme.standard
+        theme.colourPalettes = [generated]
+        let css = BootstrapColourCatalogue.sourceCSS + BootstrapColorCSS.export(theme: theme, mode: .both)
         let expressions = BootstrapColourCatalogue.tokens(for: role.rawValue).map { "var(--bs-\($0))" }
         for mode in ["light", "dark"] {
             let values = try await BootstrapScalePreviewResolver().resolve(expressions: expressions, css: css, mode: mode)
@@ -25,8 +25,8 @@ struct CustomThemeColourTests {
         }
         let token = try #require(BootstrapColourCatalogue.tokens(for: role.rawValue).first)
         generated.bootstrapTokens[token] = BootstrapTokenColour(light: .native("white"), dark: .native("black"))
-        framework.colourPalettes = [generated]
-        let editedCSS = BootstrapColourCatalogue.sourceCSS + BootstrapColorCSS.export(framework: framework, mode: .both)
+        theme.colourPalettes = [generated]
+        let editedCSS = BootstrapColourCatalogue.sourceCSS + BootstrapColorCSS.export(theme: theme, mode: .both)
         for mode in ["light", "dark"] {
             let values = try await BootstrapScalePreviewResolver().resolve(expressions: ["var(--bs-\(token))"], css: editedCSS, mode: mode)
             #expect(values == [mode == "light" ? "#FFFFFF" : "#000000"])
@@ -51,7 +51,7 @@ struct CustomThemeColourTests {
     }
 
     @Test func renamePreservesIdentityTokensAndUndo() throws {
-        let model = FrameworkColourPreviewModel()
+        let model = ThemeColourPreviewModel()
         model.addTheme(named: "brand")
         var original = try #require(model.storedPalettes.last)
         original.bootstrapTokens["brand-contrast"] = BootstrapTokenColour(light: .native("black"))
@@ -66,10 +66,10 @@ struct CustomThemeColourTests {
         #expect(renamed.name == "ocean")
         #expect(renamed.bootstrapTokens["ocean-contrast"] == original.bootstrapTokens["brand-contrast"])
         #expect(renamed.bootstrapTokens["brand-contrast"] == nil)
-        var framework = Framework.standard
-        framework.colourPalettes = model.storedPalettes
-        #expect(BootstrapPaletteTheme.resolve(original.id, framework: framework) == "theme-ocean")
-        let css = BootstrapColorCSS.export(framework: framework, mode: .both)
+        var theme = Theme.standard
+        theme.colourPalettes = model.storedPalettes
+        #expect(BootstrapPaletteTheme.resolve(original.id, theme: theme) == "theme-ocean")
+        let css = BootstrapColorCSS.export(theme: theme, mode: .both)
         #expect(css.contains(".theme-ocean{"))
         #expect(css.contains(".theme-brand{") == false)
         #expect(try JSONDecoder().decode(ColourPalette.self, from: JSONEncoder().encode(renamed)) == renamed)
@@ -85,7 +85,7 @@ struct CustomThemeColourTests {
     }
 
     @Test func namesAndPersistence() throws {
-        let model = FrameworkColourPreviewModel()
+        let model = ThemeColourPreviewModel()
         for name in ["blue", "white", "reset", "subtle-primary", "", "a b", "1brand", "x;}body{"] {
             #expect(model.canAddTheme(named: name) == false, "Reserved or invalid name: \(name)")
         }
@@ -93,49 +93,49 @@ struct CustomThemeColourTests {
         let palette = try #require(model.storedPalettes.last)
         #expect(palette.id == "custom.brand")
         #expect(model.canAddTheme(named: "brand") == false)
-        var framework = Framework.standard
-        framework.colourPalettes = model.storedPalettes
-        #expect(BootstrapPaletteTheme.selectablePalettes(in: framework).contains(palette))
-        #expect(BootstrapPaletteTheme.resolve(palette.id, framework: framework) == "theme-brand")
-        let site = Site(name: "Custom themes", pages: [], framework: framework)
+        var theme = Theme.standard
+        theme.colourPalettes = model.storedPalettes
+        #expect(BootstrapPaletteTheme.selectablePalettes(in: theme).contains(palette))
+        #expect(BootstrapPaletteTheme.resolve(palette.id, theme: theme) == "theme-brand")
+        let site = Site(name: "Custom themes", pages: [], theme: theme)
         let saved = try JSONDecoder().decode(Site.self, from: JSONEncoder().encode(site))
-        #expect(saved.framework.colourPalettes.contains(palette))
+        #expect(saved.theme.colourPalettes.contains(palette))
         var part = PartNode.make(.button)
         part.setProperty(.init(rawValue: "theme"), value: .choice(palette.id))
-        part.replaceFrameworkReference(palette.id, with: "framework.accent")
+        part.replaceThemeReference(palette.id, with: "framework.accent")
         #expect(part.property(.init(rawValue: "theme")) == "framework.accent")
     }
 
     @Test(arguments: BootstrapColourCatalogue.themeRoles)
     func oldNamedOverridesBecomeDirectThemeEdits(name: String) throws {
         let document = FoundryDocument()
-        let model = FrameworkColourPreviewModel(storedPalettes: document.site.framework.colourPalettes)
+        let model = ThemeColourPreviewModel(storedPalettes: document.site.theme.colourPalettes)
         #expect(model.canAddTheme(named: name) == false)
-        let role = try #require(FrameworkColorRole(rawValue: name))
+        let role = try #require(ThemePaletteColorRole(rawValue: name))
         var custom = try BootstrapColourCatalogue.palette(role: role, hue: "pink").duplicated()
         custom.name = name
         custom.bootstrapTokens[name + "-contrast"] = BootstrapTokenColour(light: .native("black"))
-        document.site.framework.colourPalettes.append(custom)
+        document.site.theme.colourPalettes.append(custom)
         var part = PartNode.make(.button)
         part.setProperty(.init(rawValue: "theme"), value: .choice(custom.id))
         document.site.pages = [Page(title: "Test", slug: "index", parts: [part])]
         let restored = try JSONDecoder().decode(Site.self, from: JSONEncoder().encode(document.site))
         #expect(restored.hasNamedThemeOverrides == false)
-        let session = FrameworkEditorSession(document: document, undoManager: nil)
-        #expect(session.canEditFramework)
-        #expect(document.site.framework.colourPalettes.contains { $0.id == custom.id } == false)
+        let session = ThemeEditorSession(document: document, undoManager: nil)
+        #expect(session.canEditTheme)
+        #expect(document.site.theme.colourPalettes.contains { $0.id == custom.id } == false)
         #expect(document.site.pages[0].parts[0].property(.init(rawValue: "theme")) == "framework." + name)
-        let migrated = try #require(BootstrapPaletteTheme.effectivePalette("framework." + name, in: document.site.framework))
-        #expect(migrated.origin == .framework)
+        let migrated = try #require(BootstrapPaletteTheme.effectivePalette("framework." + name, in: document.site.theme))
+        #expect(migrated.origin == .theme)
         #expect(migrated.bootstrapScale == custom.bootstrapScale)
         #expect(migrated.bootstrapTokens == custom.bootstrapTokens)
-        #expect(restored.framework == document.site.framework)
-        #expect(BootstrapPaletteTheme.resolve(migrated.id, framework: restored.framework) == "theme-" + name)
+        #expect(restored.theme == document.site.theme)
+        #expect(BootstrapPaletteTheme.resolve(migrated.id, theme: restored.theme) == "theme-" + name)
     }
 
     @Test(.timeLimit(.minutes(1)))
     func generatedCustomTokensMatchNativeThemeInBothModes() async throws {
-        let model = FrameworkColourPreviewModel()
+        let model = ThemeColourPreviewModel()
         model.addTheme(named: "brand")
         let original = try #require(model.storedPalettes.last)
         let scale = try #require(BootstrapColourScale(base: "oklch(35% 0.12 25)"))
@@ -143,9 +143,9 @@ struct CustomThemeColourTests {
         var custom = BootstrapPaletteTheme.applying(generated, to: original)
         #expect(custom.id == original.id)
         custom.bootstrapTokens["brand-bg-subtle"] = BootstrapTokenColour(light: .native("white"), dark: .native("black"))
-        var framework = Framework.standard
-        framework.colourPalettes = [generated, custom]
-        let css = BootstrapColourCatalogue.sourceCSS + BootstrapColorCSS.export(framework: framework, mode: .both)
+        var theme = Theme.standard
+        theme.colourPalettes = [generated, custom]
+        let css = BootstrapColourCatalogue.sourceCSS + BootstrapColorCSS.export(theme: theme, mode: .both)
         #expect(css.contains(".theme-brand{"))
         #expect(css.contains(".fg-brand{"))
         for mode in ["light", "dark"] {

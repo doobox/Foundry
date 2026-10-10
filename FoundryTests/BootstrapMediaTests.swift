@@ -6,13 +6,13 @@ import WebKit
 struct BootstrapMediaTests {
     @Test(.timeLimit(.minutes(1)))
     func customThemeClassesMatchBootstrapComponents() async throws {
-        let model = FrameworkColourPreviewModel()
+        let model = ThemeColourPreviewModel()
         model.addTheme(named: "brand")
         let source = BootstrapColourCatalogue.palette(role: .primary, hue: "pink")
         let custom = BootstrapPaletteTheme.applying(source, to: try #require(model.storedPalettes.last))
-        var framework = Framework.standard
-        framework.colourPalettes = [source, custom]
-        let css = BootstrapColourCatalogue.sourceCSS + BootstrapColorCSS.export(framework: framework, mode: .both)
+        var theme = Theme.standard
+        theme.colourPalettes = [source, custom]
+        let css = BootstrapColourCatalogue.sourceCSS + BootstrapColorCSS.export(theme: theme, mode: .both)
         let web = WKWebView(frame: CGRect(x: 0, y: 0, width: 400, height: 400))
         let navigation = MediaNavigation()
         defer { web.stopLoading() }
@@ -56,7 +56,7 @@ struct BootstrapMediaTests {
         let page = Page(title: "Paint", slug: "index", parts: [part])
         let html: String
         if environment == .canvas {
-            html = HTMLPageRenderer().render(page: page, language: "en", framework: .standard, assets: assets, breakpoint: .mobile)
+            html = HTMLPageRenderer().render(page: page, language: "en", theme: .standard, assets: assets, breakpoint: .mobile)
         } else {
             let bundle = StaticSiteRenderer(environment: environment).render(site: Site(name: "Paint", pages: [page]), assets: assets)
             #expect(bundle.errors.isEmpty)
@@ -105,7 +105,7 @@ struct BootstrapMediaTests {
         let page = Page(title: "HTML", slug: "index", parts: [part])
         let output: String
         if environment == .canvas {
-            output = HTMLPageRenderer().render(page: page, framework: .standard)
+            output = HTMLPageRenderer().render(page: page, theme: .standard)
             #expect(output.contains("data-foundry-inline-html"))
             #expect(output.contains("data-foundry-id"))
         } else {
@@ -144,10 +144,10 @@ struct BootstrapMediaTests {
         image.setProperty(.init(rawValue: "borders.radius"), value: .choice("rounded-circle"))
         let page = Page(title: "Media", slug: "index", parts: [svg, image])
         let initial = try CanvasScene.render(renderer: HTMLPageRenderer(), page: page, language: "en",
-            framework: .standard, assets: assets, breakpoint: .medium, packageRevision: 0, previous: nil)
+            theme: .standard, assets: assets, breakpoint: .medium, packageRevision: 0, previous: nil)
         let html: String
         if environment == .canvas {
-            html = HTMLPageRenderer().render(page: page, language: "en", framework: .standard, assets: assets, breakpoint: .medium)
+            html = HTMLPageRenderer().render(page: page, language: "en", theme: .standard, assets: assets, breakpoint: .medium)
         } else {
             let bundle = StaticSiteRenderer(environment: environment).render(site: Site(name: "Media", pages: [page], assets: [asset]), assets: assets)
             #expect(bundle.errors.isEmpty)
@@ -209,7 +209,7 @@ struct BootstrapMediaTests {
                     edited.parts[1].setResponsiveProperty(key, value: .choice(value), at: .medium)
                 }
                 let result = try CanvasScene.render(renderer: HTMLPageRenderer(), page: edited, language: "en",
-                    framework: .standard, assets: assets, breakpoint: .medium, packageRevision: 0, previous: previous,
+                    theme: .standard, assets: assets, breakpoint: .medium, packageRevision: 0, previous: previous,
                     consecutiveImpact: .partProperty(partID: image.id, propertyKey: key))
                 guard case .scene(let update) = result.result else { Issue.record("Expected live media patch"); return }
                 let applied = try await web.callAsyncJavaScript(

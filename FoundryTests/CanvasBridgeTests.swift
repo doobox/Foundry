@@ -16,7 +16,7 @@ struct CanvasBridgeTests {
         let transitions: [(ResponsiveBreakpoint, ResponsiveBreakpoint)] = [(.mobile, .medium), (.medium, .mobile)]
         for (previous, current) in transitions {
             let snapshot = CanvasRenderSnapshot(
-                renderer: HTMLPageRenderer(), page: page, language: "en", framework: .standard,
+                renderer: HTMLPageRenderer(), page: page, language: "en", theme: .standard,
                 assets: [:], breakpoint: current,
                 impact: .partProperty(partID: first.id, propertyKey: key),
                 forcesReconciliation: false, previousBreakpoint: previous
@@ -76,7 +76,7 @@ struct CanvasBridgeTests {
             renderer: renderer,
             page: page,
             language: site.language,
-            framework: site.framework,
+            theme: site.theme,
             assets: [:],
             breakpoint: .extraLarge,
             impact: .page,
@@ -87,7 +87,7 @@ struct CanvasBridgeTests {
         let authoritativeHTML = renderer.render(
             page: page,
             language: site.language,
-            framework: site.framework,
+            theme: site.theme,
             assets: [:],
             breakpoint: .extraLarge
         )
@@ -105,7 +105,7 @@ struct CanvasBridgeTests {
             renderer: HTMLPageRenderer(),
             page: page,
             language: "en",
-            framework: .standard,
+            theme: .standard,
             assets: [:],
             breakpoint: .extraLarge,
             impact: .partProperty(partID: paragraph.id, propertyKey: propertyKey),
@@ -118,7 +118,7 @@ struct CanvasBridgeTests {
             return
         }
         #expect(subtree.partID == paragraph.id)
-        #expect(HTMLPageRenderer().render(page: page, framework: .standard).contains(subtree.html))
+        #expect(HTMLPageRenderer().render(page: page, theme: .standard).contains(subtree.html))
     }
 
     @Test @MainActor
@@ -131,7 +131,7 @@ struct CanvasBridgeTests {
             renderer: HTMLPageRenderer(),
             page: page,
             language: "en",
-            framework: .standard,
+            theme: .standard,
             assets: [:],
             breakpoint: .extraLarge,
             impact: .partProperty(partID: paragraph.id, propertyKey: propertyKey),
@@ -291,7 +291,7 @@ struct CanvasBridgeTests {
     @Test @MainActor
     func rendererEmitsStableIdentityForEveryPart() {
         let page = TestSiteFixtures.populatedSite().pages[0]
-        let html = HTMLPageRenderer().render(page: page, framework: .standard)
+        let html = HTMLPageRenderer().render(page: page, theme: .standard)
         let partIDs = flattened(page.parts).map(\.id.uuidString)
 
         for id in partIDs {
@@ -314,11 +314,11 @@ struct CanvasBridgeTests {
         let subtree = try #require(renderer.renderSubtree(
             partID: paragraph.id,
             page: page,
-            framework: .standard,
+            theme: .standard,
             assets: [:],
             breakpoint: .extraLarge
         ))
-        let fullPage = renderer.render(page: page, framework: .standard)
+        let fullPage = renderer.render(page: page, theme: .standard)
 
         #expect(fullPage.contains(subtree.html))
         for css in subtree.instanceStyles.values {
@@ -338,11 +338,11 @@ struct CanvasBridgeTests {
         let subtree = try #require(renderer.renderSubtree(
             partID: container.id,
             page: page,
-            framework: .standard,
+            theme: .standard,
             assets: [:],
             breakpoint: .extraLarge
         ))
-        let fullPage = renderer.render(page: page, framework: .standard)
+        let fullPage = renderer.render(page: page, theme: .standard)
 
         #expect(subtree.html.contains("data-foundry-id=\"\(child.id.uuidString)\""))
         #expect(subtree.html.contains("data-foundry-parent=\"\(container.id.uuidString)\""))
@@ -369,7 +369,7 @@ struct CanvasBridgeTests {
 
         // Patch the container first — its subtree styles include the grid.
         let containerPatch = try #require(renderer.renderSubtree(
-            partID: container.id, page: page, framework: .standard, assets: [:], breakpoint: .large
+            partID: container.id, page: page, theme: .standard, assets: [:], breakpoint: .large
         ))
         #expect(containerPatch.instanceStyles[grid.id.uuidString]?.contains("justify-items: normal") == true)
 
@@ -379,7 +379,7 @@ struct CanvasBridgeTests {
         container.children = [grid]
         page.parts = [container]
         let gridPatch = try #require(renderer.renderSubtree(
-            partID: grid.id, page: page, framework: .standard, assets: [:], breakpoint: .large
+            partID: grid.id, page: page, theme: .standard, assets: [:], breakpoint: .large
         ))
         #expect(gridPatch.partID == grid.id)
         #expect(gridPatch.instanceStyles[grid.id.uuidString]?.contains("justify-items: center") == true)
@@ -401,17 +401,17 @@ struct CanvasBridgeTests {
         let subtree = try #require(renderer.renderSubtree(
             partID: child.id,
             page: page,
-            framework: .standard,
+            theme: .standard,
             assets: [:],
             breakpoint: .extraLarge
         ))
 
         #expect(subtree.html.contains("data-foundry-global=\"\(definitionID.uuidString)\""))
-        #expect(renderer.render(page: page, framework: .standard).contains(subtree.html))
+        #expect(renderer.render(page: page, theme: .standard).contains(subtree.html))
         #expect(renderer.renderSubtree(
             partID: UUID(),
             page: page,
-            framework: .standard,
+            theme: .standard,
             assets: [:],
             breakpoint: .extraLarge
         ) == nil)
@@ -426,7 +426,7 @@ struct CanvasBridgeTests {
         container.children = [global]
         let page = Page(title: "Nested Global", slug: "nested-global", parts: [container])
 
-        let html = HTMLPageRenderer().render(page: page, framework: .standard)
+        let html = HTMLPageRenderer().render(page: page, theme: .standard)
 
         #expect(html.contains("data-foundry-id=\"\(global.id.uuidString)\""))
         #expect(html.contains("data-foundry-global=\"\(definitionID.uuidString)\""))
@@ -441,7 +441,7 @@ struct CanvasBridgeTests {
         let flex = PartNode.make(.stack)
         let page = Page(title: "Styles", slug: "styles", parts: [flex])
 
-        let html = HTMLPageRenderer().render(page: page, framework: .standard)
+        let html = HTMLPageRenderer().render(page: page, theme: .standard)
 
         #expect(html.contains("<style data-foundry-instance-style=\"\(flex.id.uuidString)\">"))
     }
@@ -452,7 +452,7 @@ struct CanvasBridgeTests {
         image.setProperty(.source, value: .url(""))
         let page = Page(title: "Images", slug: "images", parts: [image])
 
-        let html = HTMLPageRenderer().render(page: page, framework: .standard)
+        let html = HTMLPageRenderer().render(page: page, theme: .standard)
 
         #expect(html.contains("data-foundry-image-drop-zone"))
         #expect(html.contains("data-foundry-id=\"\(image.id.uuidString)\""))
@@ -474,7 +474,7 @@ struct CanvasBridgeTests {
         let html = HTMLPageRenderer().render(
             page: page,
             language: "en",
-            framework: .standard,
+            theme: .standard,
             assets: [asset.id: ProjectAssetContent(asset: asset, data: gifData)],
             breakpoint: .extraLarge
         )
@@ -494,7 +494,7 @@ struct CanvasBridgeTests {
     @Test @MainActor
     func canvasRendererIncludesEditorOptionHooks() {
         let page = Site.starter().pages[0]
-        let html = HTMLPageRenderer().render(page: page, framework: .standard)
+        let html = HTMLPageRenderer().render(page: page, theme: .standard)
         let interactionScript = WebCanvasView.Coordinator.interactionScript
 
         #expect(interactionScript.contains("foundry-show-titles"))

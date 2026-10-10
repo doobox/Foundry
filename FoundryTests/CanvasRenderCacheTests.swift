@@ -14,7 +14,7 @@ struct CanvasRenderCacheTests {
     @Test func keysTrackContentAndRelationshipsAndPruneRemovedParts() {
         let cache = CanvasRenderCache()
         let page = Page(title: "Test", slug: "index", parts: [])
-        let environment = CanvasRenderCache.Environment(site: nil, page: page, framework: .standard,
+        let environment = CanvasRenderCache.Environment(site: nil, page: page, theme: .standard,
             assets: [:], breakpoint: .mobile, appearance: .light, packageRevision: 0)
         var node = PartNode(type: .paragraph)
         let session = cache.session(environment: environment, liveIDs: [node.id])
@@ -39,7 +39,7 @@ struct CanvasRenderCacheTests {
         let node = PartNode(type: .paragraph)
         let page = Page(title: "Test", slug: "index", parts: [node])
         func environment(_ revision: Int) -> CanvasRenderCache.Environment {
-            .init(site: nil, page: page, framework: .standard, assets: [:], breakpoint: .mobile,
+            .init(site: nil, page: page, theme: .standard, assets: [:], breakpoint: .mobile,
                   appearance: .light, packageRevision: revision)
         }
         let old = cache.session(environment: environment(0), liveIDs: [node.id])

@@ -33,9 +33,9 @@ nonisolated enum PartPackageManifestSchema {
     private static let iconKeys: Set<String> = ["file", "symbol", "tint", "rendering"]
     private static let propertyKeys: Set<String> = [
         "id", "label", "title", "body", "systemImage", "defaults", "responsive", "subtitle", "buttonText", "units", "noneValue", "tooltip", "linked",
-        "type", "font", "showsFamily", "showsWeight", "showsStyle", "showsSize", "minimum", "maximum", "step", "options", "frameworkValues", "allowsCustom", "opacity", "outputFormat",
-        "customColor", "count", "ticks", "editableValue", "tickLabels", "valueLabels", "minimumLabel", "maximumLabel", "neutralValue", "trueValue", "falseValue",
-        "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "presentation", "visibleWhen", "valueAvailability", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment", "height", "controls", "itemLabel"
+        "type", "font", "showsFamily", "showsWeight", "showsStyle", "showsSize", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "opacity", "outputFormat",
+        "count", "ticks", "editableValue", "tickLabels", "valueLabels", "minimumLabel", "maximumLabel", "neutralValue", "trueValue", "falseValue", "colourSections",
+        "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "presentation", "visibleWhen", "outputWhenHidden", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment", "height", "controls", "itemLabel"
     ]
     private static let visibleWhenKeys: Set<String> = ["id", "operation", "value", "all", "any"]
     private static let optionKeys: Set<String> = ["value", "title", "systemImage"]
@@ -60,6 +60,94 @@ nonisolated enum PartPackageManifestSchema {
     }
 
     static func diagnostics(for data: Data) throws -> [PartPackageDiagnostic] {
+        let prepared = try preparingControls(in: data)
+        return prepared.warnings + (try validatePreparedData(prepared.data))
+    }
+
+    /// Strip recognised, inapplicable settings before either validation or decoding.
+    /// Unknown keys are discarded too; warnings still point out possible spelling mistakes.
+    static func preparingControls(in data: Data) throws -> (data: Data, warnings: [PartPackageDiagnostic]) {
+        var root = try rootDictionary(from: data)
+        var warnings: [PartPackageDiagnostic] = []
+        func visit(_ value: Any, location: String) -> Any {
+            guard var entry = value as? [String: Any] else { return value }
+            if let name = entry["type"] as? String, let kind = PartPackageControl.Kind(rawValue: name) {
+                for key in entry.keys.sorted() where !propertyKeys.contains(key) || !supports(key, for: kind) {
+                    // Explicitly false is equivalent to omitting a non-responsive flag.
+                    if !(key == "responsive" && (entry[key].map(isBoolean) == true) && entry[key] as? Bool == false) {
+                        warnings.append(.init(severity: .warning, location: "\(location):\(key)",
+                            message: propertyKeys.contains(key)
+                                ? "\(name) does not support '\(key)'; this setting was ignored."
+                                : "Unknown key '\(key)'; this setting was ignored. Check the spelling."))
+                    }
+                    entry.removeValue(forKey: key)
+                }
+            } else if let name = entry["type"] as? String, PartPackageControlGroup.Kind(rawValue: name) != nil {
+                let knownKeys = propertyKeys.union(controlGroupKeys)
+                for key in entry.keys.sorted() {
+                    let supported = controlGroupKeys.contains(key)
+                        && (!["backgroundTypes", "supportsHover"].contains(key) || name == "background")
+                        && (key != "colourSections" || ["background", "foreground"].contains(name))
+                    guard !supported else { continue }
+                    warnings.append(.init(severity: .warning, location: "\(location):\(key)",
+                        message: knownKeys.contains(key)
+                            ? "\(name) does not support '\(key)'; this setting was ignored."
+                            : "Unknown key '\(key)'; this setting was ignored. Check the spelling."))
+                    entry.removeValue(forKey: key)
+                }
+            }
+            // Only visit declaration arrays, never defaults or condition payloads.
+            if entry["type"] == nil || entry["type"] as? String == "collection",
+               let controls = entry["controls"] as? [Any] {
+                entry["controls"] = controls.enumerated().map { visit($0.element, location: "\(location).controls[\($0.offset)]") }
+            }
+            return entry
+        }
+        if let inspector = root["inspector"] as? [Any] {
+            root["inspector"] = inspector.enumerated().map { visit($0.element, location: "manifest.json:inspector[\($0.offset)]") }
+        }
+        return (try JSONSerialization.data(withJSONObject: root), warnings)
+    }
+
+    private static func supports(_ key: String, for type: PartPackageControl.Kind) -> Bool {
+        let common: Set<String> = ["type", "id", "label", "subtitle", "defaults", "responsive", "tooltip", "visibleWhen", "outputWhenHidden"]
+        switch type {
+        case .divider: return ["type", "id", "visibleWhen"].contains(key)
+        case .spacer: return ["type", "id", "height", "visibleWhen"].contains(key)
+        case .note: return ["type", "id", "title", "body", "systemImage", "visibleWhen"].contains(key)
+        case .childPicker:
+            return ["type", "id", "label", "tooltip", "visibleWhen", "buttonText", "buttonIcon", "accepts", "pickerItems", "initial", "minimum", "maximum", "containment"].contains(key)
+        case .collection:
+            return common.subtracting(["responsive"]).union(["controls", "itemLabel"]).contains(key)
+        case .themeSpacing: return common.union(["noneValue"]).contains(key)
+        case .themePadding, .themeMargin, .themeRadius, .borderSides: return common.contains(key)
+        case .edges, .corners: return common.union(["units", "linked"]).contains(key)
+        case .themeBorder: return common.union(["showsStyle"]).contains(key)
+        default: break
+        }
+        if key == "responsive", [.themeColors, .link, .video].contains(type) { return false }
+        if key == "count", [.themeColors, .themeFont, .themeFontSize, .themeStackingOrder, .pageFolder, .themeShadow, .image, .svg, .video, .link].contains(type) { return false }
+        if ["themeValues", "options", "allowsCustom"].contains(key),
+           [.themeColors, .themeFont, .themeFontSize, .themeStackingOrder, .pageFolder].contains(type) { return false }
+        if ["themeValues", "allowsCustom"].contains(key), type == .select { return false }
+        switch key {
+        case "colourSections": return type == .themeColors
+        case "presentation": return type == .select || type == .toggle
+        case "opacity", "outputFormat": return type == .color
+        case "font": return type == .fontWeight || type == .fontStyle
+        case "showsFamily", "showsWeight", "showsStyle", "showsSize": return type == .themeFont
+        case "linked": return false // edges/corners handled above
+        case "noneValue": return false // themeSpacing handled above
+        case "title", "body", "systemImage", "height", "controls", "itemLabel", "accepts", "pickerItems", "initial", "containment": return false
+        case "alt": return type == .image || type == .svg
+        case "focalPoint", "renditions": return type == .image
+        case "buttonText", "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode": return type == .button
+        case "ticks", "editableValue", "tickLabels", "valueLabels", "minimumLabel", "maximumLabel", "neutralValue": return type == .slider
+        default: return true
+        }
+    }
+
+    static func validatePreparedData(_ data: Data) throws -> [PartPackageDiagnostic] {
         let dictionary = try rootDictionary(from: data)
         var diagnostics: [PartPackageDiagnostic] = []
         unknownKeys(in: dictionary, allowed: partKeys, location: "manifest.json", into: &diagnostics)
@@ -89,7 +177,7 @@ nonisolated enum PartPackageManifestSchema {
                 return
             }
             guard let type = entry["type"] as? String else {
-                validateStandardOrFrameworkControl(entry, location: location, into: &diagnostics)
+                validateStandardOrThemeControl(entry, location: location, into: &diagnostics)
                 return
             }
             if knownControlGroupKinds.contains(type) {
@@ -101,7 +189,7 @@ nonisolated enum PartPackageManifestSchema {
                     into: &diagnostics
                 )
             } else {
-                validateStandardOrFrameworkControl(entry, location: location, into: &diagnostics)
+                validateStandardOrThemeControl(entry, location: location, into: &diagnostics)
             }
         }
         if let templates = dictionary["templates"], !(templates is [String: Any]) {
@@ -297,7 +385,7 @@ nonisolated enum PartPackageManifestSchema {
                 return
             }
             guard let type = control["type"] as? String else {
-                validateStandardOrFrameworkControl(control, location: controlLocation, into: &diagnostics)
+                validateStandardOrThemeControl(control, location: controlLocation, into: &diagnostics)
                 return
             }
             if type == PartPackageControlGroup.Kind.advanced.rawValue {
@@ -318,26 +406,26 @@ nonisolated enum PartPackageManifestSchema {
                 )
                 return
             }
-            validateStandardOrFrameworkControl(control, location: controlLocation, into: &diagnostics)
+            validateStandardOrThemeControl(control, location: controlLocation, into: &diagnostics)
         }
     }
 
-    private static func validateStandardOrFrameworkControl(
+    private static func validateStandardOrThemeControl(
         _ property: [String: Any],
         location: String,
         into diagnostics: inout [PartPackageDiagnostic]
     ) {
         unknownKeys(in: property, allowed: propertyKeys, location: location, into: &diagnostics)
         validateProperty(property, location: location, into: &diagnostics)
-        if let frameworkValues = property["frameworkValues"], !(frameworkValues is String) {
+        if let themeValues = property["themeValues"], !(themeValues is String) {
             diagnostics.append(.init(
                 severity: .error,
-                location: "\(location).frameworkValues",
-                message: "frameworkValues must be a string."
+                location: "\(location).themeValues",
+                message: "themeValues must be a string."
             ))
         }
         if property["type"] as? String == PartPackageControl.Kind.select.rawValue {
-            for key in ["frameworkValues", "allowsCustom"] where property[key] != nil {
+            for key in ["themeValues", "allowsCustom"] where property[key] != nil {
                 diagnostics.append(.init(severity: .error, location: "\(location).\(key)",
                     message: "Select supports only declared options; remove \(key)."))
             }
@@ -353,20 +441,12 @@ nonisolated enum PartPackageManifestSchema {
         } else if property["presentation"] != nil {
             diagnostics.append(.init(severity: .error, location: "\(location).presentation", message: "presentation is available only for select and toggle controls."))
         }
-        if property["type"] as? String == PartPackageControl.Kind.frameworkColor.rawValue,
-           property["count"] != nil {
+        if property["type"] as? String == PartPackageControl.Kind.themeShadow.rawValue,
+           property["themeValues"] != nil {
             diagnostics.append(.init(
                 severity: .error,
-                location: "\(location).count",
-                message: "A frameworkColor control cannot be a multi control; remove count."
-            ))
-        }
-        if property["type"] as? String == PartPackageControl.Kind.frameworkShadow.rawValue,
-           property["frameworkValues"] != nil {
-            diagnostics.append(.init(
-                severity: .error,
-                location: "\(location).frameworkValues",
-                message: "A frameworkShadow control automatically uses framework shadows; remove frameworkValues."
+                location: "\(location).themeValues",
+                message: "A themeShadow control automatically uses theme shadows; remove themeValues."
             ))
         }
 
@@ -377,19 +457,13 @@ nonisolated enum PartPackageManifestSchema {
         if let visibleWhen = property["visibleWhen"], !(visibleWhen is [String: Any]) {
             appendTypeError(key: "visibleWhen", expected: "a dictionary", location: location, into: &diagnostics)
         }
-        optionalEnumString(
-            "valueAvailability",
-            values: Set(PartPackageProperty.ValueAvailability.allCases.map(\.rawValue)),
-            in: property,
-            location: location,
-            into: &diagnostics
-        )
-        if property["valueAvailability"] as? String == PartPackageProperty.ValueAvailability.whenVisible.rawValue,
+        optionalBoolean("outputWhenHidden", in: property, location: location, into: &diagnostics)
+        if property["outputWhenHidden"] as? Bool == false,
            property["visibleWhen"] == nil {
             diagnostics.append(.init(
                 severity: .error,
-                location: "\(location).valueAvailability",
-                message: "valueAvailability 'whenVisible' requires visibleWhen."
+                location: "\(location).outputWhenHidden",
+                message: "outputWhenHidden false requires visibleWhen."
             ))
         }
         validateDictionaryArray(property["options"], key: "options", parent: location, into: &diagnostics)
@@ -465,8 +539,8 @@ nonisolated enum PartPackageManifestSchema {
         if controlGroup["colourSections"] != nil, !["background", "foreground"].contains(controlGroup["type"] as? String ?? "") {
             diagnostics.append(.init(severity: .error, location: location + ".colourSections", message: "colourSections applies to background and foreground control groups. Links always use link colours."))
         }
-        if let sections = controlGroup["colourSections"] as? [String], sections.contains(where: { !PartColourToken.sectionIDs.contains($0) }) {
-            diagnostics.append(.init(severity: .error, location: location + ".colourSections", message: "Unknown colour section. Use blackWhite, surfaces, foregrounds, borders, links or shadow."))
+        if let sections = controlGroup["colourSections"] as? [String], sections.contains(where: { !PartColourToken.pickerSectionIDs.contains($0) }) {
+            diagnostics.append(.init(severity: .error, location: location + ".colourSections", message: "Unknown colour section. Use themes, blackWhite, surfaces, foregrounds, borders, links or shadow."))
         }
         if let visibleWhen = controlGroup["visibleWhen"] as? [String: Any] {
             unknownKeys(in: visibleWhen, allowed: visibleWhenKeys, location: "\(location).visibleWhen", into: &diagnostics)
@@ -675,7 +749,7 @@ nonisolated enum PartPackageManifestSchema {
             if name != "base" && property["type"] as? String == "image" {
                 diagnostics.append(.init(severity: .error, location: location + ".defaults." + name, message: "Image asset defaults support base only; responsive applies to focal points."))
             }
-            if name != "base", property["type"] as? String == "frameworkFont", property["showsFamily"] as? Bool == false {
+            if name != "base", property["type"] as? String == "themeFont", property["showsFamily"] as? Bool == false {
                 let baseFamily = (defaults["base"] as? [String: Any])?["family"] as? String ?? defaults["base"] as? String
                 let family = (value as? [String: Any])?["family"] as? String ?? value as? String
                 if family != baseFamily {
@@ -746,7 +820,7 @@ nonisolated enum PartPackageManifestSchema {
         }
         if type == .collection {
             let allowed: Set<String> = [
-                "type", "id", "label", "subtitle", "default", "tooltip", "visibleWhen", "valueAvailability",
+                "type", "id", "label", "subtitle", "default", "tooltip", "visibleWhen", "outputWhenHidden",
                 "controls", "itemLabel"
             ]
             unknownKeys(in: property, allowed: allowed, location: location, into: &diagnostics)
@@ -797,23 +871,23 @@ nonisolated enum PartPackageManifestSchema {
             }
             return
         }
-        if (type == .frameworkSpacing || type == .frameworkPadding || type == .frameworkMargin || type == .frameworkRadius || type == .borderSides) {
-            var allowed: Set<String> = ["type", "id", "label", "subtitle", "default", "responsive", "tooltip", "visibleWhen", "valueAvailability"]
+        if (type == .themeSpacing || type == .themePadding || type == .themeMargin || type == .themeRadius || type == .borderSides) {
+            var allowed: Set<String> = ["type", "id", "label", "subtitle", "default", "responsive", "tooltip", "visibleWhen", "outputWhenHidden"]
             // Only the single-value control renders one declaration, so only
             // it can name the CSS its `none` token emits.
-            if type == .frameworkSpacing { allowed.insert("noneValue") }
+            if type == .themeSpacing { allowed.insert("noneValue") }
             unknownKeys(in: property, allowed: allowed, location: location, into: &diagnostics)
-            if type != .frameworkSpacing, property["noneValue"] != nil {
+            if type != .themeSpacing, property["noneValue"] != nil {
                 diagnostics.append(.init(
                     severity: .error,
                     location: "\(location).noneValue",
-                    message: "Only a frameworkSpacing control accepts noneValue."
+                    message: "Only a themeSpacing control accepts noneValue."
                 ))
             }
             optionalString("noneValue", in: property, location: location, into: &diagnostics)
         }
         if type == .edges || type == .corners {
-            let allowed: Set<String> = ["type", "id", "label", "subtitle", "default", "responsive", "tooltip", "visibleWhen", "valueAvailability", "units", "linked"]
+            let allowed: Set<String> = ["type", "id", "label", "subtitle", "default", "responsive", "tooltip", "visibleWhen", "outputWhenHidden", "units", "linked"]
             unknownKeys(in: property, allowed: allowed, location: location, into: &diagnostics)
             optionalBoolean("linked", in: property, location: location, into: &diagnostics)
             if let units = property["units"] {
@@ -829,7 +903,7 @@ nonisolated enum PartPackageManifestSchema {
                 }
             }
         }
-        if type == .frameworkFont {
+        if type == .themeFont {
             for key in ["showsFamily", "showsWeight", "showsStyle", "showsSize"] {
                 optionalBoolean(key, in: property, location: location, into: &diagnostics)
             }
@@ -840,42 +914,52 @@ nonisolated enum PartPackageManifestSchema {
                 if fields["style"] != nil { requireString("style", in: fields, location: "\(location).default", into: &diagnostics) }
                 if fields["size"] != nil { requireString("size", in: fields, location: "\(location).default", into: &diagnostics) }
             }
-            for key in ["count", "frameworkValues", "options", "allowsCustom"] where property[key] != nil {
-                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A frameworkFont control does not accept \(key)."))
+            for key in ["count", "themeValues", "options", "allowsCustom"] where property[key] != nil {
+                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A themeFont control does not accept \(key)."))
             }
         }
-        if type == .frameworkFontSize {
-            for key in ["count", "frameworkValues", "options", "allowsCustom"] where property[key] != nil {
-                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A frameworkFontSize control does not accept \(key)."))
+        if type == .themeFontSize {
+            for key in ["count", "themeValues", "options", "allowsCustom"] where property[key] != nil {
+                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A themeFontSize control does not accept \(key)."))
             }
         }
-        if type == .themeColor {
-            for key in ["count", "frameworkValues", "options", "allowsCustom", "opacity", "outputFormat"] where property[key] != nil {
-                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A themeColor control does not accept \(key)."))
+        if property["colourSections"] != nil {
+            optionalStringArray("colourSections", in: property, location: location, into: &diagnostics)
+            if type != .themeColors {
+                diagnostics.append(.init(severity: .error, location: "\(location).colourSections", message: "colourSections applies only to themeColors controls."))
+            }
+            if let sections = property["colourSections"] as? [String],
+               sections.contains(where: { !PartColourToken.pickerSectionIDs.contains($0) }) {
+                diagnostics.append(.init(severity: .error, location: "\(location).colourSections", message: "Unknown colour section. Use themes, blackWhite, surfaces, foregrounds, borders, links or shadow."))
+            }
+        }
+        if type == .themeColors {
+            for key in ["count", "themeValues", "options", "allowsCustom", "opacity", "outputFormat"] where property[key] != nil {
+                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A themeColors control does not accept \(key)."))
             }
             if property["responsive"] as? Bool == true {
-                diagnostics.append(.init(severity: .error, location: "\(location).responsive", message: "A themeColor control is not responsive."))
+                diagnostics.append(.init(severity: .error, location: "\(location).responsive", message: "A themeColors control is not responsive."))
             }
         }
-        if type == .frameworkStackingOrder {
-            for key in ["count", "frameworkValues", "options", "allowsCustom"] where property[key] != nil {
-                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A frameworkStackingOrder control does not accept \(key)."))
+        if type == .themeStackingOrder {
+            for key in ["count", "themeValues", "options", "allowsCustom"] where property[key] != nil {
+                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A themeStackingOrder control does not accept \(key)."))
             }
         }
         if type == .pageFolder {
-            for key in ["count", "frameworkValues", "options", "allowsCustom"] where property[key] != nil {
+            for key in ["count", "themeValues", "options", "allowsCustom"] where property[key] != nil {
                 diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A pageFolder control does not accept \(key)."))
             }
         }
-        if type == .frameworkBorder {
-            unknownKeys(in: property, allowed: ["type", "id", "label", "subtitle", "default", "responsive", "tooltip", "visibleWhen", "valueAvailability", "showsStyle"], location: location, into: &diagnostics)
+        if type == .themeBorder {
+            unknownKeys(in: property, allowed: ["type", "id", "label", "subtitle", "default", "responsive", "tooltip", "visibleWhen", "outputWhenHidden", "showsStyle"], location: location, into: &diagnostics)
             for key in ["showsStyle"] {
                 optionalBoolean(key, in: property, location: location, into: &diagnostics)
             }
         }
         if type == .fontWeight || type == .fontStyle {
-            diagnostics.append(.init(severity: .error, location: "\(location).type", message: "Use one frameworkFont control with showsWeight/showsStyle instead of separate font controls."))
-            for key in ["count", "options", "frameworkValues", "allowsCustom"] where property[key] != nil {
+            diagnostics.append(.init(severity: .error, location: "\(location).type", message: "Use one themeFont control with showsWeight/showsStyle instead of separate font controls."))
+            for key in ["count", "options", "themeValues", "allowsCustom"] where property[key] != nil {
                 diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A \(type.rawValue) control does not accept \(key)."))
             }
             if property["font"] != nil {
@@ -884,10 +968,10 @@ nonisolated enum PartPackageManifestSchema {
         } else if property["font"] != nil {
             diagnostics.append(.init(severity: .error, location: "\(location).font", message: "font is only supported by fontWeight and fontStyle controls."))
         }
-        if type != .frameworkFont {
+        if type != .themeFont {
             for key in ["showsFamily", "showsWeight", "showsStyle", "showsSize"] where property[key] != nil {
-                if type == .frameworkBorder && key == "showsStyle" { continue }
-                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "\(key) requires a frameworkFont control."))
+                if type == .themeBorder && key == "showsStyle" { continue }
+                diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "\(key) requires a themeFont control."))
             }
         }
         if type != .edges, type != .corners, property["linked"] != nil {
@@ -1099,11 +1183,11 @@ nonisolated enum PartPackageManifestSchema {
                 message: "A media control represents one named image or SVG; remove count and declare each property explicitly."
             ))
         }
-        if type == .frameworkShadow, property["count"] != nil {
+        if type == .themeShadow, property["count"] != nil {
             diagnostics.append(.init(
                 severity: .error,
                 location: "\(location).count",
-                message: "A frameworkShadow control cannot be a multi control; use its visual layer editor instead."
+                message: "A themeShadow control cannot be a multi control; use its visual layer editor instead."
             ))
         }
         if type == .video, property["count"] != nil {
@@ -1148,22 +1232,7 @@ nonisolated enum PartPackageManifestSchema {
         }
         optionalInteger("ticks", in: property, location: location, into: &diagnostics)
         validateSliderOptions(property, type: type, location: location, into: &diagnostics)
-        if type == .frameworkColor {
-            if let initial = property["default"] as? [String: Any] {
-                unknownKeys(in: initial, allowed: ["palette", "lightShade", "darkShade", "opacity"], location: "\(location).default", into: &diagnostics)
-                optionalNumber("opacity", in: initial, location: "\(location).default", into: &diagnostics)
-                optionalString("palette", in: initial, location: "\(location).default", into: &diagnostics)
-                if initial["palette"] == nil {
-                    appendMissing("palette", expected: "string", location: "\(location).default", into: &diagnostics)
-                }
-                for key in ["lightShade", "darkShade"] {
-                    optionalInteger(key, in: initial, location: "\(location).default", into: &diagnostics)
-                }
-            } else {
-                diagnostics.append(.init(severity: .error, location: "\(location).default", message: "A frameworkColor default must be a dictionary containing palette and optional lightShade/darkShade."))
-            }
-        }
-        for key in ["customColor", "operation"] { optionalString(key, in: property, location: location, into: &diagnostics) }
+        for key in ["operation"] { optionalString(key, in: property, location: location, into: &diagnostics) }
         optionalEnumString("selectionMode", values: ["multiple", "single"], in: property, location: location, into: &diagnostics)
         optionalEnumString(
             "outputFormat",
@@ -1173,9 +1242,8 @@ nonisolated enum PartPackageManifestSchema {
             into: &diagnostics
         )
         for key in ["default", "trueValue", "falseValue", "argument1", "argument2"] {
-            if key == "default" && type == .frameworkColor { continue }
-            if key == "default" && (type == .frameworkSpacing || type == .frameworkPadding || type == .frameworkMargin || type == .frameworkBorder || type == .borderSides || type == .frameworkRadius || type == .edges || type == .corners) { continue }
-            if key == "default" && type == .frameworkFont && property[key] is [String: Any] { continue }
+            if key == "default" && (type == .themeSpacing || type == .themePadding || type == .themeMargin || type == .themeBorder || type == .borderSides || type == .themeRadius || type == .edges || type == .corners) { continue }
+            if key == "default" && type == .themeFont && property[key] is [String: Any] { continue }
             optionalPartValue(key, in: property, location: location, into: &diagnostics)
         }
 
@@ -1512,9 +1580,9 @@ nonisolated enum PartPackageManifestSchema {
     ) {
         for key in dictionary.keys where !allowed.contains(key) {
             diagnostics.append(.init(
-                severity: .error,
+                severity: .warning,
                 location: "\(location):\(key)",
-                message: "Unknown key '\(key)'. Check the spelling or remove it."
+                message: "Unknown key '\(key)'; this setting was ignored. Check the spelling."
             ))
         }
     }

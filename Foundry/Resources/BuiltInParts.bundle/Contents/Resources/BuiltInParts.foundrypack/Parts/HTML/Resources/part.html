@@ -1,1 +1,1 @@
-{{ if canvas }}<div class="{{ part.class }} {{ control.prose.classes }}" {{ part.attributes }}>{{ else }}{{ if control.prose.classes }}<div class="{{ part.class }} {{ control.prose.classes }}" {{ part.attributes }}>{{ endif }}{{ endif }}{{ html("content") }}{{ if canvas }}</div>{{ else }}{{ if control.prose.classes }}</div>{{ endif }}{{ endif }}
+{{ if canvas }}<div class="{{ part.class }}" {{ part.attributes }}>{{ endif }}{{ html("content") }}{{ if canvas }}</div>{{ endif }}

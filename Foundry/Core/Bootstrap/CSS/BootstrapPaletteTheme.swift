@@ -54,18 +54,18 @@ nonisolated enum BootstrapPaletteTheme {
         return result
     }
 
-    static func selectablePalettes(in framework: Framework) -> [ColourPalette] {
-        framework.colourPalettes.filter { nativeRole($0) != nil }
+    static func selectablePalettes(in theme: Theme) -> [ColourPalette] {
+        theme.colourPalettes.filter { nativeRole($0) != nil }
     }
 
-    static func effectivePalette(_ selection: String, in framework: Framework) -> ColourPalette? {
-        selectablePalettes(in: framework).resolvedPalette(id: paletteID(selection))
+    static func effectivePalette(_ selection: String, in theme: Theme) -> ColourPalette? {
+        selectablePalettes(in: theme).resolvedPalette(id: paletteID(selection))
     }
 
-    static func resolve(_ selection: String, framework: Framework) -> String {
+    static func resolve(_ selection: String, theme: Theme) -> String {
         if selection == "inherit" { return "" }
         if PartColourToken.parse(selection) != nil { return selection }
-        guard let palette = framework.colourPalettes.resolvedPalette(id: paletteID(selection)),
+        guard let palette = theme.colourPalettes.resolvedPalette(id: paletteID(selection)),
               let role = nativeRole(palette) else { return "theme-reset" }
         return "theme-" + role
     }

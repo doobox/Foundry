@@ -545,7 +545,6 @@ struct PagesOutlineView: NSViewRepresentable {
                     order: page.order,
                     isHome: page.slug == "index",
                     isTopLevelPage: page.folderID == nil && page.parentPageID == nil,
-                    isPlayground: page.isDeveloperPlayground,
                     publishingChange: parent.publishingChanges[page.id]
                 )
                 item.children = (pagesByPage[page.id] ?? [])
@@ -741,7 +740,6 @@ private final class PageOutlineItem: NSObject {
     let isHome: Bool
     let isTopLevelPage: Bool
     /// The developer's Controls page, drawn with a tool rather than a document.
-    let isPlayground: Bool
     let isImageAsset: Bool
     let isVideoAsset: Bool
     var publishingChange: PublishingChange?
@@ -764,7 +762,7 @@ private final class PageOutlineItem: NSObject {
     }
     var systemImage: String {
         switch kind {
-        case .page: isHome ? "house" : isPlayground ? "hammer" : "doc"
+        case .page: isHome ? "house" : "doc"
         case .folder: "folder"
         case .asset: isImageAsset ? "photo" : "doc.richtext"
         }
@@ -776,7 +774,6 @@ private final class PageOutlineItem: NSObject {
         order: Int,
         isHome: Bool = false,
         isTopLevelPage: Bool = false,
-        isPlayground: Bool = false,
         isImageAsset: Bool = false,
         isVideoAsset: Bool = false,
         publishingChange: PublishingChange? = nil
@@ -786,7 +783,6 @@ private final class PageOutlineItem: NSObject {
         self.order = order
         self.isHome = isHome
         self.isTopLevelPage = isTopLevelPage
-        self.isPlayground = isPlayground
         self.isImageAsset = isImageAsset
         self.isVideoAsset = isVideoAsset
         self.publishingChange = publishingChange

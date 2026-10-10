@@ -182,7 +182,7 @@
       }
     },
     {
-      "type": "themeColor",
+      "type": "themeColors",
       "id": "theme",
       "label": "Colour",
       "defaults": {

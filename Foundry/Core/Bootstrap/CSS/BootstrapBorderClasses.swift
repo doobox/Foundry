@@ -1,9 +1,9 @@
 import Foundation
 
 nonisolated enum BootstrapBorderClasses {
-    static func defaultValue(_ raw: PartPackageValue) -> FrameworkBorderWidthValue? {
-        var result = FrameworkBorderWidthValue()
-        func edge(_ raw: PartPackageValue) -> FrameworkBorderWidthValue.EdgeValue? {
+    static func defaultValue(_ raw: PartPackageValue) -> ThemeBorderWidthValue? {
+        var result = ThemeBorderWidthValue()
+        func edge(_ raw: PartPackageValue) -> ThemeBorderWidthValue.EdgeValue? {
             guard case .string(let token) = raw, ["none", "0", "1"].contains(token) else { return nil }
             return .init(token: token)
         }
@@ -13,15 +13,15 @@ nonisolated enum BootstrapBorderClasses {
         }
         guard case .object(let fields) = raw, Set(fields.keys) == ["top", "bottom", "left", "right"] else { return nil }
         result.unlinkAll()
-        for side in FrameworkBorderWidthValue.Edge.allCases {
+        for side in ThemeBorderWidthValue.Edge.allCases {
             guard let rawValue = fields[side.key], let value = edge(rawValue) else { return nil }
             result.set(value, for: side)
         }
         return result
     }
 
-    static func sides(_ value: FrameworkBorderWidthValue) -> String {
-        func token(_ edge: FrameworkBorderWidthValue.Edge) -> String? {
+    static func sides(_ value: ThemeBorderWidthValue) -> String {
+        func token(_ edge: ThemeBorderWidthValue.Edge) -> String? {
             let item = value.value(for: edge)
             return !item.isCustom && ["0", "1"].contains(item.token) ? item.token : nil
         }

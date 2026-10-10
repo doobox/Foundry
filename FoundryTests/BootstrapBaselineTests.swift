@@ -59,7 +59,7 @@ struct BootstrapBaselineTests {
         outer.children = [inner]
         let page = Page(title: "Bootstrap", slug: "index", parts: [outer])
         let site = Site(name: "Bootstrap", pages: [page])
-        let canvas = HTMLPageRenderer().render(page: page, framework: site.framework)
+        let canvas = HTMLPageRenderer().render(page: page, theme: site.theme)
         #expect(canvas.contains("data-foundry-parent=\"\(inner.id.uuidString)\""))
         #expect(canvas.contains("data-foundry-id=\"\(button.id.uuidString)\""))
         #expect(canvas.contains("Foundry CSS 1") == false)
@@ -81,7 +81,7 @@ struct BootstrapBaselineTests {
             // A default Button inherits any enclosing theme, so it carries no theme class of its own.
             #expect(body.contains("btn btn-solid"))
             #expect(body.contains("theme-") == false)
-            #expect(body.contains(BootstrapLayout.containerClass(width, screens: site.framework.screens)))
+            #expect(body.contains(BootstrapLayout.containerClass(width, screens: site.theme.screens)))
             let css = bundle.files.filter { $0.path.hasSuffix(".css") }.map(\.contents).joined()
             #expect(css.contains("Foundry CSS 1") == false)
             #expect(css.contains("--foundry-font-body:") == false)
@@ -96,7 +96,7 @@ struct BootstrapBaselineTests {
         let container = PartNode.make(.container)
         let page = Page(title: "Empty", slug: "index", parts: [container])
         let site = Site(name: "Empty", pages: [page])
-        let canvas = HTMLPageRenderer().render(page: page, framework: site.framework)
+        let canvas = HTMLPageRenderer().render(page: page, theme: site.theme)
         #expect(canvas.contains("data-foundry-empty-parent=\"\(container.id.uuidString)\""))
         let html = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
         #expect(html.contains("foundry-empty-drop-zone") == false)

@@ -1,7 +1,7 @@
 import SwiftUI
 
 /// A row of clickable colour swatches with a label under each.
-/// Shared by the theme, hue-scale and token colour rows in the framework editor.
+/// Shared by the theme, hue-scale and token colour rows in the theme editor.
 struct ColourSwatchStrip: View {
     struct Swatch: Identifiable {
         let id: String

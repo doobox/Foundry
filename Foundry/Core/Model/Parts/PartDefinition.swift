@@ -177,13 +177,14 @@ nonisolated struct PartPropertyDefinition: Identifiable, Sendable {
     let isResponsive: Bool
     let isInspectorVisible: Bool
     let visibleWhen: PartPackageVisibilityCondition?
-    var valueAvailability: PartPackageProperty.ValueAvailability
-    let frameworkValueSource: PartPackageFrameworkValueSource?
-    let allowsCustomFrameworkValue: Bool
+    var outputWhenHidden: Bool
+    let themeValueSource: PartPackageThemeValueSource?
+    let allowsCustomThemeValue: Bool
     let supportsImageFocalPoint: Bool
     let dateMinimum: Date?
     let dateMaximum: Date?
     let presentation: PartPackageControl.ControlPresentation?
+    let colourSections: [String]
 
     var id: PartProperty.Key { key }
 
@@ -197,13 +198,14 @@ nonisolated struct PartPropertyDefinition: Identifiable, Sendable {
         isResponsive: Bool? = nil,
         isInspectorVisible: Bool = true,
         visibleWhen: PartPackageVisibilityCondition? = nil,
-        valueAvailability: PartPackageProperty.ValueAvailability = .always,
-        frameworkValueSource: PartPackageFrameworkValueSource? = nil,
-        allowsCustomFrameworkValue: Bool = false,
+        outputWhenHidden: Bool = true,
+        themeValueSource: PartPackageThemeValueSource? = nil,
+        allowsCustomThemeValue: Bool = false,
         supportsImageFocalPoint: Bool = false,
         dateMinimum: Date? = nil,
         dateMaximum: Date? = nil,
-        presentation: PartPackageControl.ControlPresentation? = nil
+        presentation: PartPackageControl.ControlPresentation? = nil,
+        colourSections: [String] = ["themes"]
     ) {
         self.key = key
         self.label = label
@@ -214,13 +216,14 @@ nonisolated struct PartPropertyDefinition: Identifiable, Sendable {
         self.isResponsive = isResponsive ?? Self.builtInResponsiveKeys.contains(key)
         self.isInspectorVisible = isInspectorVisible
         self.visibleWhen = visibleWhen
-        self.valueAvailability = valueAvailability
-        self.frameworkValueSource = frameworkValueSource
-        self.allowsCustomFrameworkValue = allowsCustomFrameworkValue
+        self.outputWhenHidden = outputWhenHidden
+        self.themeValueSource = themeValueSource
+        self.allowsCustomThemeValue = allowsCustomThemeValue
         self.supportsImageFocalPoint = supportsImageFocalPoint
         self.dateMinimum = dateMinimum
         self.dateMaximum = dateMaximum
         self.presentation = presentation
+        self.colourSections = colourSections
     }
 
     private static let builtInResponsiveKeys: Set<PartProperty.Key> = [
@@ -263,23 +266,17 @@ nonisolated enum PartPropertyControl: Sendable {
     case colorWithOpacity
     case literalColor(allowsOpacity: Bool)
     case icon
-    case packageColor(
-        frameworkValues: Bool,
-        opacity: Bool,
-        initialLightShade: ColourShade? = nil,
-        initialDarkShade: ColourShade? = nil
-    )
     case choice([PartPropertyChoice])
-    case themeColor
-    case frameworkFontSize
-    case frameworkStackingOrder
+    case themeColors
+    case themeFontSize
+    case themeStackingOrder
     case pageFolder
-    case frameworkFont
-    case frameworkBorderWidth
-    case frameworkRadius
-    case frameworkMargin
-    case frameworkSpacing
-    case frameworkPadding
+    case themeFont
+    case themeBorderWidth
+    case themeRadius
+    case themeMargin
+    case themeSpacing
+    case themePadding
     case edges(units: [String])
     case corners(units: [String])
     case fontWeight(font: String?)
@@ -294,8 +291,8 @@ nonisolated enum PartPropertyControl: Sendable {
     case video
     case collection(itemLabel: String, fields: [PartPropertyDefinition])
 
-    var isFrameworkFontSize: Bool {
-        if case .frameworkFontSize = self { true } else { false }
+    var isThemeFontSize: Bool {
+        if case .themeFontSize = self { true } else { false }
     }
 
     var isArray: Bool {
@@ -325,9 +322,9 @@ nonisolated struct PartPropertyChoice: Identifiable, Sendable {
 }
 
 extension PartPropertyControl {
-    nonisolated var isFrameworkSpacing: Bool {
+    nonisolated var isThemeSpacing: Bool {
         switch self {
-        case .frameworkSpacing, .frameworkPadding, .frameworkMargin, .frameworkBorderWidth, .frameworkRadius, .edges, .corners: true
+        case .themeSpacing, .themePadding, .themeMargin, .themeBorderWidth, .themeRadius, .edges, .corners: true
         default: false
         }
     }

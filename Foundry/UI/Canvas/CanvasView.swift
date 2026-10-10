@@ -42,7 +42,7 @@ struct CanvasView: View {
     let site: Site
     let page: Page?
     let language: String
-    let framework: Framework
+    let theme: Theme
     let assets: ProjectAssetContents
     let assetRevision: UInt64
     let mutationEvent: ProjectMutationEvent
@@ -128,13 +128,16 @@ struct CanvasView: View {
                                         )
                                         .id(enablesCanvasWebInspector)
                                         .frame(width: viewportWidth, height: logicalHeight)
-                                        .background(Color(hex: page.backgroundColour(framework: framework, appearance: appearance)) ?? .white)
+                                        .background(Color(hex: page.backgroundColour(theme: theme, appearance: appearance)) ?? .white)
                                         .shadow(color: .black.opacity(0.12), radius: 12, y: 4)
                                         .scaleEffect(scale, anchor: .top)
                                     } else {
+                                        // Keep the native spinner out of the page's fractional
+                                        // zoom transform. Only its surrounding space is scaled.
                                         ProgressView()
-                                            .frame(width: viewportWidth, height: logicalHeight)
-                                            .scaleEffect(scale, anchor: .top)
+                                            .controlSize(.regular)
+                                            .fixedSize()
+                                            .frame(width: viewportWidth * scale, height: logicalHeight * scale)
                                     }
                                 }
                                 .frame(
@@ -206,8 +209,10 @@ struct CanvasView: View {
     }
 
     private var renderRequestID: CanvasRenderRequestID? {
-        guard let page else { return nil }
-        let breakpoint = ResponsiveBreakpoint.forViewportWidth(viewportWidth, screens: framework.screens)
+        // A loading screen alone does not stop the view's task. Do not render
+        // an incomplete catalogue into temporary "Missing part" placeholders.
+        guard isPartCatalogReady, let page else { return nil }
+        let breakpoint = ResponsiveBreakpoint.forViewportWidth(viewportWidth, screens: theme.screens)
         return CanvasRenderRequestID(
             pageID: page.id,
             mutationRevision: mutationEvent.revision,
@@ -235,7 +240,7 @@ struct CanvasView: View {
             renderer: renderer,
             page: page,
             language: language,
-            framework: framework,
+            theme: theme,
             assets: assets,
             breakpoint: requestID.breakpoint,
             impact: mutationEvent.impact,
@@ -254,7 +259,7 @@ struct CanvasView: View {
         let renderTask = Task.detached(priority: .userInitiated) { () -> (CanvasScene?, CanvasRenderResult)? in
             if let sceneRenderer {
                 guard let update = try? CanvasScene.render(renderer: sceneRenderer, page: page,
-                    language: snapshot.language, framework: snapshot.framework, assets: snapshot.assets,
+                    language: snapshot.language, theme: snapshot.theme, assets: snapshot.assets,
                     breakpoint: snapshot.breakpoint, packageRevision: requestID.partPackageRevision,
                     previous: baseline, consecutiveImpact: consecutiveImpact) else { return nil }
                 return (update.scene, update.result)
@@ -409,7 +414,7 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
     let renderer: any PageRendering
     let page: Page
     let language: String
-    let framework: Framework
+    let theme: Theme
     let assets: ProjectAssetContents
     let breakpoint: ResponsiveBreakpoint
     let impact: ProjectMutationImpact
@@ -424,7 +429,7 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
            let subtree = renderer.renderSubtree(
                partID: partID,
                page: page,
-               framework: framework,
+               theme: theme,
                assets: assets,
                breakpoint: breakpoint
            ) {
@@ -433,7 +438,7 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
         let html = renderer.render(
             page: page,
             language: language,
-            framework: framework,
+            theme: theme,
             assets: assets,
             breakpoint: breakpoint
         )

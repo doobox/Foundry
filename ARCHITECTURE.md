@@ -7,8 +7,8 @@ Foundry is an independently designed native macOS visual website builder. Its ar
 1. **Presentation** — AppKit document-window, toolbar, split-view and detached-panel ownership hosting SwiftUI navigator, canvas, inspector and panel content. Views read document state and send edits through the editing layer.
 2. **Editing** — undo-aware commands and pure part-tree mutations. This is the only layer that intentionally changes project content.
 3. **Document** — macOS document lifecycle, content-type registration, JSON encoding, snapshots, coordinated reads/writes, dirty-state tracking, and autosave.
-4. **Domain model** — Codable value types for sites, pages, part trees, properties, and frameworks. It has no UI or WebKit dependencies.
-5. **Rendering** — renderer protocols and implementations that turn a page plus framework into preview/export artifacts.
+4. **Domain model** — Codable value types for sites, pages, part trees, properties, and themes. It has no UI or WebKit dependencies.
+5. **Rendering** — renderer protocols and implementations that turn a page plus theme into preview/export artifacts.
 6. **Canvas integration** — a narrow WKWebView adapter that displays renderer output. Browser-side selection and interaction can be added later without making WebKit the source of truth.
 
 Dependencies point inward: presentation and adapters depend on editing/domain contracts; the domain model does not depend on UI, WebKit, exporters, extensions, or legacy formats.
@@ -19,16 +19,16 @@ App source in `Foundry/` is split by layer. Xcode uses synchronized folders, so 
 
 - `App/` — app entry point and app-wide preferences.
 - `Core/` — everything that is not a view. No SwiftUI views live here.
-  - `Model/Site`, `Model/Parts`, `Model/Framework` — Codable domain values.
+  - `Model/Site`, `Model/Parts`, `Model/Theme` — Codable domain values.
   - `Document/` — document lifecycle, file types and validation.
   - `Editing/` — `ProjectEditor` and the undo-aware editing extensions. The only layer that changes project content.
   - `Bootstrap/Tokens` — Bootstrap 6 colour, layout, type and shadow token models. `Bootstrap/CSS` — the generated theme, colour, spacing and utility CSS, and control-group class mapping.
   - `PartPackages/Manifest`, `Templates`, `Resolvers` — part package loading and validation, the template language, and property/control-group resolvers.
   - `Rendering/Page`, `Rendering/Canvas`, `Rendering/Export` — page HTML, canvas scene and cache, static-site export and published output.
-  - `Libraries/` — packs, reusable parts, framework and site-kit libraries, updates.
+  - `Libraries/` — packs, reusable parts, theme and site-kit libraries, updates.
   - `Services/` — Google Fonts, remote/YouTube video, media import and thumbnails.
   - `Preview/`, `Publishing/` — local preview server and site publishing.
-- `UI/` — SwiftUI and AppKit presentation only, grouped by screen area: `App`, `Workspace`, `Canvas`, `Navigator`, `Inspector` (with `PartControls`), `Assets`, `Editors`, `Framework` (`Colours`, `Tokens`, `Fonts`, `Layout`), `ProjectSettings` and `Shared`.
+- `UI/` — SwiftUI and AppKit presentation only, grouped by screen area: `App`, `Workspace`, `Canvas`, `Navigator`, `Inspector` (with `PartControls`), `Assets`, `Editors`, `Theme` (`Colours`, `Tokens`, `Fonts`, `Layout`), `ProjectSettings` and `Shared`.
 - `Resources/`, `ControlGroups/`, `PHPRuntime/`, `Assets.xcassets` — bundled resources.
 
 Put new non-view types under `Core/` and new views under `UI/`. Keep one main type per file and name the file after it.
@@ -41,9 +41,17 @@ Workspace layout is user preference state stored separately from project documen
 
 ## Document model
 
+Reusable theme bundles use `ThemePreset` schema version 1: fixed Bootstrap colour
+palettes, body/heading/monospace fonts and supported built-in colour overrides only.
+`Theme` remains the resolved project styling model; it is not the bundle API.
+`ProjectThemeValues` owns breakpoint switches and custom additions across theme
+selection, reset, update and deletion. Preset comparison drives the Modified badge.
+Legacy full-model bundles are read through the preset boundary, but new writes and
+exports omit obsolete scales and project-owned settings. Bootstrap stays untouched.
+
 A project is a document package with the `.foundry` extension. Its JSON model remains pretty-printed with sorted keys for inspection, source control, and useful diffs, while managed project assets live alongside it in the package.
 
-Site is the root and contains a stable UUID, explicit schema version, publishing and site metadata, nested page/folder structure, framework tokens, reusable/global parts, project assets and installed part-package snapshots. Each Page has a stable UUID, title, slug, parent reference, metadata and ordered part forest. UUIDs are generated once at insertion and encoded. UI state such as selection, expansion and scroll position is not persisted.
+Site is the root and contains a stable UUID, explicit schema version, publishing and site metadata, nested page/folder structure, theme tokens, reusable/global parts, project assets and installed part-package snapshots. Each Page has a stable UUID, title, slug, parent reference, metadata and ordered part forest. UUIDs are generated once at insertion and encoded. UI state such as selection, expansion and scroll position is not persisted.
 
 Schema migrations run at the document boundary before decoded models reach the editor. Binary assets are represented by typed metadata in the domain model and data in the document package.
 
@@ -55,17 +63,17 @@ The current built-in library is itself packaged as Foundry parts: Container, Con
 
 PartType is a Codable namespaced identifier resolved through an internal PartRegistry rather than a closed enum. The registry supplies PartDefinition descriptors containing display metadata, defaults, Inspector schemas, child policy, inline-edit capability, and render dispatch. Legacy `container`, `text`, and `button` identifiers migrate during decoding. Unknown identifiers and their trees remain preserved and render as explicit unavailable-part placeholders.
 
-PartProperty uses a closed Codable key/value representation. This prevents untyped runtime values from leaking into documents. The public part boundary is a validated `.foundrypack` / `.foundrydevpack` bundle (format version 2): a pack-level `manifest.json` plus typed `Parts/`, `Templates/`, and `Frameworks/` directories, where each part carries its own `manifest.json`, developer-owned templates, inspector-control declarations, slots and assets. The loader adapts a valid manifest into the same PartDefinition descriptors consumed by the library, Inspector, interaction bridge and renderer. Unknown package identifiers and missing-package snapshots remain preserved in documents.
+PartProperty uses a closed Codable key/value representation. This prevents untyped runtime values from leaking into documents. The public part boundary is a validated `.foundrypack` / `.foundrydevpack` bundle (format version 2): a pack-level `manifest.json` plus typed `Parts/`, `Templates/`, and `Themes/` directories, where each part carries its own `manifest.json`, developer-owned templates, inspector-control declarations, slots and assets. The loader adapts a valid manifest into the same PartDefinition descriptors consumed by the library, Inspector, interaction bridge and renderer. Unknown package identifiers and missing-package snapshots remain preserved in documents.
 
-## Framework and design tokens
+## Theme and design tokens
 
-A Framework contains semantic colour roles, an extensible spacing scale, body/heading/monospaced and custom fonts, standard/custom type sizes with line heights, and configurable responsive screens and container widths.
+A Theme contains semantic colour roles, an extensible spacing scale, body/heading/monospaced and custom fonts, standard/custom type sizes with line heights, and configurable responsive screens and container widths.
 
-Parts refer to semantic intent rather than embedding HTML or CSS. Color and spacing properties may store either a fixed override or a typed DesignToken reference. Renderers resolve token references through the document Framework into their target format, while the dockable Framework panel edits those shared values through the same undoable document mutation path. Token schemas can expand with versioned migration while part identity and structure remain stable.
+Parts refer to semantic intent rather than embedding HTML or CSS. Color and spacing properties may store either a fixed override or a typed DesignToken reference. Renderers resolve token references through the document Theme into their target format, while the dockable Theme panel edits those shared values through the same undoable document mutation path. Token schemas can expand with versioned migration while part identity and structure remain stable.
 
 ## Swift-to-WKWebView boundary
 
-PageRendering is the Swift-side boundary. It accepts immutable site/page/framework snapshots and returns complete canvas or export artifacts including HTML, scoped styles, scripts, PHP and managed assets.
+PageRendering is the Swift-side boundary. It accepts immutable site/page/theme snapshots and returns complete canvas or export artifacts including HTML, scoped styles, scripts, PHP and managed assets.
 
 WebCanvasView loads the artifact into WKWebView and installs a Foundry-owned interaction script in an isolated WKContentWorld. Rendered parts carry stable `data-foundry-id` and `data-foundry-package` attributes. Canvas clicks, inline text/HTML edits, asset drops, deletions and drag placements cross the boundary as validated CanvasMessage values before becoming undo-aware Swift mutations. Part-authored JavaScript runs in the page world; the isolated editor bridge remains authoritative for document changes.
 

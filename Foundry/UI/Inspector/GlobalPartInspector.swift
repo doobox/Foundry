@@ -20,7 +20,7 @@ struct GlobalPartInspector: View {
     /// in light mode, matching the templates library's baked previews.
     private struct PreviewKey: Equatable {
         let definition: ReusablePartDefinition
-        let background: PartPackageColorValue?
+        let background: String?
     }
 
     private var previewKey: PreviewKey {

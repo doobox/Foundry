@@ -13,15 +13,12 @@
       }
     },
     {
-      "type": "frameworkColor",
+      "type": "color",
       "id": "backdropColor",
       "label": "Backdrop",
       "opacity": true,
       "defaults": {
-        "base": {
-          "palette": "standard.black",
-          "opacity": 0.5
-        }
+        "base": "#00000080"
       },
       "visibleWhen": {
         "id": "enabled",

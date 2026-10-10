@@ -52,7 +52,7 @@ struct CanvasSynchronizationTests {
             renderer: renderer,
             page: page,
             language: "en",
-            framework: .standard,
+            theme: .standard,
             assets: [:],
             breakpoint: .large,
             impact: .partStructure(ownerID: owner.id),
@@ -69,7 +69,7 @@ struct CanvasSynchronizationTests {
             renderer: renderer,
             page: page,
             language: "en",
-            framework: .standard,
+            theme: .standard,
             assets: [:],
             breakpoint: .large,
             impact: .partStructure(ownerID: nil),
@@ -153,7 +153,7 @@ private struct CanvasRenderSpy: PageRendering {
     func render(
         page: Page,
         language: String,
-        framework: Framework,
+        theme: Theme,
         assets: ProjectAssetContents,
         breakpoint: ResponsiveBreakpoint
     ) -> String {
@@ -163,7 +163,7 @@ private struct CanvasRenderSpy: PageRendering {
     func renderSubtree(
         partID: UUID,
         page: Page,
-        framework: Framework,
+        theme: Theme,
         assets: ProjectAssetContents,
         breakpoint: ResponsiveBreakpoint
     ) -> RenderedPartSubtree? {

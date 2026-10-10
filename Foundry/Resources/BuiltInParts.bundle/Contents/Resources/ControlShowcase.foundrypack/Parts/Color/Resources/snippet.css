@@ -1,2 +1,0 @@
-:instance .banner { padding: 24px; background: {{ control.textColor }}; }
-:instance .banner__title { margin: 0; color: {{ control.textColor.contrastColor }}; }

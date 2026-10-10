@@ -1,5 +1,0 @@
-{
-    "type" : "background",
-    "id" : "background",
-    "backgroundTypes": ["colour", "image", "gradient", "video"]
-}

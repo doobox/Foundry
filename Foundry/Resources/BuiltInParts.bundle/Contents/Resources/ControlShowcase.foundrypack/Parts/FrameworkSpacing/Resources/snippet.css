@@ -1,7 +1,0 @@
-:instance .tiles {
-    display: flex;
-    gap: {{ control.gap }};
-    margin: 0;
-    padding: 0;
-    list-style: none;
-}

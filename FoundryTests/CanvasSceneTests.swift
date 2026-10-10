@@ -11,14 +11,14 @@ struct CanvasSceneTests {
         var node = PartNode.make(.container)
         node.anchor = "responsive-spacing"
         let key = PartProperty.Key(rawValue: "spacing.margin")
-        var margin = FrameworkMarginValue()
+        var margin = ThemeMarginValue()
         margin.setAll(.init(token: "1"))
-        node.setProperty(key, value: .frameworkMargin(margin))
+        node.setProperty(key, value: .themeMargin(margin))
         margin.setAll(.init(token: "5"))
-        node.setResponsiveProperty(key, value: .frameworkMargin(margin), at: .medium)
+        node.setResponsiveProperty(key, value: .themeMargin(margin), at: .medium)
         var page = Page(title: "Spacing", slug: "index", parts: [node])
         func render(_ previous: CanvasScene?, impact: ProjectMutationImpact? = nil) throws -> (scene: CanvasScene, result: CanvasRenderResult) {
-            try CanvasScene.render(renderer: HTMLPageRenderer(), page: page, language: "en", framework: .standard,
+            try CanvasScene.render(renderer: HTMLPageRenderer(), page: page, language: "en", theme: .standard,
                 assets: [:], breakpoint: .medium, packageRevision: 0, previous: previous, consecutiveImpact: impact)
         }
         let initial = try render(nil)
@@ -44,7 +44,7 @@ struct CanvasSceneTests {
         for (index, token) in ["12", "1"].enumerated() {
             if index == 0 {
                 margin.setAll(.init(token: token))
-                page.parts[0].setResponsiveProperty(key, value: .frameworkMargin(margin), at: .medium)
+                page.parts[0].setResponsiveProperty(key, value: .themeMargin(margin), at: .medium)
             } else {
                 page.parts[0].removeResponsiveOverride(key, at: .medium)
             }
@@ -89,12 +89,12 @@ struct CanvasSceneTests {
         parent.children = (0..<count).map { _ in PartNode.make(type) }
         var page = Page(title: "Test", slug: "index", parts: [parent])
         func render(_ previous: CanvasScene?, impact: ProjectMutationImpact? = nil) throws -> (scene: CanvasScene, result: CanvasRenderResult) {
-            try CanvasScene.render(renderer: HTMLPageRenderer(), page: page, language: "en", framework: .standard,
+            try CanvasScene.render(renderer: HTMLPageRenderer(), page: page, language: "en", theme: .standard,
                 assets: [:], breakpoint: .mobile, packageRevision: 0, previous: previous, consecutiveImpact: impact)
         }
         let initial = try render(nil)
         #expect(initial.result == .page(HTMLPageRenderer().render(page: page, language: "en",
-            framework: .standard, assets: [:], breakpoint: .mobile)))
+            theme: .standard, assets: [:], breakpoint: .mobile)))
         page.parts[0].setProperty(.init(rawValue: "width"), value: .number(200))
         let changed = try render(initial.scene, impact: .partProperty(partID: parent.id, propertyKey: .init(rawValue: "width")))
         #expect(changed.scene.renderedInstanceCount == 1)
@@ -124,7 +124,7 @@ struct CanvasSceneTests {
         node.children = [PartNode.make(node.type)]
         let page = Page(title: "Test", slug: "index", parts: [node])
         func render(_ breakpoint: ResponsiveBreakpoint, _ previous: CanvasScene?) throws -> (scene: CanvasScene, result: CanvasRenderResult) {
-            try CanvasScene.render(renderer: HTMLPageRenderer(), page: page, language: "en", framework: .standard,
+            try CanvasScene.render(renderer: HTMLPageRenderer(), page: page, language: "en", theme: .standard,
                 assets: [:], breakpoint: breakpoint, packageRevision: 0, previous: previous)
         }
         let mobile = try render(.mobile, nil)
@@ -148,7 +148,7 @@ struct CanvasSceneTests {
         }
         for root in page.parts {
             let fresh = try #require(HTMLPageRenderer().renderSubtree(partID: root.id, page: page,
-                framework: .standard, assets: [:], breakpoint: breakpoint), sourceLocation: sourceLocation)
+                theme: .standard, assets: [:], breakpoint: breakpoint), sourceLocation: sourceLocation)
             #expect(try materialize(root.id) == fresh.html, sourceLocation: sourceLocation)
         }
     }
@@ -165,7 +165,7 @@ struct CanvasSceneTests {
         var previous: CanvasScene?
         func render(_ breakpoint: ResponsiveBreakpoint) throws -> CanvasRenderResult {
             let rendered = try CanvasScene.render(renderer: HTMLPageRenderer(), page: page, language: "en",
-                framework: .standard, assets: [:], breakpoint: breakpoint, packageRevision: 0, previous: previous)
+                theme: .standard, assets: [:], breakpoint: breakpoint, packageRevision: 0, previous: previous)
             previous = rendered.scene
             return rendered.result
         }
@@ -208,7 +208,7 @@ struct CanvasSceneTests {
                     "styleMoves": update.styleMoves, "childMoves": update.childMoves],
                 in: nil, contentWorld: .defaultClient)
             try #require(applied as? Bool == true)
-            let fresh = HTMLPageRenderer().render(page: page, language: "en", framework: .standard,
+            let fresh = HTMLPageRenderer().render(page: page, language: "en", theme: .standard,
                 assets: [:], breakpoint: breakpoint)
             let equivalent = try await web.callAsyncJavaScript("""
                 const expected = new DOMParser().parseFromString(fresh, 'text/html');

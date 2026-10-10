@@ -64,7 +64,8 @@
           "id": "foreground",
           "colourSections": [
             "foregrounds",
-            "blackWhite"
+            "blackWhite",
+            "themes"
           ]
         }
       ]

@@ -20,7 +20,7 @@ struct BackgroundFocalPointTests {
                          value: .array([.number(20), .number(35)]))
         let site = Site(name: "Background", pages: [Page(title: "Home", slug: "index", parts: [part])])
 
-        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
         #expect(canvas.contains("background-position: 20% 35%"))
         let exported = StaticSiteRenderer().render(site: site).files.map(\.contents).joined()
         #expect(exported.contains("background-position: 20% 35%"))

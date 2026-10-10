@@ -228,7 +228,7 @@ nonisolated enum PartNavigationTemplateValues {
             .filter(\.includeInNavigation)
             .map { item($0, depth: 0, visited: []) }
         let current = item(currentPage, depth: 0, visited: [])
-        let pageItems = site.pages.filter { !$0.isDeveloperPlayground }.map { item($0, depth: 0, visited: []) }
+        let pageItems = site.pages.map { item($0, depth: 0, visited: []) }
         let publishedAssets = site.assets.compactMap { asset -> PartPackageValue? in
             guard asset.exportDirectory != nil else { return nil }
             return assetValue(asset, site: site)
@@ -252,7 +252,7 @@ nonisolated enum PartNavigationTemplateValues {
         }
         if let previous { result["navigation.previous"] = item(previous, depth: 0, visited: []) }
         if let next { result["navigation.next"] = item(next, depth: 0, visited: []) }
-        return result.merging(PartBreakpointTemplateValues.values(screens: site.framework.screens)) { current, _ in current }
+        return result.merging(PartBreakpointTemplateValues.values(screens: site.theme.screens)) { current, _ in current }
     }
 
     private static func assetValue(_ asset: ProjectAsset, site: Site) -> PartPackageValue {

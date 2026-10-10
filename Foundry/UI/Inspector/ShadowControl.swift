@@ -7,7 +7,7 @@ enum ShadowControlPresentation {
 }
 
 struct InspectorShadowControl: View {
-    @Binding var layers: [FrameworkShadowLayer]
+    @Binding var layers: [ThemeShadowLayer]
 
     @State private var selectedLayerID: UUID?
 
@@ -61,15 +61,15 @@ struct InspectorShadowControl: View {
         }
     }
 
-    private var layerBinding: Binding<FrameworkShadowLayer>? {
+    private var layerBinding: Binding<ThemeShadowLayer>? {
         guard let id = selectedLayerID ?? layers.first?.id,
               let index = layers.firstIndex(where: { $0.id == id }) else { return nil }
         return $layers[index]
     }
 
     private func valueBinding<Value>(
-        _ layer: Binding<FrameworkShadowLayer>,
-        keyPath: WritableKeyPath<FrameworkShadowLayer, Value>
+        _ layer: Binding<ThemeShadowLayer>,
+        keyPath: WritableKeyPath<ThemeShadowLayer, Value>
     ) -> Binding<Value> {
         Binding(
             get: { layer.wrappedValue[keyPath: keyPath] },
@@ -104,7 +104,7 @@ struct InspectorShadowControl: View {
 
     private func addLayer() {
         guard layers.count < 3 else { return }
-        let layer = FrameworkShadowLayer(x: 0, y: 4, blur: 8, opacity: 0.15)
+        let layer = ThemeShadowLayer(x: 0, y: 4, blur: 8, opacity: 0.15)
         layers.append(layer)
         selectedLayerID = layer.id
     }
@@ -131,7 +131,7 @@ struct InspectorShadowControl: View {
 }
 
 struct ShadowControl: View {
-    @Binding var layers: [FrameworkShadowLayer]
+    @Binding var layers: [ThemeShadowLayer]
     let presentation: ShadowControlPresentation
 
     @State private var selectedLayerID: UUID?
@@ -179,7 +179,7 @@ struct ShadowControl: View {
         .accessibilityLabel("Shadow layer controls")
     }
 
-    private func cssLayerEditor(_ layer: Binding<FrameworkShadowLayer>) -> some View {
+    private func cssLayerEditor(_ layer: Binding<ThemeShadowLayer>) -> some View {
         HStack(spacing: 8) {
             Text("X Axis")
             cssNumberField(value: cssValueBinding(layer.x, range: -50...50), label: "X offset")
@@ -245,7 +245,7 @@ struct ShadowControl: View {
         layers = updatedLayers
     }
 
-    private var layerBinding: Binding<FrameworkShadowLayer>? {
+    private var layerBinding: Binding<ThemeShadowLayer>? {
         guard let id = selectedLayerID ?? layers.first?.id,
               let index = layers.firstIndex(where: { $0.id == id }) else { return nil }
         return $layers[index]
@@ -266,7 +266,7 @@ struct ShadowControl: View {
         )
     }
 
-    private func cssColorBinding(_ layer: Binding<FrameworkShadowLayer>) -> Binding<Color> {
+    private func cssColorBinding(_ layer: Binding<ThemeShadowLayer>) -> Binding<Color> {
         Binding(
             get: {
                 (Color(hex: layer.wrappedValue.color) ?? .black)
@@ -285,7 +285,7 @@ struct ShadowControl: View {
 
     private func addLayer() {
         guard layers.count < 3 else { return }
-        let layer = FrameworkShadowLayer(x: 0, y: 4, blur: 8, opacity: 0.15)
+        let layer = ThemeShadowLayer(x: 0, y: 4, blur: 8, opacity: 0.15)
         layers.append(layer)
         selectedLayerID = layer.id
     }
@@ -805,8 +805,8 @@ private struct CircularColorWell: NSViewRepresentable {
 }
 
 private struct ShadowPositionPad<LayerControls: View>: View {
-    let layers: [FrameworkShadowLayer]
-    @Binding var layer: FrameworkShadowLayer
+    let layers: [ThemeShadowLayer]
+    @Binding var layer: ThemeShadowLayer
     let isCompact: Bool
     let layerControls: LayerControls
 
@@ -821,8 +821,8 @@ private struct ShadowPositionPad<LayerControls: View>: View {
     private var logicalCanvasHeight: Double { logicalTileSide + logicalTopMargin + logicalBottomMargin }
 
     init(
-        layers: [FrameworkShadowLayer],
-        layer: Binding<FrameworkShadowLayer>,
+        layers: [ThemeShadowLayer],
+        layer: Binding<ThemeShadowLayer>,
         isCompact: Bool,
         @ViewBuilder layerControls: () -> LayerControls
     ) {
@@ -1036,7 +1036,7 @@ private enum ShadowPreviewAppearance: String, CaseIterable, Identifiable {
 }
 
 private struct ShadowCanvas: View {
-    let layers: [FrameworkShadowLayer]
+    let layers: [ThemeShadowLayer]
     let rect: CGRect
     let cornerRadius: Double
     let previewScale: Double
@@ -1090,7 +1090,7 @@ private struct ShadowCanvas: View {
         }
     }
 
-    private func shadowColor(for layer: FrameworkShadowLayer) -> Color {
+    private func shadowColor(for layer: ThemeShadowLayer) -> Color {
         (Color(hex: layer.color) ?? .black).opacity(layer.opacity)
     }
 

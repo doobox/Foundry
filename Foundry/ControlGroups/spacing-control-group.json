@@ -4,7 +4,7 @@
   "systemImage": "arrow.up.left.and.arrow.down.right",
   "controls": [
     {
-      "type": "frameworkMargin",
+      "type": "themeMargin",
       "id": "margin",
       "label": "Margin",
       "responsive": true,
@@ -13,7 +13,7 @@
       }
     },
     {
-      "type": "frameworkPadding",
+      "type": "themePadding",
       "id": "padding",
       "label": "Padding",
       "responsive": true,

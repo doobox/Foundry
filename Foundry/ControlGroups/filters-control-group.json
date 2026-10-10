@@ -431,7 +431,7 @@
     {
       "id": "filtersShadow",
       "label": "Drop shadow",
-      "type": "frameworkShadow",
+      "type": "themeShadow",
       "defaults": {
         "base": "none"
       },
@@ -456,7 +456,7 @@
           }
         ]
       },
-      "tooltip": "Uses the framework shadow's outer layers. Inset and spread do not apply to CSS drop shadows."
+      "tooltip": "Uses the theme shadow's outer layers. Inset and spread do not apply to CSS drop shadows."
     },
     {
       "id": "filtersHoverOpacity",
@@ -712,7 +712,7 @@
     {
       "id": "filtersHoverShadow",
       "label": "Drop shadow",
-      "type": "frameworkShadow",
+      "type": "themeShadow",
       "defaults": {
         "base": "none"
       },
@@ -729,7 +729,7 @@
           }
         ]
       },
-      "tooltip": "Uses the framework shadow's outer layers. Inset and spread do not apply to CSS drop shadows."
+      "tooltip": "Uses the theme shadow's outer layers. Inset and spread do not apply to CSS drop shadows."
     }
   ],
   "name": "Filters",

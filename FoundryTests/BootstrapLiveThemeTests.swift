@@ -14,22 +14,22 @@ struct BootstrapLiveThemeTests {
         let editor = ProjectEditor(document: document, undoManager: undo)
         undo.beginUndoGrouping()
         editor.addCustomSpacing()
-        let token = try #require(document.site.framework.spacing.custom.first)
+        let token = try #require(document.site.theme.spacing.custom.first)
         #expect(editor.renameCustomSpacing(token.id, name: "hero"))
         editor.setCustomSpacing(token.id, value: 2)
         undo.endUndoGrouping()
-        #expect(document.site.framework.spacing.custom.first?.value == 2)
-        let themeCSS = BootstrapThemeCSS.render(framework: document.site.framework)
+        #expect(document.site.theme.spacing.custom.first?.value == 2)
+        let themeCSS = BootstrapThemeCSS.render(theme: document.site.theme)
         #expect(themeCSS.contains("--bs-spacer-hero: 2.0rem"))
-        let data = try JSONEncoder().encode(document.site.framework)
+        let data = try JSONEncoder().encode(document.site.theme)
         let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         #expect(object["bootstrapBuild"] == nil)
-        let restored = try JSONDecoder().decode(Framework.self, from: data)
-        #expect(BootstrapThemeCSS.render(framework: restored) == themeCSS)
+        let restored = try JSONDecoder().decode(Theme.self, from: data)
+        #expect(BootstrapThemeCSS.render(theme: restored) == themeCSS)
         undo.undo()
-        #expect(document.site.framework.spacing.custom.isEmpty)
+        #expect(document.site.theme.spacing.custom.isEmpty)
         undo.redo()
-        #expect(document.site.framework.spacing.custom.first?.value == 2)
+        #expect(document.site.theme.spacing.custom.first?.value == 2)
 
         let view = WKWebView(frame: CGRect(x: 0, y: 0, width: 1000, height: 600))
         defer { view.stopLoading() }
@@ -50,7 +50,7 @@ struct BootstrapLiveThemeTests {
         undo.beginUndoGrouping()
         editor.setCustomSpacing(token.id, value: 3)
         undo.endUndoGrouping()
-        let updated = BootstrapThemeCSS.render(framework: document.site.framework)
+        let updated = BootstrapThemeCSS.render(theme: document.site.theme)
         let cssJSON = String(decoding: try JSONEncoder().encode(updated), as: UTF8.self)
         let result = try #require(try await view.evaluateJavaScript("""
             (() => {
@@ -76,83 +76,83 @@ struct BootstrapLiveThemeTests {
         #expect(Bundle.main.url(forResource: "BootstrapLayouts", withExtension: "bundle") == nil)
     }
 
-    @Test func invalidSpacersDoNotChangeTheFramework() {
+    @Test func invalidSpacersDoNotChangeTheTheme() {
         let document = FoundryDocument()
         let editor = ProjectEditor(document: document, undoManager: nil)
         editor.addCustomSpacing()
-        guard let token = document.site.framework.spacing.custom.first else { Issue.record("Missing custom size"); return }
+        guard let token = document.site.theme.spacing.custom.first else { Issue.record("Missing custom size"); return }
         for value in [-1, Double.infinity, Double.nan] {
             editor.setCustomSpacing(token.id, value: value)
-            #expect(document.site.framework.spacing.custom.first?.value == 4)
+            #expect(document.site.theme.spacing.custom.first?.value == 4)
         }
         for name in ["5", "auto", "none", "", "hero space", "hero;}"] {
             #expect(editor.renameCustomSpacing(token.id, name: name) == false)
         }
     }
 
-    @Test func defaultFrameworkStopsAtLarge() throws {
-        let framework = Framework.standard
-        #expect(BootstrapLayout.mask(for: framework.screens) == 7)
-        #expect(framework.screens.screen(.doubleExtraLarge).container.value == 960)
-        var enabled = framework
+    @Test func defaultThemeStopsAtLarge() throws {
+        let theme = Theme.standard
+        #expect(BootstrapLayout.mask(for: theme.screens) == 7)
+        #expect(theme.screens.screen(.doubleExtraLarge).container.value == 960)
+        var enabled = theme
         enabled.screens.update(.extraLarge) { $0.isEnabled = true }
         enabled.screens.update(.doubleExtraLarge) { $0.isEnabled = true }
-        let restored = try JSONDecoder().decode(Framework.self, from: JSONEncoder().encode(enabled))
+        let restored = try JSONDecoder().decode(Theme.self, from: JSONEncoder().encode(enabled))
         #expect(BootstrapLayout.mask(for: restored.screens) == 31)
         #expect(restored.screens.screen(.doubleExtraLarge).container.value == 1440)
     }
 
     @Test(arguments: Array(0..<32))
     func enabledSizesAndContainerWidthsStayConsistent(mask: Int) throws {
-        var framework = Framework.standard
+        var theme = Theme.standard
         for (index,id) in BootstrapLayout.ids.enumerated() {
-            framework.screens.update(id) { $0.isEnabled = mask & (1 << index) != 0 }
+            theme.screens.update(id) { $0.isEnabled = mask & (1 << index) != 0 }
         }
-        #expect(BootstrapLayout.mask(for: framework.screens) == mask)
-        #expect(framework.screens.enabledScreens.count == mask.nonzeroBitCount + 1)
-        var inherited = FrameworkContainerWidth(value: 0, unit: .auto)
+        #expect(BootstrapLayout.mask(for: theme.screens) == mask)
+        #expect(theme.screens.enabledScreens.count == mask.nonzeroBitCount + 1)
+        var inherited = ThemeContainerWidth(value: 0, unit: .auto)
         for (index,id) in BootstrapLayout.ids.enumerated() {
-            let screen = framework.screens.screen(id)
+            let screen = theme.screens.screen(id)
             if screen.isEnabled { inherited = ScreenTokens.standard.screen(id).container }
             #expect(screen.container == inherited)
             #expect(screen.minimumWidth == ScreenTokens.standard.screen(id).minimumWidth)
-            #expect(BootstrapLayout.allowsContainerClass(BootstrapLayout.classes[index], screens: framework.screens) == screen.isEnabled)
+            #expect(BootstrapLayout.allowsContainerClass(BootstrapLayout.classes[index], screens: theme.screens) == screen.isEnabled)
         }
         // Bootstrap's containers are capped only where a disabled breakpoint would otherwise widen them.
-        #expect(BootstrapUtilityExtensionsCSS.containerCSS(framework.screens).isEmpty == (mask == 31))
-        let decoded = try JSONDecoder().decode(Framework.self, from: JSONEncoder().encode(framework))
-        #expect(decoded.screens == framework.screens)
+        #expect(BootstrapUtilityExtensionsCSS.containerCSS(theme.screens).isEmpty == (mask == 31))
+        let decoded = try JSONDecoder().decode(Theme.self, from: JSONEncoder().encode(theme))
+        #expect(decoded.screens == theme.screens)
     }
 
     @Test func switchingUpdatesPreviewAndSupportsUndo() throws {
         let document = FoundryDocument()
-        document.site.framework.screens.update(.extraLarge) { $0.isEnabled = true }
-        document.site.framework.screens.update(.doubleExtraLarge) { $0.isEnabled = true }
+        document.site.theme.screens.update(.extraLarge) { $0.isEnabled = true }
+        document.site.theme.screens.update(.doubleExtraLarge) { $0.isEnabled = true }
         let undo = UndoManager()
         undo.groupsByEvent = false
         let editor = ProjectEditor(document: document, undoManager: undo)
-        let original = document.site.framework.screens
+        let original = document.site.theme.screens
         undo.beginUndoGrouping()
-        editor.setFrameworkScreenEnabled(.doubleExtraLarge, value: false)
-        editor.setFrameworkScreenEnabled(.extraLarge, value: false)
+        editor.setThemeScreenEnabled(.doubleExtraLarge, value: false)
+        editor.setThemeScreenEnabled(.extraLarge, value: false)
         undo.endUndoGrouping()
-        let screens = document.site.framework.screens
+        let screens = document.site.theme.screens
         #expect(screens.screen(.doubleExtraLarge).container.value == 960)
         #expect(CanvasBreakpointPreference.viewportWidth(afterChanging: original, to: screens, currentWidth: 1536) == 1024)
         #expect(BootstrapLayout.containerClass("2xl:container", screens: screens) == "lg:container")
         undo.undo()
-        #expect(document.site.framework.screens == original)
+        #expect(document.site.theme.screens == original)
         undo.redo()
-        #expect(document.site.framework.screens == screens)
+        #expect(document.site.theme.screens == screens)
     }
 
     @Test func legacyValuesRemainRecoverableWithoutAppearingInTheEditor() throws {
         var legacy = ScreenTokens.standard
         legacy.update(.small) { $0.minimumWidth = 640; $0.container = .init(value: 90, unit: .percent) }
-        var framework = Framework(spacing: .standard, typography: Framework.standard.typography, screens: legacy)
-        #expect(framework.screens.screen(.small).minimumWidth == 576)
-        framework.screens.update(.extraLarge) { $0.isEnabled = false }
-        let data = try JSONEncoder().encode(framework)
+        var theme = Theme(spacing: .standard, typography: Theme.standard.typography, screens: legacy)
+        #expect(theme.screens.screen(.small).minimumWidth == 576)
+        theme.screens.update(.extraLarge) { $0.isEnabled = false }
+        let data = try JSONEncoder().encode(theme)
         let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
         let archive = try #require(object["archivedScreens"] as? [String: Any])
         let records = try #require(archive["screens"] as? [[String: Any]])
@@ -166,9 +166,9 @@ struct BootstrapLiveThemeTests {
         let view = WKWebView(frame: CGRect(x: 0, y: 0, width: 1800, height: 500))
         defer { view.stopLoading() }
         for mask in 0..<32 {
-            var framework = Framework.standard
+            var theme = Theme.standard
             for (index,id) in BootstrapLayout.ids.enumerated() {
-                framework.screens.update(id) { $0.isEnabled = mask & (1 << index) != 0 }
+                theme.screens.update(id) { $0.isEnabled = mask & (1 << index) != 0 }
             }
             var container = PartNode.make(.container)
             container.anchor = "layout-test"
@@ -177,10 +177,10 @@ struct BootstrapLiveThemeTests {
             let page = Page(title: "Layout", slug: "index", parts: [container])
             let html: String
             if destination == "canvas" {
-                html = HTMLPageRenderer().render(page: page, framework: framework)
+                html = HTMLPageRenderer().render(page: page, theme: theme)
             } else {
                 var site = Site(name: "Layout", pages: [page])
-                site.framework = framework
+                site.theme = theme
                 let bundle = StaticSiteRenderer(environment: destination == "preview" ? .preview : .published).render(site: site)
                 #expect(bundle.errors.isEmpty)
                 let output = try #require(bundle.file(at: "index.html"))
@@ -198,7 +198,7 @@ struct BootstrapLiveThemeTests {
             }
             try #require(ready)
             let actual = try #require(try await view.evaluateJavaScript("(() => {const s=getComputedStyle(document.getElementById('layout-test'));return [s.maxWidth,s.display];})()") as? [String])
-            let cap = framework.screens.screen(.doubleExtraLarge).container
+            let cap = theme.screens.screen(.doubleExtraLarge).container
             let expected = cap.unit == .auto ? "none" : "\(Int(cap.value))px"
             #expect(actual == [expected,"flex"], "\(destination), switches \(mask)")
         }

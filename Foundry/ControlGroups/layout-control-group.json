@@ -70,7 +70,7 @@
       "responsive": true,
       "step": 1,
       "type": "number",
-      "valueAvailability": "whenVisible",
+      "outputWhenHidden": false,
       "visibleWhen": {
         "id": "zIndexMode",
         "value": "custom"
@@ -107,8 +107,8 @@
       "id": "offset",
       "label": "Offset",
       "responsive": true,
-      "type": "frameworkSpacing",
-      "valueAvailability": "whenVisible",
+      "type": "themeSpacing",
+      "outputWhenHidden": false,
       "visibleWhen": {
         "id": "offsets",
         "value": "uniform"
@@ -131,7 +131,7 @@
         "rem",
         "em"
       ],
-      "valueAvailability": "whenVisible",
+      "outputWhenHidden": false,
       "visibleWhen": {
         "id": "offsets",
         "value": "individual"

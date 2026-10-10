@@ -149,7 +149,7 @@ struct BuiltInLayoutPartsTests {
             func outputs(_ part: PartNode) -> [String] {
                 let site = Site(name: "Links", pages: [Page(title: "Home", slug: "index", parts: [part])])
                 return [
-                    HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework),
+                    HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme),
                     StaticSiteRenderer().render(site: site, assets: [:]).files.map(\.contents).joined()
                 ]
             }

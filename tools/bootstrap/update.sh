@@ -5,21 +5,19 @@
 #
 # No Node, npm or Sass is involved. The npm tarball is fetched, its untouched
 # dist CSS, source map and JS bundle are copied under versioned names, and the
-# full package (including the Sass source) is kept in tools/bootstrap/upstream
-# for reference. That folder is ignored by git.
+# downloaded package is removed when the update finishes.
 set -eu
 
 version=${1:?usage: update.sh <bootstrap-version>}
 root=$(CDPATH= cd -- "$(dirname -- "$0")/../.." && pwd)
 resources="$root/Foundry/Resources/BuiltInLibraries.bundle/Contents/Resources"
-upstream="$root/tools/bootstrap/upstream/bootstrap-$version"
 
 tmp=$(mktemp -d)
 trap 'rm -rf "$tmp"' EXIT HUP INT TERM
+upstream="$tmp/package"
 
 echo "Fetching bootstrap@$version from the npm registry…"
 curl -fsSL "https://registry.npmjs.org/bootstrap/-/bootstrap-$version.tgz" -o "$tmp/bootstrap.tgz"
-rm -rf "$upstream"
 mkdir -p "$upstream"
 tar -xzf "$tmp/bootstrap.tgz" -C "$upstream" --strip-components=1
 

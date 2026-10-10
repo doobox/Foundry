@@ -4,18 +4,18 @@ import SwiftUI
 /// position of the corner they edit, joined by a single all-or-none link drawn as a
 /// ring of four segments spanning the gaps between adjacent fields. Linked, every
 /// corner shares one value; unlinked, all four are independent — corners have no
-/// meaningful pair state the way edges do. The same shippingbox toggle switches the
-/// whole control between framework tokens and custom values. Segment geometry reuses the
+/// meaningful pair state the way edges do. The same Bootstrap toggle switches the
+/// whole control between theme tokens and custom values. Segment geometry reuses the
 /// hidden-placeholder technique from EdgesControl, so the ring always lines up with
 /// the real gaps at any width.
 struct CornersControl<TopLeft: View, TopRight: View, BottomLeft: View, BottomRight: View>: View {
     let linked: Bool
-    let usesFrameworkTokens: Bool
+    let usesThemeTokens: Bool
     let focusNamespace: Namespace.ID
     let toggleLinked: () -> Void
-    /// Nil hides the framework/custom toggle entirely — the generic corners control has
-    /// no framework mode to switch to.
-    let toggleUsesFrameworkTokens: (() -> Void)?
+    /// Nil hides the theme/custom toggle entirely — the generic corners control has
+    /// no theme mode to switch to.
+    let toggleUsesThemeTokens: (() -> Void)?
     @ViewBuilder let topLeft: () -> TopLeft
     @ViewBuilder let topRight: () -> TopRight
     @ViewBuilder let bottomLeft: () -> BottomLeft
@@ -56,7 +56,7 @@ struct CornersControl<TopLeft: View, TopRight: View, BottomLeft: View, BottomRig
                     linkButton
                 }
 
-                if toggleUsesFrameworkTokens != nil { modeToggle }
+                if toggleUsesThemeTokens != nil { modeToggle }
             }
         }
         .frame(maxWidth: .infinity)
@@ -130,10 +130,10 @@ struct CornersControl<TopLeft: View, TopRight: View, BottomLeft: View, BottomRig
     }
 
     private var modeToggle: some View {
-        FrameworkModeToggle(usesFrameworkTokens: usesFrameworkTokens) {
+        ThemeModeToggle(usesThemeTokens: usesThemeTokens) {
             resetFocus(in: focusNamespace)
             isHoveringLink = false
-            toggleUsesFrameworkTokens?()
+            toggleUsesThemeTokens?()
         }
     }
 
@@ -185,14 +185,14 @@ private struct CornersLinkShape: Shape {
     @Previewable @State var bottomLeft = 0.0
     @Previewable @State var bottomRight = 0.0
     @Previewable @State var linked = true
-    @Previewable @State var usesFrameworkTokens = false
+    @Previewable @State var usesThemeTokens = false
     @Previewable @Namespace var focusNamespace
 
     PartControlPreview {
         InspectorRow(title: "Radius") {
             CornersControl(
                 linked: linked,
-                usesFrameworkTokens: usesFrameworkTokens,
+                usesThemeTokens: usesThemeTokens,
                 focusNamespace: focusNamespace,
                 toggleLinked: {
                     linked.toggle()
@@ -202,7 +202,7 @@ private struct CornersLinkShape: Shape {
                         bottomRight = topLeft
                     }
                 },
-                toggleUsesFrameworkTokens: { usesFrameworkTokens.toggle() },
+                toggleUsesThemeTokens: { usesThemeTokens.toggle() },
                 topLeft: {
                     CornersControlPreviewField(value: Binding(
                         get: { topLeft },

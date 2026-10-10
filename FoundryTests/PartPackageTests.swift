@@ -4,6 +4,177 @@ import Testing
 @testable import Foundry
 
 struct PartPackageTests {
+    @Test(arguments: ["responsive", "count", "options", "opacity", "outputFormat", "buttonIcon", "renditions"])
+    @MainActor
+    func unsupportedControlSettingsWarnAndAreIgnored(key: String) throws {
+        // Deliberately malformed values must not reach typed decoding either.
+        let control: [String: Any] = ["type": "themeColors", "id": "paint", "defaults": ["base": "inherit"], key: ["unexpected": true]]
+        let source = manifest(withInspectorEntries: String(decoding: try JSONSerialization.data(withJSONObject: control), as: UTF8.self))
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(source.utf8))
+        #expect(diagnostics.contains { $0.severity == .error } == false)
+        #expect(diagnostics.filter { $0.severity == .warning && $0.location.hasSuffix(":" + key) }.count == 1)
+        let url = try makePackage(manifest: source, template: #"<div class="{{ part.class }}" {{ part.attributes }}>{{ childArea("content") }}</div>"#)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let result = try PartPackageLoader.loadWithDiagnostics(from: url)
+        let property = try #require(result.package.manifest.resolvedProperties.first { $0.id == "paint" })
+        #expect(property.responsive == false)
+        #expect(property.control.count == nil)
+        #expect(result.diagnostics.contains { $0.severity == .warning && $0.message.contains("was ignored") })
+    }
+
+    @Test
+    func unsupportedSettingsAreFilteredInsideSectionsAndCollections() throws {
+        let source = manifest(withInspectorEntries: #"{"section":"Content","controls":[{"type":"collection","id":"items","defaults":{"base":[]},"responsive":true,"controls":[{"type":"text","id":"name","defaults":{"base":""},"colourSections":["themes"]}]}]}"#)
+        let prepared = try PartPackageManifestSchema.preparingControls(in: Data(source.utf8))
+        #expect(prepared.warnings.count == 2)
+        #expect(try PartPackageManifestSchema.diagnostics(for: prepared.data).contains { $0.severity == .error } == false)
+        #expect(String(decoding: prepared.data, as: UTF8.self).contains("colourSections") == false)
+        #expect(String(decoding: prepared.data, as: UTF8.self).contains("responsive") == false)
+    }
+
+    @Test(arguments: [#""responsive":"yes""#, #""responsive":1"#])
+    func invalidSupportedSettingsStillFail(setting: String) throws {
+        let source = manifest(withInspectorEntries: #"{"type":"text","id":"title","defaults":{"base":""},"# + setting + "}")
+        #expect(try PartPackageManifestSchema.diagnostics(for: Data(source.utf8)).contains { $0.severity == .error })
+    }
+
+    @Test
+    @MainActor
+    func unknownSettingsWarnWithoutBlockingThePart() throws {
+        let source = manifest(withInspectorEntries: #"{"type":"text","id":"title","defaults":{"base":"Hello"},"responisve":true,"myMetadata":{"anything":[1,2,3]}}"#)
+        let url = try makePackage(manifest: source, template: #"<div class="{{ part.class }}" {{ part.attributes }}>{{ control.title }}{{ childArea("content") }}</div>"#)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let result = try PartPackageLoader.loadWithDiagnostics(from: url)
+        #expect(result.diagnostics.filter { $0.severity == .warning }.count == 2)
+        #expect(result.package.manifest.resolvedProperties.first { $0.id == "title" }?.responsive == false)
+    }
+
+    @Test(arguments: [nil, true, false] as [Bool?])
+    @MainActor
+    func outputWhenHiddenDefaultsAndRoundTrips(flag: Bool?) throws {
+        var control: [String: Any] = [
+            "type": "text", "id": "detail", "defaults": ["base": "Saved"],
+            "visibleWhen": ["id": "enabled", "value": true]
+        ]
+        if let flag { control["outputWhenHidden"] = flag }
+        let source = manifest(withInspectorEntries:
+            #"{"type":"toggle","id":"enabled","defaults":{"base":false}},"# +
+            String(decoding: try JSONSerialization.data(withJSONObject: control), as: UTF8.self))
+        let data = Data(source.utf8)
+        #expect(try PartPackageManifestSchema.diagnostics(for: data).filter { $0.severity == .error }.isEmpty)
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
+        let property = try #require(manifest.resolvedProperties.first { $0.id == "detail" })
+        #expect(property.outputWhenHidden == (flag ?? true))
+        let encoded = try JSONEncoder().encode(property)
+        #expect(try JSONDecoder().decode(PartPackageProperty.self, from: encoded).outputWhenHidden == (flag ?? true))
+        let url = try makePackage(manifest: source, template: #"<div class="{{ part.class }}" {{ part.attributes }}>{{ control.detail }}{{ childArea("content") }}</div>"#)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
+        var node = PartNode.make(.init(rawValue: package.manifest.identifier))
+        let values: [String: PartPackageValue] = ["detail": .string("Saved"), "detail.extra": .string("Derived")]
+        let hidden = PartPackageVisibilityEvaluator.availableTemplateValues(values, properties: manifest.resolvedProperties, for: node)
+        #expect(hidden.isEmpty == (flag == false))
+        #expect(node.propertyValue(.init(rawValue: "detail")) == .string("Saved"))
+        node.setProperty(.init(rawValue: "enabled"), value: .boolean(true))
+        #expect(PartPackageVisibilityEvaluator.availableTemplateValues(values, properties: manifest.resolvedProperties, for: node) == values)
+    }
+
+    @Test(arguments: [#""always""#, #""false""#, "1", "null", "[]"])
+    func outputWhenHiddenRejectsNonBooleans(value: String) throws {
+        let source = manifest(withInspectorEntries:
+            #"{"type":"text","id":"detail","defaults":{"base":""},"outputWhenHidden":"# + value + "}")
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(source.utf8))
+        #expect(diagnostics.contains {
+            $0.severity == .error && $0.location.hasSuffix(":outputWhenHidden")
+                && $0.message == "outputWhenHidden must be a Boolean."
+        })
+    }
+
+    @Test
+    func retiredValueAvailabilityKeyIsIgnoredWithWarning() throws {
+        let source = manifest(withInspectorEntries:
+            #"{"type":"text","id":"detail","defaults":{"base":""},"valueAvailability":"always"}"#)
+        #expect(try PartPackageManifestSchema.diagnostics(for: Data(source.utf8)).contains { $0.severity == .warning })
+    }
+
+    @Test(arguments: [true, false])
+    @MainActor
+    func collectionFieldsRespectOutputWhenHidden(flag: Bool) throws {
+        let source = manifest(withInspectorEntries: """
+        {"type":"collection","id":"items","controls":[
+          {"type":"toggle","id":"enabled","defaults":{"base":false}},
+          {"type":"text","id":"detail","defaults":{"base":"Saved"},
+           "visibleWhen":{"id":"enabled","value":true},"outputWhenHidden":\(flag)}
+        ],"defaults":{"base":[{"enabled":false,"detail":"Saved"}]}}
+        """)
+        let url = try makePackage(manifest: source, template: #"<div class="{{ part.class }}" {{ part.attributes }}>{{ childArea("content") }}</div>"#)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        let property = try #require(PartPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "items" })
+        guard case .collection(_, let fields) = property.control else {
+            Issue.record("Expected collection fields")
+            return
+        }
+        let record = try #require(property.defaultValue.arrayValue?.first)
+        let resolved = PartCollectionValue.resolved(record, fields: fields, at: .mobile, screens: .standard)
+        #expect((resolved.objectValue?["detail"] != nil) == flag)
+        #expect(record.objectValue?["detail"] == .string("Saved"))
+        #expect(fields.first { $0.key.rawValue == "detail" }?.outputWhenHidden == flag)
+    }
+
+    @Test(arguments: [[], ["themes"], ["links"], ["foregrounds", "themes", "blackWhite"]])
+    func colourGroupSectionsRemainExclusiveAfterRoundTrip(sections: [String]) throws {
+        let group = PartPackageControlGroup(type: .foreground, id: "paint", colourSections: sections)
+        let data = try JSONEncoder().encode(group)
+        let decoded = try JSONDecoder().decode(PartPackageControlGroup.self, from: data)
+        #expect(decoded.colourSections == sections)
+        #expect(decoded.colourSections.contains("themes") == sections.contains("themes"))
+    }
+
+    @Test(arguments: [nil, [], ["themes"], ["foregrounds", "themes", "blackWhite"], ["foregrounds", "blackWhite"], ["surfaces", "links", "foregrounds", "surfaces"], ["borders", "shadow"]] as [[String]?])
+    func standaloneThemeColorsSectionsRoundTrip(sections: [String]?) throws {
+        var control: [String: Any] = ["type": "themeColors", "id": "paint", "defaults": ["base": "inherit"]]
+        if let sections { control["colourSections"] = sections }
+        let controlData = try JSONSerialization.data(withJSONObject: control)
+        let source = manifest(withInspectorEntries: String(decoding: controlData, as: UTF8.self))
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(source.utf8))
+        #expect(diagnostics.filter { $0.severity == .error }.isEmpty)
+        let url = try makePackage(manifest: source, template: "<div {{ part.attributes }}>{{ childArea(\"content\") }}</div>")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        let property = try #require(package.manifest.resolvedProperties.first { $0.id == "paint" })
+        #expect(property.control.colourSections == sections)
+        let saved = try JSONEncoder().encode(property.control)
+        #expect(try JSONDecoder().decode(PartPackageControl.self, from: saved).colourSections == sections)
+        let definition = try #require(PartPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "paint" })
+        #expect(definition.colourSections == sections ?? ["themes"])
+        #expect(PartColourToken.groups(for: definition.colourSections).map(\.0) == PartColourToken.groups(for: sections ?? ["themes"]).map(\.0))
+    }
+
+    @Test(arguments: [
+        #"{"type":"themeColors","id":"paint","defaults":{"base":"inherit"},"colourSections":["unknown"]}"#,
+        #"{"type":"themeColors","id":"paint","defaults":{"base":"inherit"},"colourSections":"foregrounds"}"#,
+        #"{"type":"themeColors","id":"paint","defaults":{"base":"inherit"},"colourSections":[1]}"#,
+        #"{"type":"text","id":"paint","defaults":{"base":""},"colourSections":["foregrounds"]}"#
+    ])
+    func invalidStandaloneColourSectionsAreRejected(control: String) throws {
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: control).utf8))
+        let severity: PartPackageDiagnostic.Severity = control.contains("\"type\":\"text\"") ? .warning : .error
+        #expect(diagnostics.contains { $0.severity == severity && $0.location.contains("colourSections") })
+    }
+
+    @Test(arguments: ["themeColor", "bootstrapColors"])
+    func obsoleteColourControlNamesAreRejected(type: String) throws {
+        let json = #"{"type":"\#(type)","id":"paint","defaults":{"base":"inherit"}}"#
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: json).utf8))
+        #expect(diagnostics.contains { $0.severity == .error })
+        #expect(throws: DecodingError.self) {
+            try JSONDecoder().decode(PartPackageControl.self, from: Data(json.utf8))
+        }
+    }
+
     @Test @MainActor func inspectorSectionResetRestoresHiddenAndResponsiveDefaultsWithOneUndo() throws {
         let controls = """
         {"section":"Layout","controls":[
@@ -21,9 +192,9 @@ struct PartPackageTests {
         defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
         var node = PartNode.make(.init(rawValue: package.manifest.identifier))
         let section = PartPropertySection(rawValue: "Layout")
-        let state = PartInspectorSectionState(part: node, section: section, framework: .standard)
+        let state = PartInspectorSectionState(part: node, section: section, theme: .standard)
         let widthDefinition = try #require(node.type.definition.property(for: .init(rawValue: "width")))
-        let widthState = PartInspectorControlState(part: node, definition: widthDefinition, framework: .standard)
+        let widthState = PartInspectorControlState(part: node, definition: widthDefinition, theme: .standard)
         #expect(state.hasChanges(in: node) == false)
         #expect(!widthState.hasChanges(in: node, at: .mobile, screens: .standard))
         #expect(!widthState.hasChanges(in: node, at: .large, screens: .standard))
@@ -62,7 +233,7 @@ struct PartPackageTests {
         #expect(document.site.part(withID: node.id) == reset)
 
         let advanced = PartPropertySection(rawValue: "Advanced")
-        #expect(PartInspectorSectionState(part: reset, section: advanced, framework: .standard).hasChanges(in: reset))
+        #expect(PartInspectorSectionState(part: reset, section: advanced, theme: .standard).hasChanges(in: reset))
         editor.resetInspectorSection(ids: [node.id], section: advanced)
         #expect(document.site.part(withID: node.id)?.anchor == nil)
         #expect(document.site.part(withID: node.id)?.propertyValue(.init(rawValue: "other")) == .number(99))
@@ -127,7 +298,7 @@ struct PartPackageTests {
             }
             checked += 1
         }
-        #expect(checked == 48, "Expected every documented control and control group's Quick example; update this count when adding a reference page.")
+        #expect(checked == 47, "Expected every documented control and control group's Quick example; update this count when adding a reference page.")
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: developerDocsURL.appending(path: "index.md").path)))
@@ -248,12 +419,10 @@ struct PartPackageTests {
         let controls = """
         {"type" : "number", "id" : "pair", "count" : 2, "responsive" : true,
         "defaults" : {"base" : [1, 2], "large" : [3, 4]}},
-        {"type" : "frameworkBorder", "id" : "border", "responsive" : true,
+        {"type" : "themeBorder", "id" : "border", "responsive" : true,
         "defaults" : {"base" : {"width" : "none"}, "large" : {"width" : "sm", "style" : "dashed"}}},
-        {"type" : "frameworkFont", "id" : "font", "showsWeight" : true, "responsive" : true,
-        "defaults" : {"base" : {"family" : "body", "weight" : 400}, "large" : {"family" : "heading", "weight" : 700}}},
-        {"type" : "frameworkColor", "id" : "colour", "responsive" : true,
-        "defaults" : {"base" : {"palette" : "accent"}, "large" : {"palette" : "standard.lime", "lightShade" : 8, "darkShade" : 3}}}
+        {"type" : "themeFont", "id" : "font", "showsWeight" : true, "responsive" : true,
+        "defaults" : {"base" : {"family" : "body", "weight" : 400}, "large" : {"family" : "heading", "weight" : 700}}}
         """
         let url = try makePackage(manifest: manifest(withInspectorEntries: controls), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -270,9 +439,6 @@ struct PartPackageTests {
         #expect(node.propertyValue(.init(rawValue: "border.style")).stringValue == "dashed")
         #expect(node.propertyValue(.init(rawValue: "font")).stringValue == "heading")
         #expect(node.propertyValue(.init(rawValue: "font.weight")) == .number(700))
-        guard case .packageColor(let colour) = node.propertyValue(.init(rawValue: "colour")) else { Issue.record("Missing colour"); return }
-        #expect(colour.shade.rawValue == 8)
-        #expect(colour.darkShade.rawValue == 3)
         let encoded = try JSONEncoder().encode(package.manifest)
         let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: encoded)
         #expect(decoded.resolvedProperties.first?.breakpointDefaults["large"] == .array([.number(3), .number(4)]))
@@ -311,8 +477,8 @@ struct PartPackageTests {
         let exported = StaticSiteRenderer().render(site: site)
         #expect(exported.files.contains { $0.contents.contains("gap: 12px") })
         #expect(exported.files.contains { $0.contents.contains("gap: 24px") })
-        #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework).contains("gap: 24px"))
-        site.framework.screens = screens
+        #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme).contains("gap: 24px"))
+        site.theme.screens = screens
         let disabledExport = StaticSiteRenderer().render(site: site)
         #expect(!disabledExport.files.contains { $0.contents.contains("gap: 12px") })
         #expect(disabledExport.files.contains { $0.contents.contains("gap: 24px") })
@@ -406,20 +572,20 @@ struct PartPackageTests {
         }
 
         let node = PartNode(type: .init(rawValue: package.manifest.identifier))
-        guard case .frameworkMargin(let inset) = node.propertyValue(.init(rawValue: "inset")) else {
+        guard case .themeMargin(let inset) = node.propertyValue(.init(rawValue: "inset")) else {
             Issue.record("Expected margin-backed storage"); return
         }
         // Uniform defaults fill every edge without activating the links.
         #expect(!inset.verticalLinked && !inset.horizontalLinked)
         #expect(inset.values.allSatisfy { $0.isCustom && $0.amount == 10 && $0.unit == "px" })
-        guard case .frameworkRadius(let round) = node.propertyValue(.init(rawValue: "round")) else {
+        guard case .themeRadius(let round) = node.propertyValue(.init(rawValue: "round")) else {
             Issue.record("Expected radius-backed storage"); return
         }
         #expect(!round.verticalLinked && !round.horizontalLinked)
         #expect(round.value(for: .top).amount == 2)
         #expect(round.value(for: .right).amount == 8)
         // linked: false starts equal defaults unlinked.
-        guard case .frameworkMargin(let free) = node.propertyValue(.init(rawValue: "free")) else {
+        guard case .themeMargin(let free) = node.propertyValue(.init(rawValue: "free")) else {
             Issue.record("Expected margin-backed storage"); return
         }
         #expect(!free.verticalLinked && !free.horizontalLinked)
@@ -448,7 +614,7 @@ struct PartPackageTests {
             defer { try? FileManager.default.removeItem(at: url) }
             _ = try PartPackageLoader.load(from: url)
         }
-        // Framework tokens are not part of the generic contract.
+        // Theme tokens are not part of the generic contract.
         #expect(throws: (any Error).self) { try load("""
         {"type" : "edges", "id" : "inset",
         "defaults" : {"base" : "sm"}}
@@ -471,7 +637,7 @@ struct PartPackageTests {
         "defaults" : {"base" : {"value" : 1, "unit" : "px"}}}
         """) }
         // No multi variant.
-        #expect(throws: (any Error).self) { try load("""
+        #expect(throws: Never.self) { try load("""
         {"type" : "edges", "id" : "inset", "count" : 2,
         "defaults" : {"base" : {"value" : 1, "unit" : "px"}}}
         """) }
@@ -491,114 +657,27 @@ struct PartPackageTests {
         }}}
         """) }
         // linked belongs to edges/corners only.
-        #expect(throws: (any Error).self) { try load("""
+        #expect(throws: Never.self) { try load("""
         {"type" : "number", "id" : "n", "linked" : true,
         "defaults" : {"base" : 1}}
         """) }
     }
 
-    @Test @MainActor func frameworkColorChannelsFiltersAndFormatsResolveForBothAppearances() throws {
-        let controls = """
-        {"type" : "frameworkColor", "id" : "primary",
-        "allowsCustom" : true, "customColor" : "#FF0000",
-        "defaults" : {"base" : {"palette" : "custom"}}},
-        {"type" : "frameworkColor", "id" : "formatted",
-        "allowsCustom" : true, "customColor" : "#FF0000", "outputFormat" : "rgb",
-        "defaults" : {"base" : {"palette" : "custom"}}}
-        """
-        let url = try makePackage(
-            manifest: manifest(withInspectorEntries: controls),
-            template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>",
-            additionalFiles: ["part.css": """
-            :instance {
-                --main: {{ control.primary }};
-                --light-red: {{ control.primary.light.red }};
-                --dark-blue: {{ control.primary.dark.blue }};
-                --light-rgb: {{ control.primary.light.rgbValues }};
-                --contrast: {{ control.primary.contrastColor }};
-                --tint: {{ control.primary | lighten(50) }};
-                --formatted: {{ control.formatted }};
-            }
-            """]
-        )
-        defer { try? FileManager.default.removeItem(at: url) }
-        let package = try PartPackageLoader.load(from: url)
-        PartRegistry.register(package)
-        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
-
-        var value = PartPackageColorValue(source: PartFrameworkValueSelection.manualCustom, customColor: "#FF0000", opacity: 1)
-        value.darkCustomColor = "#0000FF"
-        var node = PartNode(type: .init(rawValue: package.manifest.identifier))
-        node.setProperty(.init(rawValue: "primary"), value: .packageColor(value))
-        var site = Site(name: "Channels", pages: [Page(title: "Home", slug: "index", parts: [node])])
-        site.appearanceMode = .both
-
-        let exported = StaticSiteRenderer().render(site: site)
-        let css = try #require(exported.files.first { $0.contents.contains("--main:") }?.contents)
-        #expect(css.contains("--main: light-dark(#FF0000, #0000FF)"))
-        #expect(css.contains("--light-red: 255"))
-        #expect(css.contains("--dark-blue: 255"))
-        #expect(css.contains("--light-rgb: 255, 0, 0"))
-        // White clears 3:1 on both pure red and pure blue, so the appearance
-        // pair collapses to a single colour.
-        #expect(css.contains("--contrast: #FFFFFF"))
-        #expect(css.contains("--tint: light-dark(#FF8080, #8080FF)"))
-        #expect(css.contains("--formatted: rgb(255 0 0)"))
-
-        // Single-appearance exports and the canvas resolve concretely for one
-        // appearance; the qualified fields stay available and truthful in both.
-        site.appearanceMode = .light
-        let lightOnly = StaticSiteRenderer().render(site: site)
-        let lightCSS = try #require(lightOnly.files.first { $0.contents.contains("--main:") }?.contents)
-        #expect(lightCSS.contains("--main: #FF0000"))
-        #expect(lightCSS.contains("--contrast: #FFFFFF"))
-        #expect(lightCSS.contains("--tint: #FF8080"))
-        #expect(lightCSS.contains("--dark-blue: 255"))
-
-        let darkCanvas = HTMLPageRenderer(appearance: .dark).render(page: site.pages[0], framework: site.framework)
-        #expect(darkCanvas.contains("--main: #0000FF"))
-        #expect(darkCanvas.contains("--contrast: #FFFFFF"))
-        #expect(darkCanvas.contains("--tint: #8080FF"))
-        #expect(darkCanvas.contains("--light-red: 255"))
-    }
-
-    @Test func frameworkColorOutputFormatAcceptsColoursAndRejectsFragments() throws {
-        func packageURL(forFormat format: String) throws -> URL {
-            let controls = """
-            {"type" : "frameworkColor", "id" : "primary",
-            "outputFormat" : "\(format)",
-            "defaults" : {"base" : {"palette" : "accent"}}}
-            """
-            return try makePackage(
-                manifest: manifest(withInspectorEntries: controls),
-                template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>",
-                additionalFiles: ["part.css": ":instance { color: {{ control.primary }}; }"]
-            )
-        }
-        let colourFormatURL = try packageURL(forFormat: "rgba")
-        defer { try? FileManager.default.removeItem(at: colourFormatURL) }
-        #expect(throws: Never.self) { try PartPackageLoader.load(from: colourFormatURL) }
-
-        let fragmentFormatURL = try packageURL(forFormat: "rgbValues")
-        defer { try? FileManager.default.removeItem(at: fragmentFormatURL) }
-        #expect(throws: (any Error).self) { try PartPackageLoader.load(from: fragmentFormatURL) }
-    }
-
-    @Test @MainActor func frameworkSpacingLoadsPersistsAndRenders() throws {
+    @Test @MainActor func themeSpacingLoadsPersistsAndRenders() throws {
         let control = """
-        {"type" : "frameworkSpacing", "id" : "frameworkSpacing",
+        {"type" : "themeSpacing", "id" : "themeSpacing",
         "responsive" : true, "defaults" : {"base" : "sm"}}
         """
-        let url = try makePackage(manifest: manifest(withInspectorEntries: control), template: "<section {{ part.attributes }} data-spacing=\"{{ control.frameworkSpacing.css }}\" data-top=\"{{ control.frameworkSpacing }}\">{{ childArea(\"content\") }}</section>",
-                                  additionalFiles: ["part.css": ":instance { gap: {{ control.frameworkSpacing }}; --numeric-top: {{ control.frameworkSpacing.value }}{{ control.frameworkSpacing.unit }}; }"])
+        let url = try makePackage(manifest: manifest(withInspectorEntries: control), template: "<section {{ part.attributes }} data-spacing=\"{{ control.themeSpacing.css }}\" data-top=\"{{ control.themeSpacing }}\">{{ childArea(\"content\") }}</section>",
+                                  additionalFiles: ["part.css": ":instance { gap: {{ control.themeSpacing }}; --numeric-top: {{ control.themeSpacing.value }}{{ control.themeSpacing.unit }}; }"])
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
         PartRegistry.register(package)
         defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
         let definition = try #require(PartPackageAdapter.definition(from: package).properties.first)
-        guard case .frameworkSpacing = definition.control else { Issue.record("Expected frameworkSpacing"); return }
+        guard case .themeSpacing = definition.control else { Issue.record("Expected themeSpacing"); return }
         var node = PartNode(type: PartType(rawValue: package.manifest.identifier))
-        guard case .frameworkSpacing(var spacing) = node.propertyValue(.init(rawValue: "frameworkSpacing")) else {
+        guard case .themeSpacing(var spacing) = node.propertyValue(.init(rawValue: "themeSpacing")) else {
             Issue.record("Expected typed spacing"); return
         }
         var top = spacing.selection
@@ -606,16 +685,16 @@ struct PartPackageTests {
         top.amount = 12
         top.unit = "px"
         spacing.selection = top
-        node.setResponsiveProperty(.init(rawValue: "frameworkSpacing"), value: .frameworkSpacing(spacing), at: .medium)
+        node.setResponsiveProperty(.init(rawValue: "themeSpacing"), value: .themeSpacing(spacing), at: .medium)
         let saved = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(node))
-        #expect(saved.resolved(at: .medium).propertyValue(.init(rawValue: "frameworkSpacing")) == .frameworkSpacing(spacing))
-        #expect(saved.propertyValue(.init(rawValue: "frameworkSpacing")) == definition.defaultValue)
+        #expect(saved.resolved(at: .medium).propertyValue(.init(rawValue: "themeSpacing")) == .themeSpacing(spacing))
+        #expect(saved.propertyValue(.init(rawValue: "themeSpacing")) == definition.defaultValue)
         let site = Site(name: "Spacing", pages: [Page(title: "Home", slug: "index", parts: [saved.resolved(at: .medium)])])
         let expected = "12.0px"
-        #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework).contains(expected))
+        #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme).contains(expected))
         #expect(try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents).contains(expected))
         let responsiveSite = Site(name: "Responsive spacing", pages: [Page(title: "Home", slug: "index", parts: [saved])])
-        let responsiveHTML = HTMLPageRenderer(site: responsiveSite).render(page: responsiveSite.pages[0], framework: responsiveSite.framework)
+        let responsiveHTML = HTMLPageRenderer(site: responsiveSite).render(page: responsiveSite.pages[0], theme: responsiveSite.theme)
         #expect(responsiveHTML.contains("gap: " + expected))
         #expect(responsiveHTML.contains("--numeric-top: 12px"))
         let exported = StaticSiteRenderer().render(site: responsiveSite)
@@ -631,17 +710,17 @@ struct PartPackageTests {
             "{\"width\" : \"sm\", \"color\" : {\"palette\" : \"accent\", \"darkShade\" : 12}}"
         ]
         for value in invalid {
-            let url = try makePackage(manifest: manifest(withInspectorEntries: "{\"type\" : \"frameworkBorder\", \"id\" : \"border\", \"defaults\" : {\"base\" : \(value)}}"), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
+            let url = try makePackage(manifest: manifest(withInspectorEntries: "{\"type\" : \"themeBorder\", \"id\" : \"border\", \"defaults\" : {\"base\" : \(value)}}"), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
             defer { try? FileManager.default.removeItem(at: url) }
             #expect(throws: (any Error).self) { try PartPackageLoader.load(from: url) }
         }
     }
 
-    @Test @MainActor func frameworkBorderLoadsPersistsAndRenders() throws {
+    @Test @MainActor func themeBorderLoadsPersistsAndRenders() throws {
         let control = """
-        {"type" : "frameworkBorder", "id" : "border",
+        {"type" : "themeBorder", "id" : "border",
         "responsive" : true, "showsStyle" : true, "defaults" : {"base" : {"width" : "sm", "style" : "dashed"}}},
-        {"type" : "frameworkColor", "id" : "borderColour", "defaults" : {"base" : {"palette" : "standard.lime", "lightShade" : 8}}}
+        {"type" : "color", "id" : "borderColour", "defaults" : {"base" : "#123456"}}
         """
         let url = try makePackage(manifest: manifest(withInspectorEntries: control), template: "<section {{ part.attributes }} data-borderWidth=\"{{ control.border.width.css }}\" data-top=\"{{ control.border.width.top }}\">{{ childArea(\"content\") }}</section>",
                                   additionalFiles: ["part.css": ":instance { border-width: {{ control.border.width }}; border-style: {{ control.border.style }}; border-color: {{ control.borderColour }}; --numeric-top: {{ control.border.width.values.top }}{{ control.border.width.units.top }}; }"])
@@ -650,9 +729,9 @@ struct PartPackageTests {
         PartRegistry.register(package)
         defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
         let definition = try #require(PartPackageAdapter.definition(from: package).properties.first)
-        guard case .frameworkBorderWidth = definition.control else { Issue.record("Expected frameworkBorderWidth"); return }
+        guard case .themeBorderWidth = definition.control else { Issue.record("Expected frameworkBorderWidth"); return }
         var node = PartNode(type: PartType(rawValue: package.manifest.identifier))
-        guard case .frameworkBorderWidth(var borderWidth) = node.propertyValue(.init(rawValue: "border.width")) else {
+        guard case .themeBorderWidth(var borderWidth) = node.propertyValue(.init(rawValue: "border.width")) else {
             Issue.record("Expected typed borderWidth"); return
         }
         borderWidth.unlinkAll()
@@ -661,41 +740,40 @@ struct PartPackageTests {
         top.amount = 12
         top.unit = "px"
         borderWidth.set(top, for: .top)
-        node.setResponsiveProperty(.init(rawValue: "border.width"), value: .frameworkBorderWidth(borderWidth), at: .medium)
+        node.setResponsiveProperty(.init(rawValue: "border.width"), value: .themeBorderWidth(borderWidth), at: .medium)
         let saved = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(node))
-        #expect(saved.resolved(at: .medium).propertyValue(.init(rawValue: "border.width")) == .frameworkBorderWidth(borderWidth))
+        #expect(saved.resolved(at: .medium).propertyValue(.init(rawValue: "border.width")) == .themeBorderWidth(borderWidth))
         #expect(saved.propertyValue(.init(rawValue: "border.width")) == definition.defaultValue)
         let site = Site(name: "BorderWidth", pages: [Page(title: "Home", slug: "index", parts: [saved.resolved(at: .medium)])])
         let expected = "12.0px var(--foundry-border-width-sm) var(--foundry-border-width-sm) var(--foundry-border-width-sm)"
-        #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework).contains(expected))
+        #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme).contains(expected))
         #expect(try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents).contains(expected))
         let responsiveSite = Site(name: "Responsive borderWidth", pages: [Page(title: "Home", slug: "index", parts: [saved])])
-        let responsiveHTML = HTMLPageRenderer(site: responsiveSite).render(page: responsiveSite.pages[0], framework: responsiveSite.framework)
+        let responsiveHTML = HTMLPageRenderer(site: responsiveSite).render(page: responsiveSite.pages[0], theme: responsiveSite.theme)
         #expect(responsiveHTML.contains("border-width: " + expected))
         #expect(responsiveHTML.contains("--numeric-top: 12px"))
         #expect(responsiveHTML.contains("border-style: dashed"))
-        let lime = try #require(ColourPaletteDefaults.standard.first { $0.id == "standard.lime" })
-        #expect(responsiveHTML.contains(lime.cssColour(at: .eight)))
+#expect(responsiveHTML.contains("border-color: #123456"))
         let exported = StaticSiteRenderer().render(site: responsiveSite)
         #expect(exported.files.contains { $0.contents.contains("border-width: " + expected) })
         #expect(exported.files.contains { $0.contents.contains("--numeric-top: 12px") })
     }
 
-    @Test @MainActor func frameworkRadiusLoadsPersistsAndRenders() throws {
+    @Test @MainActor func themeRadiusLoadsPersistsAndRenders() throws {
         let control = """
-        {"type" : "frameworkRadius", "id" : "frameworkRadius",
+        {"type" : "themeRadius", "id" : "themeRadius",
         "responsive" : true, "defaults" : {"base" : "sm"}}
         """
-        let url = try makePackage(manifest: manifest(withInspectorEntries: control), template: "<section {{ part.attributes }} data-radius=\"{{ control.frameworkRadius.css }}\" data-top=\"{{ control.frameworkRadius.topLeft }}\">{{ childArea(\"content\") }}</section>",
-                                  additionalFiles: ["part.css": ":instance { border-radius: {{ control.frameworkRadius }}; --numeric-top: {{ control.frameworkRadius.values.topLeft }}{{ control.frameworkRadius.units.topLeft }}; }"])
+        let url = try makePackage(manifest: manifest(withInspectorEntries: control), template: "<section {{ part.attributes }} data-radius=\"{{ control.themeRadius.css }}\" data-top=\"{{ control.themeRadius.topLeft }}\">{{ childArea(\"content\") }}</section>",
+                                  additionalFiles: ["part.css": ":instance { border-radius: {{ control.themeRadius }}; --numeric-top: {{ control.themeRadius.values.topLeft }}{{ control.themeRadius.units.topLeft }}; }"])
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
         PartRegistry.register(package)
         defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
         let definition = try #require(PartPackageAdapter.definition(from: package).properties.first)
-        guard case .frameworkRadius = definition.control else { Issue.record("Expected frameworkRadius"); return }
+        guard case .themeRadius = definition.control else { Issue.record("Expected themeRadius"); return }
         var node = PartNode(type: PartType(rawValue: package.manifest.identifier))
-        guard case .frameworkRadius(var radius) = node.propertyValue(.init(rawValue: "frameworkRadius")) else {
+        guard case .themeRadius(var radius) = node.propertyValue(.init(rawValue: "themeRadius")) else {
             Issue.record("Expected typed radius"); return
         }
         radius.unlinkAll()
@@ -704,67 +782,37 @@ struct PartPackageTests {
         top.amount = 12
         top.unit = "px"
         radius.set(top, for: .top)
-        node.setResponsiveProperty(.init(rawValue: "frameworkRadius"), value: .frameworkRadius(radius), at: .medium)
+        node.setResponsiveProperty(.init(rawValue: "themeRadius"), value: .themeRadius(radius), at: .medium)
         let saved = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(node))
-        #expect(saved.resolved(at: .medium).propertyValue(.init(rawValue: "frameworkRadius")) == .frameworkRadius(radius))
-        #expect(saved.propertyValue(.init(rawValue: "frameworkRadius")) == definition.defaultValue)
+        #expect(saved.resolved(at: .medium).propertyValue(.init(rawValue: "themeRadius")) == .themeRadius(radius))
+        #expect(saved.propertyValue(.init(rawValue: "themeRadius")) == definition.defaultValue)
         let site = Site(name: "Radius", pages: [Page(title: "Home", slug: "index", parts: [saved.resolved(at: .medium)])])
         let expected = "12.0px var(--foundry-border-radius-sm) var(--foundry-border-radius-sm) var(--foundry-border-radius-sm)"
-        #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework).contains(expected))
+        #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme).contains(expected))
         #expect(try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents).contains(expected))
         let responsiveSite = Site(name: "Responsive radius", pages: [Page(title: "Home", slug: "index", parts: [saved])])
-        let responsiveHTML = HTMLPageRenderer(site: responsiveSite).render(page: responsiveSite.pages[0], framework: responsiveSite.framework)
+        let responsiveHTML = HTMLPageRenderer(site: responsiveSite).render(page: responsiveSite.pages[0], theme: responsiveSite.theme)
         #expect(responsiveHTML.contains("border-radius: " + expected))
         #expect(responsiveHTML.contains("--numeric-top: 12px"))
         let exported = StaticSiteRenderer().render(site: responsiveSite)
         #expect(exported.files.contains { $0.contents.contains("border-radius: " + expected) })
         #expect(exported.files.contains { $0.contents.contains("--numeric-top: 12px") })
     }
-    @Test @MainActor func standardPaletteDefaultsLoadAndRender() throws {
-        for palette in ColourPaletteDefaults.standard {
-            let control = """
-            {"type" : "frameworkColor", "id" : "colour",
-            "defaults" : {"base" : {"palette" : "\(palette.id)",
-            "lightShade" : 8, "darkShade" : 3}}}
-            """
-            let url = try makePackage(manifest: manifest(withInspectorEntries: control),
-                template: "<section {{ part.attributes }} style=\"color: {{ control.colour }}\">{{ childArea(\"content\") }}</section>")
-            defer { try? FileManager.default.removeItem(at: url) }
-            let package = try PartPackageLoader.load(from: url)
-            PartRegistry.register(package)
-            defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
-            let definition = try #require(PartPackageAdapter.definition(from: package).properties.first)
-            guard case .packageColor(let colour) = definition.defaultValue else { Issue.record("Missing colour"); return }
-            #expect(colour.source == palette.id)
-            #expect(colour.shade.rawValue == 8)
-            #expect(colour.darkShade.rawValue == 3)
-            let node = PartNode(type: .init(rawValue: package.manifest.identifier))
-            let site = Site(name: "Standard palette", pages: [Page(title: "Home", slug: "index", parts: [node])])
-            let expected = palette.cssColour(at: .eight)
-            #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework).contains(expected))
-            #expect(try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents).contains(expected))
-        }
-        for id in ["lime", "standard.unknown", "custom:missing"] {
-            let control = "{\"type\" : \"frameworkColor\", \"id\" : \"colour\", \"defaults\" : {\"base\" : {\"palette\" : \"\(id)\"}}}"
-            let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withInspectorEntries: control).utf8))
-            #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory).contains { $0.severity == .error })
-        }
-    }
-    @Test @MainActor func frameworkMarginLoadsPersistsAndRenders() throws {
+    @Test @MainActor func themeMarginLoadsPersistsAndRenders() throws {
         let control = """
-        {"type" : "frameworkMargin", "id" : "frameworkMargin",
+        {"type" : "themeMargin", "id" : "themeMargin",
         "responsive" : true, "defaults" : {"base" : "auto"}}
         """
-        let url = try makePackage(manifest: manifest(withInspectorEntries: control), template: "<section {{ part.attributes }} data-margin=\"{{ control.frameworkMargin.css }}\" data-top=\"{{ control.frameworkMargin.top }}\">{{ childArea(\"content\") }}</section>",
-                                  additionalFiles: ["part.css": ":instance { margin: {{ control.frameworkMargin }}; --numeric-top: {{ control.frameworkMargin.values.top }}{{ control.frameworkMargin.units.top }}; }"])
+        let url = try makePackage(manifest: manifest(withInspectorEntries: control), template: "<section {{ part.attributes }} data-margin=\"{{ control.themeMargin.css }}\" data-top=\"{{ control.themeMargin.top }}\">{{ childArea(\"content\") }}</section>",
+                                  additionalFiles: ["part.css": ":instance { margin: {{ control.themeMargin }}; --numeric-top: {{ control.themeMargin.values.top }}{{ control.themeMargin.units.top }}; }"])
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
         PartRegistry.register(package)
         defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
         let definition = try #require(PartPackageAdapter.definition(from: package).properties.first)
-        guard case .frameworkMargin = definition.control else { Issue.record("Expected frameworkMargin"); return }
+        guard case .themeMargin = definition.control else { Issue.record("Expected themeMargin"); return }
         var node = PartNode(type: PartType(rawValue: package.manifest.identifier))
-        guard case .frameworkMargin(var margin) = node.propertyValue(.init(rawValue: "frameworkMargin")) else {
+        guard case .themeMargin(var margin) = node.propertyValue(.init(rawValue: "themeMargin")) else {
             Issue.record("Expected typed margin"); return
         }
         margin.unlinkAll()
@@ -773,37 +821,37 @@ struct PartPackageTests {
         top.amount = -12
         top.unit = "px"
         margin.set(top, for: .top)
-        node.setResponsiveProperty(.init(rawValue: "frameworkMargin"), value: .frameworkMargin(margin), at: .medium)
+        node.setResponsiveProperty(.init(rawValue: "themeMargin"), value: .themeMargin(margin), at: .medium)
         let saved = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(node))
-        #expect(saved.resolved(at: .medium).propertyValue(.init(rawValue: "frameworkMargin")) == .frameworkMargin(margin))
-        #expect(saved.propertyValue(.init(rawValue: "frameworkMargin")) == definition.defaultValue)
+        #expect(saved.resolved(at: .medium).propertyValue(.init(rawValue: "themeMargin")) == .themeMargin(margin))
+        #expect(saved.propertyValue(.init(rawValue: "themeMargin")) == definition.defaultValue)
         let site = Site(name: "Margin", pages: [Page(title: "Home", slug: "index", parts: [saved.resolved(at: .medium)])])
         let expected = "-12.0px auto auto auto"
-        #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework).contains(expected))
+        #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme).contains(expected))
         #expect(try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents).contains(expected))
         let responsiveSite = Site(name: "Responsive margin", pages: [Page(title: "Home", slug: "index", parts: [saved])])
-        let responsiveHTML = HTMLPageRenderer(site: responsiveSite).render(page: responsiveSite.pages[0], framework: responsiveSite.framework)
+        let responsiveHTML = HTMLPageRenderer(site: responsiveSite).render(page: responsiveSite.pages[0], theme: responsiveSite.theme)
         #expect(responsiveHTML.contains("margin: " + expected))
         #expect(responsiveHTML.contains("--numeric-top: -12px"))
         let exported = StaticSiteRenderer().render(site: responsiveSite)
         #expect(exported.files.contains { $0.contents.contains("margin: " + expected) })
         #expect(exported.files.contains { $0.contents.contains("--numeric-top: -12px") })
     }
-    @Test @MainActor func frameworkPaddingLoadsPersistsAndRenders() throws {
+    @Test @MainActor func themePaddingLoadsPersistsAndRenders() throws {
         let control = """
-        {"type" : "frameworkPadding", "id" : "frameworkPadding",
+        {"type" : "themePadding", "id" : "themePadding",
         "responsive" : true, "defaults" : {"base" : "sm"}}
         """
-        let url = try makePackage(manifest: manifest(withInspectorEntries: control), template: "<section {{ part.attributes }} data-padding=\"{{ control.frameworkPadding.css }}\" data-top=\"{{ control.frameworkPadding.top }}\">{{ childArea(\"content\") }}</section>",
-                                  additionalFiles: ["part.css": ":instance { padding: {{ control.frameworkPadding }}; --numeric-top: {{ control.frameworkPadding.values.top }}{{ control.frameworkPadding.units.top }}; }"])
+        let url = try makePackage(manifest: manifest(withInspectorEntries: control), template: "<section {{ part.attributes }} data-padding=\"{{ control.themePadding.css }}\" data-top=\"{{ control.themePadding.top }}\">{{ childArea(\"content\") }}</section>",
+                                  additionalFiles: ["part.css": ":instance { padding: {{ control.themePadding }}; --numeric-top: {{ control.themePadding.values.top }}{{ control.themePadding.units.top }}; }"])
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
         PartRegistry.register(package)
         defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
         let definition = try #require(PartPackageAdapter.definition(from: package).properties.first)
-        guard case .frameworkPadding = definition.control else { Issue.record("Expected frameworkPadding"); return }
+        guard case .themePadding = definition.control else { Issue.record("Expected themePadding"); return }
         var node = PartNode(type: PartType(rawValue: package.manifest.identifier))
-        guard case .frameworkPadding(var padding) = node.propertyValue(.init(rawValue: "frameworkPadding")) else {
+        guard case .themePadding(var padding) = node.propertyValue(.init(rawValue: "themePadding")) else {
             Issue.record("Expected typed padding"); return
         }
         padding.unlinkAll()
@@ -812,16 +860,16 @@ struct PartPackageTests {
         top.amount = 12
         top.unit = "px"
         padding.set(top, for: .top)
-        node.setResponsiveProperty(.init(rawValue: "frameworkPadding"), value: .frameworkPadding(padding), at: .medium)
+        node.setResponsiveProperty(.init(rawValue: "themePadding"), value: .themePadding(padding), at: .medium)
         let saved = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(node))
-        #expect(saved.resolved(at: .medium).propertyValue(.init(rawValue: "frameworkPadding")) == .frameworkPadding(padding))
-        #expect(saved.propertyValue(.init(rawValue: "frameworkPadding")) == definition.defaultValue)
+        #expect(saved.resolved(at: .medium).propertyValue(.init(rawValue: "themePadding")) == .themePadding(padding))
+        #expect(saved.propertyValue(.init(rawValue: "themePadding")) == definition.defaultValue)
         let site = Site(name: "Padding", pages: [Page(title: "Home", slug: "index", parts: [saved.resolved(at: .medium)])])
         let expected = "12.0px var(--foundry-space-sm) var(--foundry-space-sm) var(--foundry-space-sm)"
-        #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework).contains(expected))
+        #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme).contains(expected))
         #expect(try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents).contains(expected))
         let responsiveSite = Site(name: "Responsive padding", pages: [Page(title: "Home", slug: "index", parts: [saved])])
-        let responsiveHTML = HTMLPageRenderer(site: responsiveSite).render(page: responsiveSite.pages[0], framework: responsiveSite.framework)
+        let responsiveHTML = HTMLPageRenderer(site: responsiveSite).render(page: responsiveSite.pages[0], theme: responsiveSite.theme)
         #expect(responsiveHTML.contains("padding: " + expected))
         #expect(responsiveHTML.contains("--numeric-top: 12px"))
         let exported = StaticSiteRenderer().render(site: responsiveSite)
@@ -829,12 +877,12 @@ struct PartPackageTests {
         #expect(exported.files.contains { $0.contents.contains("--numeric-top: 12px") })
     }
 
-    @Test func frameworkPaddingRejectsUnsupportedManifestKeys() throws {
+    @Test func themePaddingRejectsUnsupportedManifestKeys() throws {
         for extra in ["\"count\" : 4", "\"allowsCustom\" : true",
-                      "\"options\" : []", "\"frameworkValues\" : \"spacing\"",
+                      "\"options\" : []", "\"themeValues\" : \"spacing\"",
                       "\"group\" : \"Spacing\""] {
-            let control = "{\"type\" : \"frameworkPadding\", \"id\" : \"frameworkPadding\", \"defaults\" : {\"base\" : \"sm\"}, \(extra)}"
-            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: control).utf8)).contains { $0.severity == .error })
+            let control = "{\"type\" : \"themePadding\", \"id\" : \"themePadding\", \"defaults\" : {\"base\" : \"sm\"}, \(extra)}"
+            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: control).utf8)).contains { $0.severity == .warning })
         }
     }
 
@@ -858,7 +906,7 @@ struct PartPackageTests {
     func childPickersKeepTheirDeclaredInspectorPosition(_ position: Int) throws {
         var controls = [
             #"{"type":"text","id":"before","defaults":{"base":""}}"#,
-            #"{"type":"frameworkFont","id":"font","defaults":{"base":"body"},"showsWeight":true,"showsStyle":true}"#
+            #"{"type":"themeFont","id":"font","defaults":{"base":"body"},"showsWeight":true,"showsStyle":true}"#
         ]
         controls.insert(#"{"type":"childPicker","id":"items","pickerItems":["com.example.child"]}"#, at: position)
         let entries = """
@@ -893,7 +941,7 @@ struct PartPackageTests {
 
     @Test func generatedFontRowsShareOneInspectorGrid() throws {
         let item = """
-        {"type" : "frameworkFont", "id" : "font",
+        {"type" : "themeFont", "id" : "font",
         "defaults" : {"base" : "body"}, "showsWeight" : true, "showsStyle" : true}
         """
         let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withInspectorEntries: item).utf8))
@@ -922,19 +970,19 @@ struct PartPackageTests {
         PartRegistry.register(package)
         defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
         let definition = try #require(PartPackageAdapter.definition(from: package).properties.first)
-        #expect(definition.frameworkValueSource == nil)
+        #expect(definition.themeValueSource == nil)
         guard case .choice(let choices) = definition.control else { Issue.record("Expected ordinary Select"); return }
         #expect(choices.map(\.value) == ["body"])
         let node = PartNode(type: PartType(rawValue: package.manifest.identifier))
         let site = Site(name: "Select", pages: [Page(title: "Home", slug: "index", parts: [node])])
-        #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework).contains("data-choice=\"body\""))
+        #expect(HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme).contains("data-choice=\"body\""))
         #expect(try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents).contains("data-choice=\"body\""))
 
         for extra in ["\"allowsCustom\" : false", "\"allowsCustom\" : true"] +
-            ["fontFamilies", "fontSizes", "spacing", "shadows", "colors"].map({ "\"frameworkValues\" : \"\($0)\"" }) {
+            ["fontFamilies", "fontSizes", "spacing", "shadows", "colors"].map({ "\"themeValues\" : \"\($0)\"" }) {
             let invalid = item.replacingOccurrences(of: "\"type\"", with: extra + ", \"type\"")
             #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: invalid).utf8))
-                .contains { $0.message.contains("Select supports only declared options") })
+                .contains { $0.severity == .warning && $0.message.contains("select does not support") })
         }
     }
 
@@ -958,13 +1006,13 @@ struct PartPackageTests {
         })
         let text = "{\"type\" : \"text\", \"id\" : \"t\", \"label\" : \"T\", \"presentation\" : \"switch\", \"defaults\" : {\"base\" : \"x\"}, \"responsive\" : false}"
         #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: text).utf8)).contains {
-            $0.message == "presentation is available only for select and toggle controls."
+            $0.severity == .warning && $0.message.contains("'presentation'")
         })
     }
 
-    @Test @MainActor func frameworkFontSizeControlResolvesSizeAndLineHeightVariables() throws {
+    @Test @MainActor func themeFontSizeControlResolvesSizeAndLineHeightVariables() throws {
         let item = """
-        {"type" : "frameworkFontSize", "id" : "size",
+        {"type" : "themeFontSize", "id" : "size",
         "label" : "Size", "responsive" : true,
         "defaults" : {"base" : "xl"}}
         """
@@ -976,7 +1024,7 @@ struct PartPackageTests {
         defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
         let node = PartNode(type: PartType(rawValue: package.manifest.identifier))
         let site = Site(name: "Sizes", pages: [Page(title: "Home", slug: "index", parts: [node])])
-        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
         #expect(canvas.contains("font-size: var(--foundry-font-size-xl)"))
         #expect(canvas.contains("line-height: var(--foundry-font-size-xl-line-height)"))
         let exported = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
@@ -985,18 +1033,18 @@ struct PartPackageTests {
 
         // Options-style keys are rejected, and portable defaults accept only
         // the predefined scale — project custom sizes are not portable.
-        let withValues = item.replacingOccurrences(of: "\"type\"", with: "\"frameworkValues\" : \"fontSizes\", \"type\"")
+        let withValues = item.replacingOccurrences(of: "\"type\"", with: "\"themeValues\" : \"fontSizes\", \"type\"")
         #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: withValues).utf8))
-            .contains { $0.message.contains("does not accept frameworkValues") })
+            .contains { $0.severity == .warning && $0.message.contains("'themeValues'") })
         let badDefault = item.replacingOccurrences(of: "\"xl\"", with: "\"huge\"")
         let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withInspectorEntries: badDefault).utf8))
         #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory)
-            .contains { $0.message.contains("frameworkFontSize default must be a predefined size ID") })
+            .contains { $0.message.contains("themeFontSize default must be a predefined size ID") })
     }
 
-    @Test @MainActor func frameworkStackingOrderControlResolvesVariable() throws {
+    @Test @MainActor func themeStackingOrderControlResolvesVariable() throws {
         let item = """
-        {"type" : "frameworkStackingOrder", "id" : "layer",
+        {"type" : "themeStackingOrder", "id" : "layer",
         "label" : "Layer", "responsive" : true,
         "defaults" : {"base" : "modal"}}
         """
@@ -1008,7 +1056,7 @@ struct PartPackageTests {
         defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
         let node = PartNode(type: PartType(rawValue: package.manifest.identifier))
         var site = Site(name: "Layers", pages: [Page(title: "Home", slug: "index", parts: [node])])
-        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
         #expect(canvas.contains("z-index: var(--foundry-z-index-modal)"))
         let exported = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
         #expect(exported.contains("z-index: var(--foundry-z-index-modal)"))
@@ -1016,29 +1064,29 @@ struct PartPackageTests {
         // Custom mode carries a raw integer instead of a token variable.
         var customNode = node
         customNode.setProperty(.init(rawValue: "layer"), value: .packageStackingOrder(.init(
-            source: PartFrameworkValueSelection.manualCustom,
+            source: PartThemeValueSelection.manualCustom,
             customValue: 750
         )))
         site.pages[0].parts = [customNode]
-        let customCanvas = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        let customCanvas = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
         #expect(customCanvas.contains("z-index: 750"))
         let customExported = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
         #expect(customExported.contains("z-index: 750"))
 
         // Options-style keys are rejected, and portable defaults accept only
         // the predefined scale — project custom values are not portable.
-        let withValues = item.replacingOccurrences(of: "\"type\"", with: "\"frameworkValues\" : \"zIndexes\", \"type\"")
+        let withValues = item.replacingOccurrences(of: "\"type\"", with: "\"themeValues\" : \"zIndexes\", \"type\"")
         #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: withValues).utf8))
-            .contains { $0.message.contains("does not accept frameworkValues") })
+            .contains { $0.severity == .warning && $0.message.contains("'themeValues'") })
         let badDefault = item.replacingOccurrences(of: "\"modal\"", with: "\"everest\"")
         let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withInspectorEntries: badDefault).utf8))
         #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory)
-            .contains { $0.message.contains("frameworkStackingOrder default must be a predefined stacking ID") })
+            .contains { $0.message.contains("themeStackingOrder default must be a predefined stacking ID") })
     }
 
     @Test @MainActor func unifiedFontControlHasStructuredOutputAndIndependentOverrides() throws {
         let item = """
-        {"type" : "frameworkFont", "id" : "typography",
+        {"type" : "themeFont", "id" : "typography",
         "showsWeight" : true, "showsStyle" : true, "responsive" : true,
         "defaults" : {"base" : {"family" : "body", "weight" : 650, "style" : "italic"}}}
         """
@@ -1055,9 +1103,9 @@ struct PartPackageTests {
         #expect(resolved.propertyValue(.init(rawValue: "typography")).stringValue == "heading")
         #expect(resolved.propertyValue(weight).numberValue == 900)
         #expect(!node.hasResponsiveOverride(.init(rawValue: "typography"), at: .medium))
-        let output = PartPackageFontControl.resolved("typography", node: resolved, framework: .standard)
+        let output = PartPackageFontControl.resolved("typography", node: resolved, theme: .standard)
         guard case .object(let fields) = output else { Issue.record("Expected structured font"); return }
-        #expect(fields["family"] == .string(Framework.standard.fontCSSVariable(for: "heading")))
+        #expect(fields["family"] == .string(Theme.standard.fontCSSVariable(for: "heading")))
         #expect(fields["weight"] == .number(900))
         #expect(fields["style"] == .string("italic"))
         let site = Site(name: "Fonts", pages: [Page(title: "Home", slug: "index", parts: [resolved])])
@@ -1075,19 +1123,19 @@ struct PartPackageTests {
             "\"showsSize\" : true, \"defaults\" : {\"base\" : {\"family\" : \"body\", \"size\" : \"huge\"}}"
         ] {
             let defaultJSON = extra.contains("\"defaults\"") ? "" : ", \"defaults\" : {\"base\" : \"body\"}"
-            let item = "{\"type\" : \"frameworkFont\", \"id\" : \"font\"\(defaultJSON), \(extra)}"
+            let item = "{\"type\" : \"themeFont\", \"id\" : \"font\"\(defaultJSON), \(extra)}"
             let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withInspectorEntries: item).utf8))
             #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory).contains { $0.severity == .error && ($0.message.contains("default.") || $0.message.contains("at least one")) })
         }
         for kind in ["fontWeight", "fontStyle"] {
             let item = "{\"type\" : \"\(kind)\", \"id\" : \"font\", \"defaults\" : {\"base\" : \"normal\"}}"
-            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: item).utf8)).contains { $0.message.contains("Use one frameworkFont") })
+            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: item).utf8)).contains { $0.message.contains("Use one themeFont") })
         }
     }
 
     @Test @MainActor func fontShowsSizeAddsAThemeFontSizeRow() throws {
         let item = """
-        {"type" : "frameworkFont", "id" : "font", "showsSize" : true, "responsive" : true,
+        {"type" : "themeFont", "id" : "font", "showsSize" : true, "responsive" : true,
         "defaults" : {"base" : {"family" : "body", "size" : "xl"}}}
         """
         let url = try makePackage(manifest: manifest(withInspectorEntries: item),
@@ -1100,7 +1148,7 @@ struct PartPackageTests {
         defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
         let node = PartNode(type: PartType(rawValue: package.manifest.identifier))
         let site = Site(name: "Font Sizes", pages: [Page(title: "Home", slug: "index", parts: [node])])
-        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
         #expect(canvas.contains("font-size: var(--foundry-font-size-xl)"))
         #expect(canvas.contains("line-height: var(--foundry-font-size-xl-line-height)"))
         let exported = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
@@ -1109,7 +1157,7 @@ struct PartPackageTests {
     }
 
     @Test @MainActor func fixedFamilyCanExposeOnlyWeight() throws {
-        let item = "{\"type\" : \"frameworkFont\", \"id\" : \"font\", \"showsFamily\" : false, \"showsWeight\" : true, \"responsive\" : true, \"defaults\" : {\"base\" : \"body\"}}"
+        let item = "{\"type\" : \"themeFont\", \"id\" : \"font\", \"showsFamily\" : false, \"showsWeight\" : true, \"responsive\" : true, \"defaults\" : {\"base\" : \"body\"}}"
         let url = try makePackage(manifest: manifest(withInspectorEntries: item), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
@@ -1124,137 +1172,40 @@ struct PartPackageTests {
         var node = PartNode(type: PartType(rawValue: package.manifest.identifier))
         node.setProperty(.init(rawValue: "font"), value: .choice("heading"))
         #expect(PartPackageFontControl.familyReference("font", node: node) == "body")
-        guard case .object(let fields) = PartPackageFontControl.resolved("font", node: node, framework: .standard) else { Issue.record("Expected font object"); return }
+        guard case .object(let fields) = PartPackageFontControl.resolved("font", node: node, theme: .standard) else { Issue.record("Expected font object"); return }
         #expect(fields["style"] == nil)
     }
 
     @Test @MainActor
-    func standaloneFrameworkFontLoadsAndRenders() throws {
+    func standaloneThemeFontLoadsAndRenders() throws {
         for role in ["body", "heading", "monospaced"] {
-            let item = "{\"type\" : \"frameworkFont\", \"id\" : \"family\", \"defaults\" : {\"base\" : \"\(role)\"}, \"responsive\" : true}"
+            let item = "{\"type\" : \"themeFont\", \"id\" : \"family\", \"defaults\" : {\"base\" : \"\(role)\"}, \"responsive\" : true}"
             let url = try makePackage(manifest: manifest(withInspectorEntries: item), template: "<section {{ part.attributes }} style=\"font-family: {{ control.family.family }}\">{{ childArea(\"content\") }}</section>")
             defer { try? FileManager.default.removeItem(at: url) }
             let package = try PartPackageLoader.load(from: url)
             let definition = try #require(PartPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "family" })
-            guard case .frameworkFont = definition.control else { Issue.record("Expected standalone frameworkFont"); return }
-            #expect(definition.frameworkValueSource == nil)
+            guard case .themeFont = definition.control else { Issue.record("Expected standalone themeFont"); return }
+            #expect(definition.themeValueSource == nil)
             #expect(definition.isResponsive)
             PartRegistry.register(package)
             defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
             let node = PartNode(type: PartType(rawValue: package.manifest.identifier))
             let site = Site(name: "Fonts", pages: [Page(title: "Home", slug: "index", parts: [node])])
             let html = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
-            #expect(html.contains("font-family: \(site.framework.fontCSSVariable(for: role))"))
+            #expect(html.contains("font-family: \(site.theme.fontCSSVariable(for: role))"))
         }
     }
 
-    @Test func standaloneFrameworkFontRejectsInvalidContracts() throws {
+    @Test func standaloneThemeFontRejectsInvalidContracts() throws {
         for value in ["accent", "custom:anything", "Arial"] {
-            let item = "{\"type\" : \"frameworkFont\", \"id\" : \"family\", \"defaults\" : {\"base\" : \"\(value)\"}}"
+            let item = "{\"type\" : \"themeFont\", \"id\" : \"family\", \"defaults\" : {\"base\" : \"\(value)\"}}"
             let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withInspectorEntries: item).utf8))
-            #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory).contains { $0.message.contains("frameworkFont default") })
+            #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory).contains { $0.message.contains("themeFont default") })
         }
-        for extra in ["\"count\" : 2", "\"frameworkValues\" : \"fontFamilies\"", "\"options\" : []", "\"allowsCustom\" : false"] {
-            let item = "{\"type\" : \"frameworkFont\", \"id\" : \"family\", \"defaults\" : {\"base\" : \"body\"}, \(extra)}"
-            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: item).utf8)).contains { $0.message.contains("frameworkFont control does not accept") })
+        for extra in ["\"count\" : 2", "\"themeValues\" : \"fontFamilies\"", "\"options\" : []", "\"allowsCustom\" : false"] {
+            let item = "{\"type\" : \"themeFont\", \"id\" : \"family\", \"defaults\" : {\"base\" : \"body\"}, \(extra)}"
+            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: item).utf8)).contains { $0.severity == .warning && $0.message.contains("themeFont does not support") })
         }
-    }
-
-    @Test(arguments: [0.0, 0.2, 1.0])
-    func frameworkColourAcceptsInitialOpacity(alpha: Double) throws {
-        let item = """
-        {"type":"frameworkColor","id":"colour","opacity":true,
-        "defaults":{"base":{"palette":"standard.black","opacity":\(alpha)}}}
-        """
-        let url = try makePackage(manifest: manifest(withInspectorEntries: item), template: "<div {{ part.attributes }}>{{ childArea(\"content\") }}</div>")
-        defer { try? FileManager.default.removeItem(at: url) }
-        let package = try PartPackageLoader.load(from: url)
-        let definition = try #require(PartPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "colour" })
-        guard case .packageColor(let value) = definition.defaultValue else { Issue.record("Missing colour"); return }
-        #expect(value.opacity == alpha)
-        #expect(value.darkOpacity == alpha)
-        #expect(PartPackageColorResolver.channels(value, framework: .standard, opacity: true, appearance: .light)?.alpha == alpha)
-    }
-
-    @Test func frameworkColourOpacityIsOptIn() throws {
-        let item = """
-        {"type":"frameworkColor","id":"colour",
-        "defaults":{"base":{"palette":"standard.black"}}}
-        """
-        let url = try makePackage(manifest: manifest(withInspectorEntries: item), template: "<div {{ part.attributes }}>{{ childArea(\"content\") }}</div>")
-        defer { try? FileManager.default.removeItem(at: url) }
-        let package = try PartPackageLoader.load(from: url)
-        let definition = try #require(PartPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "colour" })
-        guard case .packageColor(_, let opacity, _, _) = definition.control,
-              case .packageColor(let value) = definition.defaultValue else { Issue.record("Missing colour"); return }
-        #expect(opacity == false)
-        #expect(value.opacity == 1)
-        let invalid = item.replacingOccurrences(of: "\"standard.black\"", with: "\"standard.black\",\"opacity\":0.2")
-        let invalidURL = try makePackage(manifest: manifest(withInspectorEntries: invalid), template: "<div {{ part.attributes }}>{{ childArea(\"content\") }}</div>")
-        defer { try? FileManager.default.removeItem(at: invalidURL) }
-        #expect(throws: PartPackageLoadingError.self) { try PartPackageLoader.load(from: invalidURL) }
-    }
-
-    @Test(arguments: ["-0.1", "1.1", "\"0.2\"", "true"])
-    func frameworkColourRejectsInvalidOpacity(alpha: String) throws {
-        let item = """
-        {"type":"frameworkColor","id":"colour","opacity":true,
-        "defaults":{"base":{"palette":"standard.black","opacity":\(alpha)}}}
-        """
-        let url = try makePackage(manifest: manifest(withInspectorEntries: item), template: "<div {{ part.attributes }}>{{ childArea(\"content\") }}</div>")
-        defer { try? FileManager.default.removeItem(at: url) }
-        #expect(throws: PartPackageLoadingError.self) { try PartPackageLoader.load(from: url) }
-    }
-
-    @Test
-    func frameworkColourAcceptsAnOptionalInitialShade() throws {
-        for key in ["lightShade", "darkShade"] {
-        for shade in [nil, 1, 8, 13] as [Int?] {
-            let item = """
-            {"id" : "colour",
-            "type" : "frameworkColor",
-            "defaults" : {"base" : {"palette" : "accent"
-            \(shade.map { ", \"\(key)\" : \($0)" } ?? "")}}}
-            """
-            let url = try makePackage(manifest: manifest(withInspectorEntries: item),
-                                      template: "<div {{ part.attributes }}>{{ childArea(\"content\") }}</div>")
-            defer { try? FileManager.default.removeItem(at: url) }
-            let package = try PartPackageLoader.load(from: url)
-            let definition = try #require(PartPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "colour" })
-            guard case .packageColor(_, _, let light, let dark) = definition.control,
-                  case .packageColor(let value) = definition.defaultValue else {
-                Issue.record("Expected framework colour control"); continue
-            }
-            #expect((key == "lightShade" ? light : dark)?.rawValue == shade)
-            if let shade { #expect((key == "lightShade" ? value.shade : value.darkShade).rawValue == shade) }
-        }
-        }
-        for (type, value, initial) in [("frameworkColor", "accent", 0), ("frameworkColor", "accent", 14),
-                                       ("frameworkColor", "custom", 3)] {
-            let item = """
-            {"id" : "colour", "type" : "\(type)",
-            "defaults" : {"base" : {"palette" : "\(value)", "lightShade" : \(initial)}}}
-            """
-            let decoded = try JSONDecoder().decode(PartPackageManifest.self,
-                from: Data(manifest(withInspectorEntries: item).utf8))
-            #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory)
-                .contains { $0.location.hasSuffix(".lightShade") && $0.severity == .error })
-        }
-        for invalid in ["\"8\"", "true", "2.5"] {
-            let item = "{\"id\" : \"colour\", \"type\" : \"frameworkColor\", \"defaults\" : {\"base\" : {\"palette\" : \"accent\", \"lightShade\" : \(invalid)}}}"
-            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: item).utf8))
-                .contains { $0.message == "lightShade must be an integer." })
-        }
-    }
-
-    @Test func frameworkColourRejectsOldDefaultsAndUnknownNestedKeys() throws {
-        for value in ["\"accent\"", "[\"accent\"]",
-                      "{\"palette\" : \"accent\", \"shade\" : 3}"] {
-            let item = "{\"id\" : \"colour\", \"type\" : \"frameworkColor\", \"defaults\" : {\"base\" : \(value)}}"
-            #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: item).utf8)).contains { $0.severity == .error })
-        }
-        let oldKeys = "{\"id\" : \"colour\", \"type\" : \"frameworkColor\", \"defaults\" : {\"base\" : {\"palette\" : \"accent\"}}, \"lightShade\" : 8}"
-        #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: oldKeys).utf8)).contains { $0.message.contains("Unknown key 'lightShade'") })
     }
 
     @Test
@@ -1340,7 +1291,7 @@ struct PartPackageTests {
 
     @Test
     func removedControlTypesAreRejected() {
-        for type in ["fontFamily", "info", "margin", "padding"] {
+        for type in ["fontFamily", "info", "margin", "padding", "themePaletteColor", "frameworkColor"] {
             let json = """
             {
             "type" : "\(type)"
@@ -1396,16 +1347,16 @@ struct PartPackageTests {
         #expect(enablePackage.manifest.identifier == "dev.foundry.enable-conditions")
         #expect(enablePackage.manifest.resolvedProperties.contains { $0.visibleWhen?.id == "titles[2]" })
 
-        let frameworkPackage = try PartPackageLoader.load(
+        let themePackage = try PartPackageLoader.load(
             from: repositoryURL.appending(path: "DevelopmentFixtures/FrameworkValues.foundrydevpack/Parts/FrameworkValues")
         )
-        #expect(frameworkPackage.manifest.identifier == "dev.foundry.framework-values")
-        #expect(!frameworkPackage.manifest.resolvedProperties.contains { $0.control.type == .select && $0.control.frameworkValues != nil })
-        #expect(frameworkPackage.manifest.resolvedProperties.contains {
-            $0.id == "topBorder" && $0.control.type == .frameworkColor && $0.control.allowsCustom == true
+        #expect(themePackage.manifest.identifier == "dev.foundry.theme-values")
+        #expect(!themePackage.manifest.resolvedProperties.contains { $0.control.type == .select && $0.control.themeValues != nil })
+        #expect(themePackage.manifest.resolvedProperties.contains {
+            $0.id == "topBorder" && $0.control.type == .color
         })
-        #expect(frameworkPackage.manifest.resolvedProperties.contains {
-            $0.id == "bottomBorder" && $0.control.type == .frameworkColor && $0.control.allowsCustom == true
+        #expect(themePackage.manifest.resolvedProperties.contains {
+            $0.id == "bottomBorder" && $0.control.type == .color
         })
 
         let scopedAssetsPackage = try PartPackageLoader.load(
@@ -1549,7 +1500,7 @@ struct PartPackageTests {
         #expect(manifest.resolvedProperties.first?.id == "background.backgroundMode")
         #expect(manifest.resolvedProperties.first?.defaultValue == .string("none"))
         #expect(manifest.resolvedProperties.contains { $0.id == "background.backgroundImage" && $0.control.type == .image })
-        #expect(manifest.resolvedProperties.contains { $0.id == "background.backgroundGradientFrom" && $0.control.type == .themeColor })
+        #expect(manifest.resolvedProperties.contains { $0.id == "background.backgroundGradientFrom" && $0.control.type == .themeColors })
         #expect(manifest.resolvedProperties.contains { $0.id == "background.backgroundVideo" && $0.control.type == .video })
         let videoLoop = try #require(manifest.resolvedProperties.first { $0.id == "background.backgroundVideoLoop" })
         #expect(videoLoop.defaultValue == .boolean(true))
@@ -1641,17 +1592,17 @@ struct PartPackageTests {
         #""defaultOverrides":{}"#, #""optionOverrides":{}"#,
         #""omit":["backgroundRepeat"]"#, #""target":".content""#
     ])
-    func controlGroupsRejectOldConfigurationNames(_ setting: String) throws {
+    func controlGroupsIgnoreOldConfigurationNames(_ setting: String) throws {
         let entry = #"{"type":"background","id":"surface",\#(setting)}"#
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: entry).utf8))
-        #expect(diagnostics.contains { $0.severity == .error && $0.message.contains("Unknown key") })
+        #expect(diagnostics.contains { $0.severity == .warning && $0.message.contains("Unknown key") })
     }
 
     @Test(arguments: [#""supportsHover":false"#, #""backgroundTypes":["colour"]"#])
-    func backgroundCapabilitiesAreRejectedOnOtherGroups(_ setting: String) throws {
+    func backgroundCapabilitiesAreIgnoredOnOtherGroups(_ setting: String) throws {
         let entry = #"{"type":"sizing","id":"size",\#(setting)}"#
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: entry).utf8))
-        #expect(diagnostics.contains { $0.severity == .error && $0.message.contains("only on Background") })
+        #expect(diagnostics.contains { $0.severity == .warning && $0.message.contains("was ignored") })
     }
 
     @Test
@@ -1839,11 +1790,11 @@ struct PartPackageTests {
         // while disabled.
         #expect(try composed("effects", values: [
             "effectsEnabled": .boolean(true),
-            "frameworkShadow": .string("var(--foundry-shadow-lg)")
+            "themeShadow": .string("var(--foundry-shadow-lg)")
         ]) == "box-shadow: var(--foundry-shadow-lg);")
         #expect(try composed("effects", values: [
             "effectsEnabled": .boolean(false),
-            "frameworkShadow": .string("var(--foundry-shadow-lg)")
+            "themeShadow": .string("var(--foundry-shadow-lg)")
         ]) == "box-shadow: none;")
 
         // An untouched Layout group contributes nothing at all.
@@ -1877,8 +1828,8 @@ struct PartPackageTests {
         {"type":"select","id":"wrap","label":"Wrap","responsive":true,
          "options":[{"value":"nowrap","title":"No wrap"},{"value":"wrap","title":"Wrap"}],
          "defaults":{"base":"nowrap"}},
-        {"type":"frameworkSpacing","id":"columnGap","label":"H gap","responsive":true,"defaults":{"base":"md"}},
-        {"type":"frameworkSpacing","id":"rowGap","label":"V gap","responsive":true,"defaults":{"base":"md"}},
+        {"type":"themeSpacing","id":"columnGap","label":"H gap","responsive":true,"defaults":{"base":"md"}},
+        {"type":"themeSpacing","id":"rowGap","label":"V gap","responsive":true,"defaults":{"base":"md"}},
         {"type":"select","id":"alignItems","label":"Align","responsive":true,
          "options":[{"value":"stretch","title":"Stretch"},{"value":"center","title":"Centre"}],
          "defaults":{"base":"stretch"}},
@@ -2025,7 +1976,7 @@ struct PartPackageTests {
         "version" : "1.0.0",
         "inspector" : [
             {"type" : "spacing", "id": "spacing", "excludeControls" : ["margin"]},
-            {"type" : "effects", "id": "effects", "excludeControls" : ["frameworkShadow"]}
+            {"type" : "effects", "id": "effects", "excludeControls" : ["themeShadow"]}
         ],
         "templates" : {"html" : "part.html"}
         }
@@ -2100,7 +2051,7 @@ struct PartPackageTests {
             ("gap", ["gap", "rowGap", "columnGap"]),
             ("sizing", ["width", "height", "minWidth", "maxWidth", "minHeight", "maxHeight", "aspectRatio"]),
             ("borders", ["sides", "width", "style", "radius", "colourEnabled", "theme", "subtle"]),
-            ("effects", ["effectsEnabled", "frameworkShadow"]),
+            ("effects", ["effectsEnabled", "themeShadow"]),
             ("layout", ["position", "zIndexMode", "zIndex", "offsets", "offset", "offsetEdges", "overflow"]),
             ("display", ["display", "visibility"]),
             ("alignment", ["justifyContent", "justifyItems", "alignItems", "alignContent", "placeItems"]),
@@ -2206,7 +2157,7 @@ struct PartPackageTests {
         "inspector" : [{
             "type" : "spacing", "id": "spacing",
             "defaults" : {
-                "frameworkPadding" : {"left" : "sm"}
+                "themePadding" : {"left" : "sm"}
             }
         }],
         "templates" : {"html" : "part.html"}
@@ -2214,8 +2165,8 @@ struct PartPackageTests {
         """
         let data = Data(json.utf8)
         let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
-        #expect(manifest.resolvedProperties.first { $0.id == "spacing.frameworkPadding" }?.defaultValue == .object(["left": .string("sm")]))
-        #expect(manifest.resolvedProperties.first { $0.id == "spacing.frameworkMargin" }?.defaultValue == .string("none"))
+        #expect(manifest.resolvedProperties.first { $0.id == "spacing.themePadding" }?.defaultValue == .object(["left": .string("sm")]))
+        #expect(manifest.resolvedProperties.first { $0.id == "spacing.themeMargin" }?.defaultValue == .string("none"))
         #expect(manifest.resolvedProperties.first { $0.id == "spacing.spacingEnabled" }?.defaultValue == .boolean(false))
         #expect(try PartPackageManifestSchema.diagnostics(for: data).isEmpty)
     }
@@ -2314,7 +2265,7 @@ struct PartPackageTests {
             .contains("Duplicate excludeControls value 'position'."))
         #expect(try messages(#"{"type" : "layout", "id": "layout", "excludeControls" : []}"#)
             .contains("excludeControls must name at least one control, or be removed."))
-        #expect(try messages(#"{"type" : "effects", "id": "effects", "excludeControls" : ["effectsEnabled", "frameworkShadow"]}"#)
+        #expect(try messages(#"{"type" : "effects", "id": "effects", "excludeControls" : ["effectsEnabled", "themeShadow"]}"#)
             .contains("excludeControls removes every control the effects group generates; remove the group instead."))
         #expect(try messages(#"{"type" : "layout", "id": "layout", "allowedOptions" : {"position" : ["relative", "statik"]}}"#)
             .contains { $0.hasPrefix("'statik' is not an option of 'position'.") })
@@ -2474,7 +2425,7 @@ struct PartPackageTests {
                       Page(title: "Nested", slug: "nested", parts: [node])]
         site.assetLibrary = [.asset(asset)]
         let assets: ProjectAssetContents = [asset.id: .init(asset: asset, data: Data())]
-        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], language: "en", framework: site.framework, assets: assets, breakpoint: .extraLarge)
+        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], language: "en", theme: site.theme, assets: assets, breakpoint: .extraLarge)
         let metadata = try #require(asset.videoMetadata)
         #expect(canvas.contains(metadata.posterDataURL))
         #expect(canvas.contains("legacy-poster.jpg") == false)
@@ -2514,7 +2465,7 @@ struct PartPackageTests {
         let responsiveDiagnostics = try PartPackageManifestSchema.diagnostics(
             for: Data(manifest(withInspectorEntries: responsiveControl).utf8)
         )
-        #expect(responsiveDiagnostics.contains { $0.message == "A video control does not support responsive." })
+        #expect(responsiveDiagnostics.contains { $0.severity == .warning && $0.message.contains("'responsive'") })
         let packageURL = try makePackage(
             manifest: manifest(withInspectorEntries: control),
             template: #"<section class="sample {{ part.class }}" {{ part.attributes }}><video class="fd-video" src="{{ control.film }}" poster="{{ control.film.poster }}" {{ control.film.attributes }}></video>{{ childArea("content") }}</section>"#
@@ -2593,7 +2544,7 @@ struct PartPackageTests {
         let canvasHTML = HTMLPageRenderer().render(
             page: page,
             language: "en",
-            framework: .standard,
+            theme: .standard,
             assets: assets,
             breakpoint: .extraLarge
         )
@@ -2696,17 +2647,17 @@ struct PartPackageTests {
     }
 
     @Test
-    func selectRejectsFrameworkValuesAndFrameworkDefaults() throws {
+    func selectRejectsThemeValuesAndThemeDefaults() throws {
         let json = """
         {
         "minimumAPIVersion" : 1,
-        "id" : "com.example.framework-values",
-        "title" : "Framework Values", "description" : "Named framework sources",
+        "id" : "com.example.theme-values",
+        "title" : "Theme Values", "description" : "Named theme sources",
         "author" : "Foundry", "version" : "1.0.0", "group" : "Other",
         "tags" : [], "assets" : [],
         "inspector" : [{
         "id" : "tone", "label" : "Tone",
-        "type" : "select", "frameworkValues" : "spacing",
+        "type" : "select", "themeValues" : "spacing",
         "allowsCustom" : true,
         "options" : [{"value" : "inherit", "title" : "Inherit"}],
         "defaults" : {"base" : "md"}, "responsive" : false
@@ -2717,86 +2668,72 @@ struct PartPackageTests {
         let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data(json.utf8))
         let property = try #require(manifest.resolvedProperties.first)
 
-        #expect(property.control.frameworkValues == .source(.spacing))
-        #expect(property.control.frameworkValueSource == nil)
+        #expect(property.control.themeValues == .source(.spacing))
+        #expect(property.control.themeValueSource == nil)
         #expect(property.control.allowsCustom == true)
         let diagnostics = PartPackageValidator.validate(manifest, rootURL: FileManager.default.temporaryDirectory)
-        #expect(diagnostics.contains { $0.location.contains("frameworkValues") })
+        #expect(diagnostics.contains { $0.location.contains("themeValues") })
         #expect(diagnostics.contains { $0.message.contains("select default") })
-        #expect(PartPackageFrameworkValueResolver.choices(for: .spacing, framework: .standard).contains { $0.value == "md" })
-        #expect(PartPackageFrameworkValueResolver.resolve("md", from: .spacing, framework: .standard) == "var(--foundry-space-md)")
-        for source in PartPackageFrameworkValueSource.allCases {
-            #expect(PartPackageFrameworkValueResolver.choices(for: source, framework: .standard).allSatisfy {
+        #expect(PartPackageThemeValueResolver.choices(for: .spacing, theme: .standard).contains { $0.value == "md" })
+        #expect(PartPackageThemeValueResolver.resolve("md", from: .spacing, theme: .standard) == "var(--foundry-space-md)")
+        for source in PartPackageThemeValueSource.allCases {
+            #expect(PartPackageThemeValueResolver.choices(for: source, theme: .standard).allSatisfy {
                 !$0.label.contains("—")
             })
         }
 
-        var framework = Framework.standard
-        framework.typography.customFontSizes.append(.init(id: "display", title: "Display", size: 5, lineHeight: 1.5))
-        let sizeChoices = PartPackageFrameworkValueResolver.choices(for: .fontSizes, framework: framework)
+        var theme = Theme.standard
+        theme.typography.customFontSizes.append(.init(id: "display", title: "Display", size: 5, lineHeight: 1.5))
+        let sizeChoices = PartPackageThemeValueResolver.choices(for: .fontSizes, theme: theme)
         #expect(sizeChoices.first?.value == "xs")
         #expect(sizeChoices.last?.value == "display")
         #expect(sizeChoices.last?.separatorBefore == true)
 
-        let countedFrameworkSelect = json
+        let countedThemeSelect = json
             .replacingOccurrences(
-                of: "\"frameworkValues\" : \"spacing\"",
-                with: "\"frameworkValues\" : \"fontSizes\""
+                of: "\"themeValues\" : \"spacing\"",
+                with: "\"themeValues\" : \"fontSizes\""
             )
             .replacingOccurrences(
                 of: "\"defaults\" : {\"base\" : \"md\"}, \"responsive\" : false",
                 with: "\"defaults\" : {\"base\" : \"base\"}, \"responsive\" : false, \"count\" : 2"
             )
         let schemaDiagnostics = try PartPackageManifestSchema.diagnostics(
-            for: Data(countedFrameworkSelect.utf8)
+            for: Data(countedThemeSelect.utf8)
         )
         #expect(schemaDiagnostics.contains {
-            $0.location.hasSuffix(".frameworkValues")
-                && $0.message == "Select supports only declared options; remove frameworkValues."
+            $0.location.hasSuffix(":themeValues") && $0.severity == .warning
         })
 
-        let countedFrameworkColor = countedFrameworkSelect
-            .replacingOccurrences(
-                of: "\"type\" : \"select\"",
-                with: "\"type\" : \"frameworkColor\""
-            )
-        let colorSchemaDiagnostics = try PartPackageManifestSchema.diagnostics(
-            for: Data(countedFrameworkColor.utf8)
-        )
-        #expect(colorSchemaDiagnostics.contains {
-            $0.location.hasSuffix(".count")
-                && $0.message == "A frameworkColor control cannot be a multi control; remove count."
-        })
-
-        let booleanFrameworkValues = Data(
+        let booleanThemeValues = Data(
             json.replacingOccurrences(
-                of: "\"frameworkValues\" : \"spacing\"",
-                with: "\"frameworkValues\" : true"
+                of: "\"themeValues\" : \"spacing\"",
+                with: "\"themeValues\" : true"
             ).utf8
         )
-        #expect(try PartPackageManifestSchema.diagnostics(for: booleanFrameworkValues).contains {
-            $0.location.hasSuffix(".frameworkValues") && $0.message == "frameworkValues must be a string."
+        #expect(try PartPackageManifestSchema.diagnostics(for: booleanThemeValues).contains {
+            $0.location.hasSuffix(":themeValues") && $0.severity == .warning
         })
 
         do {
             _ = try JSONDecoder().decode(
                 PartPackageControl.self,
-                from: Data("{\"type\" : \"color\", \"frameworkValues\" : true}".utf8)
+                from: Data("{\"type\" : \"color\", \"themeValues\" : true}".utf8)
             )
-            Issue.record("Boolean frameworkValues should be rejected")
+            Issue.record("Boolean themeValues should be rejected")
         } catch {
             // String-only decoding intentionally rejects the removed API.
         }
     }
 
     @Test
-    func fontFamilyFrameworkSelectRejectsCustomValues() throws {
+    func fontFamilyThemeSelectRejectsCustomValues() throws {
         let item = """
         {
             "id" : "typeface",
             "label" : "Typeface",
             "type" : "select",
-            "frameworkValues" : "fontFamilies",
+            "themeValues" : "fontFamilies",
             "allowsCustom" : true,
             "defaults" : {"base" : "body"},
             "responsive" : true
@@ -2812,17 +2749,17 @@ struct PartPackageTests {
         )
         #expect(diagnostics.contains {
             $0.location.hasSuffix("allowsCustom")
-                && $0.message.contains("requires a framework-aware control")
+                && $0.message.contains("requires a theme-aware control")
         })
     }
 
     @Test
-    func shadowIsAStandaloneFrameworkAwareControl() throws {
+    func shadowIsAStandaloneThemeAwareControl() throws {
         let item = """
         {
             "id" : "cardShadow",
             "label" : "Shadow",
-            "type" : "frameworkShadow",
+            "type" : "themeShadow",
             "allowsCustom" : true,
             "defaults" : {"base" : "md"},
             "responsive" : false
@@ -2833,9 +2770,9 @@ struct PartPackageTests {
             from: Data(manifest(withInspectorEntries: item).utf8)
         )
         let property = try #require(decodedManifest.resolvedProperties.first)
-        #expect(property.control.type == .frameworkShadow)
-        #expect(property.control.frameworkValues == nil)
-        #expect(property.control.frameworkValueSource == .shadows)
+        #expect(property.control.type == .themeShadow)
+        #expect(property.control.themeValues == nil)
+        #expect(property.control.themeValueSource == .shadows)
         #expect(property.control.allowsCustom == true)
         let diagnostics = PartPackageValidator.validate(
             decodedManifest,
@@ -2847,20 +2784,19 @@ struct PartPackageTests {
 
         let legacyItem = item
             .replacingOccurrences(
-                of: "\"type\" : \"frameworkShadow\"",
-                with: "\"type\" : \"select\", \"frameworkValues\" : \"shadows\""
+                of: "\"type\" : \"themeShadow\"",
+                with: "\"type\" : \"select\", \"themeValues\" : \"shadows\""
             )
         let legacyDiagnostics = try PartPackageManifestSchema.diagnostics(
             for: Data(manifest(withInspectorEntries: legacyItem).utf8)
         )
         #expect(legacyDiagnostics.contains {
-            $0.location.hasSuffix(".frameworkValues")
-                && $0.message == "Select supports only declared options; remove frameworkValues."
+            $0.location.hasSuffix(":themeValues") && $0.severity == .warning
         })
 
         // The pre-rename spelling is gone for good: bare `shadow` is an unknown type.
         let renamedItem = item.replacingOccurrences(
-            of: "\"type\" : \"frameworkShadow\"",
+            of: "\"type\" : \"themeShadow\"",
             with: "\"type\" : \"shadow\""
         )
         let renamedDiagnostics = try PartPackageManifestSchema.diagnostics(
@@ -2883,9 +2819,9 @@ struct PartPackageTests {
         let cases: [(replacement: String, locationSuffix: String, message: String)] = [
             (
                 validItem
-                    .replacingOccurrences(of: "\"text\"", with: "\"frameworkColor\"")
+                    .replacingOccurrences(of: "\"text\"", with: "\"color\"")
                     .replacingOccurrences(of: "\"label\"", with: "\"colorMath\" : true, \"label\""),
-                ":colorMath", "Unknown key 'colorMath'. Check the spelling or remove it."
+                ":colorMath", "Unknown key 'colorMath'; this setting was ignored. Check the spelling."
             ),
             (
                 validItem.replacingOccurrences(of: "\"type\" : \"text\"", with: "\"type\" : 1"),
@@ -2901,7 +2837,7 @@ struct PartPackageTests {
             ),
             (
                 validItem.replacingOccurrences(of: "\"label\"", with: "\"labels\""),
-                ":labels", "Unknown key 'labels'. Check the spelling or remove it."
+                ":labels", "Unknown key 'labels'; this setting was ignored. Check the spelling."
             ),
             (
                 validItem.replacingOccurrences(of: "\"responsive\" : false", with: "\"responsive\" : \"false\""),
@@ -2962,7 +2898,7 @@ struct PartPackageTests {
         "inspector" : [
         {"id" : "mode", "label" : "Mode", "type" : "select", "options" : [{"value" : "featured", "title" : "Featured"}], "defaults" : {"base" : "featured"}, "responsive" : false},
         {"id" : "titles", "label" : "Titles", "type" : "text", "count" : 3, "defaults" : {"base" : ["One", "Two", "Featured story"]}, "responsive" : false},
-        {"id" : "detail", "label" : "Detail", "type" : "text", "defaults" : {"base" : "Visible"}, "responsive" : false, "visibleWhen" : {"id" : "titles[2]", "operation" : "containsInsensitive", "value" : "featured"}, "valueAvailability" : "whenVisible"},
+        {"id" : "detail", "label" : "Detail", "type" : "text", "defaults" : {"base" : "Visible"}, "responsive" : false, "visibleWhen" : {"id" : "titles[2]", "operation" : "containsInsensitive", "value" : "featured"}, "outputWhenHidden" : false},
         {"id" : "compoundDetail", "label" : "Compound detail", "type" : "text", "defaults" : {"base" : "Visible"}, "responsive" : false, "visibleWhen" : {"all" : [{"id" : "mode", "value" : "featured"}, {"any" : [{"id" : "titles[0]", "value" : "One"}, {"id" : "titles[1]", "value" : "Other"}]}]}}
         ], "templates" : {"html" : "part.html"}
         }
@@ -2971,8 +2907,8 @@ struct PartPackageTests {
         let enabledProperty = try #require(manifest.resolvedProperties.first { $0.id == "detail" })
         #expect(enabledProperty.visibleWhen?.id == "titles[2]")
         #expect(enabledProperty.visibleWhen?.operation == "containsInsensitive")
-        #expect(enabledProperty.valueAvailability == .whenVisible)
-        #expect(manifest.resolvedProperties.first { $0.id == "compoundDetail" }?.valueAvailability == .always)
+        #expect(enabledProperty.outputWhenHidden == false)
+        #expect(manifest.resolvedProperties.first { $0.id == "compoundDetail" }?.outputWhenHidden == true)
 
         #expect(PartPackageVisibilityEvaluator.evaluate(
             .string("Featured story"),
@@ -2997,13 +2933,13 @@ struct PartPackageTests {
         let json = """
         {
         "minimumAPIVersion" : 1,
-        "id" : "com.example.value-availability",
-        "title" : "Value availability",
+        "id" : "com.example.hidden-output",
+        "title" : "Hidden output",
         "version" : "1.0.0",
         "inspector" : [
         {"id" : "mode", "label" : "Mode", "type" : "select", "options" : [{"value" : "preset", "title" : "Preset"}, {"value" : "custom", "title" : "Custom"}], "defaults" : {"base" : "preset"}, "responsive" : false},
-        {"id" : "presetSize", "label" : "Preset size", "type" : "text", "defaults" : {"base" : "1rem"}, "responsive" : false, "visibleWhen" : {"id" : "mode", "value" : "preset"}, "valueAvailability" : "whenVisible"},
-        {"id" : "customSize", "label" : "Custom size", "type" : "text", "defaults" : {"base" : "24px"}, "responsive" : false, "visibleWhen" : {"id" : "mode", "value" : "custom"}, "valueAvailability" : "whenVisible"}
+        {"id" : "presetSize", "label" : "Preset size", "type" : "text", "defaults" : {"base" : "1rem"}, "responsive" : false, "visibleWhen" : {"id" : "mode", "value" : "preset"}, "outputWhenHidden" : false},
+        {"id" : "customSize", "label" : "Custom size", "type" : "text", "defaults" : {"base" : "24px"}, "responsive" : false, "visibleWhen" : {"id" : "mode", "value" : "custom"}, "outputWhenHidden" : false}
         ],
         "templates" : {"html" : "part.html"}
         }
@@ -3024,7 +2960,7 @@ struct PartPackageTests {
 
         var node = PartNode.make(.init(rawValue: manifest.identifier))
         let presetPage = Page(title: "Preset", slug: "preset", parts: [node])
-        let presetCanvas = HTMLPageRenderer().render(page: presetPage, framework: .standard)
+        let presetCanvas = HTMLPageRenderer().render(page: presetPage, theme: .standard)
         #expect(presetCanvas.contains(#"style="font-size: 1rem""#))
         #expect(!presetCanvas.contains("1rem24px"))
 
@@ -3044,7 +2980,7 @@ struct PartPackageTests {
         #expect(filtered["presetSize2"] == .string("unrelated"))
         #expect(filtered["customSize"] == .string("24px"))
         let customPage = Page(title: "Custom", slug: "custom", parts: [node])
-        let customCanvas = HTMLPageRenderer().render(page: customPage, framework: .standard)
+        let customCanvas = HTMLPageRenderer().render(page: customPage, theme: .standard)
         #expect(customCanvas.contains(#"style="font-size: 24px""#))
         #expect(node.propertyValue(.init(rawValue: "presetSize")) == .string("1rem"))
 
@@ -3055,16 +2991,16 @@ struct PartPackageTests {
     }
 
     @Test
-    func whenVisibleValueAvailabilityRequiresAVisibilityCondition() throws {
+    func disablingOutputWhenHiddenRequiresAVisibilityCondition() throws {
         let control = """
-        {"id" : "detail", "label" : "Detail", "type" : "text", "defaults" : {"base" : "Value"}, "responsive" : false, "valueAvailability" : "whenVisible"}
+        {"id" : "detail", "label" : "Detail", "type" : "text", "defaults" : {"base" : "Value"}, "responsive" : false, "outputWhenHidden" : false}
         """
         let diagnostics = try PartPackageManifestSchema.diagnostics(
             for: Data(manifest(withInspectorEntries: control).utf8)
         )
         #expect(diagnostics.contains {
-            $0.location.hasSuffix(".valueAvailability") &&
-                $0.message == "valueAvailability 'whenVisible' requires visibleWhen."
+            $0.location.hasSuffix(".outputWhenHidden") &&
+                $0.message == "outputWhenHidden false requires visibleWhen."
         })
     }
 
@@ -3498,7 +3434,7 @@ struct PartPackageTests {
         let part = PartNode(type: PartType(rawValue: identifier))
         let page = Page(title: "Canvas assets", slug: "index", parts: [part])
 
-        let html = HTMLPageRenderer().render(page: page, framework: .standard)
+        let html = HTMLPageRenderer().render(page: page, theme: .standard)
         let pageAssetReference = "\(CanvasAssetSchemeHandler.packageScheme)://\(identifier)/images/icon.svg"
         let siteAssetReference = "\(CanvasAssetSchemeHandler.packageScheme)://\(identifier)/shared/icons/star.svg"
         #expect(html.contains(pageAssetReference))
@@ -3678,8 +3614,8 @@ struct PartPackageTests {
     @Test
     func breakpointTemplateValuesExposeEnabledStateAndMinimumWidth() {
         var site = Site(name: "Breakpoints", pages: [Page(title: "Home", slug: "index")])
-        site.framework.screens.update(.medium) { $0.minimumWidth = 850 }
-        site.framework.screens.update(.large) { $0.isEnabled = false }
+        site.theme.screens.update(.medium) { $0.minimumWidth = 850 }
+        site.theme.screens.update(.large) { $0.isEnabled = false }
         let page = site.pages[0]
         let template = """
         {{ if breakpoints.medium.enabled }}@media (min-width: {{ breakpoints.medium.minimumWidth }}px) { .card { display: grid; } }{{ endif }}
@@ -3967,7 +3903,7 @@ struct PartPackageTests {
 
     @Test
     func richTextColoursResolveFromPalettesAtRenderTime() throws {
-        let palettes = Framework.standard.colourPalettes
+        let palettes = Theme.standard.colourPalettes
         let reference = RichTextColourReference(source: "accent", lightShade: .three, darkShade: .nine)
         #expect(RichTextColourReference(marker: reference.marker) == reference)
 
@@ -4859,7 +4795,7 @@ struct PartPackageTests {
         let canvas = HTMLPageRenderer(site: site).render(
             page: site.pages[0],
             language: "en",
-            framework: site.framework,
+            theme: site.theme,
             assets: [:],
             breakpoint: .large
         )
@@ -4900,7 +4836,7 @@ struct PartPackageTests {
             pages: [Page(title: "Home", slug: "index", parts: [node, invalidNode])]
         )
         let html = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
-        let canvasHTML = HTMLPageRenderer().render(page: site.pages[0], framework: .standard)
+        let canvasHTML = HTMLPageRenderer().render(page: site.pages[0], theme: .standard)
 
         #expect(html.contains("data-foundry-id=\"\(node.id.uuidString)\""))
         #expect(html.contains("id=\"contact-us\""))
@@ -5027,13 +4963,13 @@ struct PartPackageTests {
     }
 
     @Test
-    func multiSelectRejectsFrameworkValues() throws {
+    func multiSelectRejectsThemeValues() throws {
         let item = """
         {
             "id" : "sizes",
             "label" : "Font sizes",
             "type" : "select",
-            "frameworkValues" : "fontSizes",
+            "themeValues" : "fontSizes",
             "count" : 2,
             "defaults" : {"base" : ["base", "base"]},
             "responsive" : false
@@ -5049,8 +4985,8 @@ struct PartPackageTests {
         )
 
         #expect(diagnostics.contains {
-            $0.location == "manifest.json:inspector.sizes.frameworkValues" &&
-                $0.message == "Select supports only declared options; remove frameworkValues."
+            $0.location == "manifest.json:inspector.sizes.themeValues" &&
+                $0.message == "Select supports only declared options; remove themeValues."
         })
     }
 
@@ -5212,10 +5148,10 @@ struct PartPackageTests {
     }
 
     @Test
-    func sliderRejectsShowsValueField() throws {
+    func sliderIgnoresRetiredShowsValueField() throws {
         let entry = #"{"id":"slider","label":"Slider","type":"slider","showsValueField":true,"defaults":{"base":0},"responsive":false}"#
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: entry).utf8))
-        #expect(diagnostics.contains { $0.severity == .error && $0.message.contains("editableValue") })
+        #expect(diagnostics.contains { $0.severity == .warning && $0.message.contains("showsValueField") })
     }
 
     @Test
@@ -5323,7 +5259,7 @@ struct PartPackageTests {
     func sliderOnlyKeysAreRejectedOnOtherControls() throws {
         let entry = #"{"id":"size","label":"Size","type":"number","tickLabels":{"0":"None"},"defaults":{"base":0},"responsive":false}"#
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: entry).utf8))
-        #expect(diagnostics.contains { $0.message == "Only a slider control accepts tickLabels." })
+        #expect(diagnostics.contains { $0.severity == .warning && $0.message.contains("'tickLabels'") })
     }
 
     @Test
@@ -5403,7 +5339,7 @@ struct PartPackageTests {
             let schemaDiagnostics = try PartPackageManifestSchema.diagnostics(
                 for: Data(manifest(withInspectorEntries: invalidItem).utf8)
             )
-            #expect(schemaDiagnostics.contains { $0.severity == .error })
+            #expect(schemaDiagnostics.contains { $0.severity == .warning })
         }
     }
 
@@ -5486,7 +5422,8 @@ struct PartPackageTests {
         let diagnostics = try PartPackageManifestSchema.diagnostics(
             for: Data(manifest(withInspectorEntries: entry).utf8)
         )
-        #expect(diagnostics.contains { $0.severity == .error }, "No error for \(entry)")
+        let severity: PartPackageDiagnostic.Severity = entry.contains("\"label\"") || entry.contains("\"number\"") ? .warning : .error
+        #expect(diagnostics.contains { $0.severity == severity }, "No diagnostic for \(entry)")
     }
 
     @Test
@@ -5556,7 +5493,7 @@ struct PartPackageTests {
 
             #expect(diagnostics.contains {
                 $0.location == "manifest.json:inspector[0]:\(key)" &&
-                    $0.message == "A note control does not support \(key)."
+                    $0.severity == .warning
             })
         }
 
@@ -5595,7 +5532,7 @@ struct PartPackageTests {
 
             #expect(diagnostics.contains {
                 $0.location == "manifest.json:inspector[0]:\(key)" &&
-                    $0.message == "A link control does not support \(key)."
+                    $0.severity == .warning && $0.message.contains("was ignored")
             })
         }
     }
@@ -6050,12 +5987,12 @@ struct PartPackageTests {
         #expect(PartType.image.definition.package?.manifest.identifier == PartType.image.rawValue)
         #expect(PartType.section.definition.package?.manifest.identifier == PartType.section.rawValue)
         #expect(PartType.section.definition.allowsChildren)
-        #expect(PartType.section.definition.properties.contains { $0.key.rawValue == "spacing.frameworkPadding" })
-        #expect(PartType.section.definition.properties.contains { $0.key.rawValue == "spacing.frameworkMargin" })
+        #expect(PartType.section.definition.properties.contains { $0.key.rawValue == "spacing.themePadding" })
+        #expect(PartType.section.definition.properties.contains { $0.key.rawValue == "spacing.themeMargin" })
         #expect(PartType.section.definition.properties.contains { $0.key.rawValue == "sizing.heightMode" })
         #expect(PartType.section.definition.properties.contains { $0.key.rawValue == "layout.position" })
         #expect(!PartType.section.definition.properties.contains { $0.key.rawValue == "minimumHeight" })
-        #expect(PartType.stack.definition.properties.contains { $0.key.rawValue == "borders.frameworkBorder.width" })
+        #expect(PartType.stack.definition.properties.contains { $0.key.rawValue == "borders.themeBorder.width" })
         #expect(PartType.stack.definition.properties.contains { $0.key.rawValue == "reveal.revealEffect" })
         #expect(PartType.grid.definition.properties.contains { $0.key.rawValue == "layout.overflow" })
         #expect(!PartType.grid.definition.properties.contains { $0.key.rawValue == "overflow" })
@@ -6078,7 +6015,7 @@ struct PartPackageTests {
         let page = Page(title: "Layout", slug: "index", parts: [container])
         let rendered = HTMLPageRenderer().render(
             page: page,
-            framework: Framework.standard
+            theme: Theme.standard
         )
         #expect(rendered.contains("<section"))
         #expect(rendered.contains("fd-section__content"))
@@ -6237,7 +6174,7 @@ struct PartPackageTests {
     }
 
     @Test @MainActor
-    func headingUsesSemanticLevelAndFrameworkTypography() throws {
+    func headingUsesSemanticLevelAndThemeTypography() throws {
         _ = PartPackageCatalog.shared
         let definition = PartType.heading.definition
         let properties = definition.properties
@@ -6255,19 +6192,15 @@ struct PartPackageTests {
         } else {
             Issue.record("Heading level should use a select control")
         }
-        guard case .frameworkFont = font.control else {
-            Issue.record("Heading should use the framework font control")
+        guard case .themeFont = font.control else {
+            Issue.record("Heading should use the theme font control")
             return
         }
         let heading = PartNode.make(.heading)
         #expect(heading.propertyValue(.init(rawValue: "font")).stringValue == "heading")
         #expect(heading.propertyValue(.init(rawValue: "font.weight")) == .number(700))
         #expect(heading.propertyValue(.init(rawValue: "font.style")).stringValue == "normal")
-        #expect(color.defaultValue == .packageColor(.init(
-            source: FrameworkColorRole.foreground.rawValue,
-            customColor: "#000000",
-            opacity: 1
-        )))
+        #expect(color.defaultValue == .choice("inherit"))
         #expect(decoration.defaultValue == .choice("none"))
         #expect(decoration.isResponsive)
         #expect(sizeEnabled.defaultValue == .boolean(false))
@@ -6310,7 +6243,7 @@ struct PartPackageTests {
         let pack = try FoundryPackLoader.load(from: root)
         #expect(pack.partURLs == [part.standardizedFileURL])
         #expect(pack.templateURLs.isEmpty)
-        #expect(pack.frameworkURLs.isEmpty)
+        #expect(pack.themeURLs.isEmpty)
         #expect(pack.invalidItemPaths.isEmpty)
 
         // Hidden files must not reject a pack: development packs live in git
@@ -6496,6 +6429,11 @@ struct PartPackageTests {
                 template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>"
             )
             defer { try? FileManager.default.removeItem(at: packageURL) }
+            if testCase.expected.contains("Unknown key") {
+                let result = try PartPackageLoader.loadWithDiagnostics(from: packageURL)
+                #expect(result.diagnostics.contains { $0.severity == .warning && $0.message.contains(testCase.expected) })
+                continue
+            }
             do {
                 _ = try PartPackageLoader.load(from: packageURL)
                 Issue.record("The invalid manifest unexpectedly loaded.")
@@ -6764,7 +6702,7 @@ struct PartPackageTests {
         let page = Page(title: "Home", slug: "index", parts: [
             PartNode(type: PartType(rawValue: identifier))
         ])
-        let canvas = HTMLPageRenderer().render(page: page, framework: .standard)
+        let canvas = HTMLPageRenderer().render(page: page, theme: .standard)
         #expect(canvas.contains("--bs-primary-base"))
 
         let bundle = StaticSiteRenderer().render(site: Site(name: "Bootstrap", pages: [page]))
@@ -6972,7 +6910,7 @@ struct PartPackageTests {
         #expect(decoded.controlGroups.map(\.type) == [.spacing, .reveal])
         #expect(decoded.resolvedProperties.first { $0.id == "galleryStyle" }?.group == "Gallery")
         // A grouped control inside a section belongs to that section…
-        #expect(decoded.resolvedProperties.first { $0.id == "spacing.frameworkPadding" }?.group == "Gallery")
+        #expect(decoded.resolvedProperties.first { $0.id == "spacing.themePadding" }?.group == "Gallery")
         // …and a bare one lands in Settings like any other loose control.
         #expect(decoded.resolvedProperties.first { $0.id == "reveal.revealEnabled" }?.group == "Settings")
         #expect(decoded.resolvedGroupIcons["Gallery"] == "photo.stack")
@@ -7002,7 +6940,7 @@ struct PartPackageTests {
             ("{\"section\" : \"Gallery\"}, {\"section\" : \"Gallery\"}",
              "Duplicate section 'Gallery'. Declare each section once and list its controls inside it."),
             ("{\"section\" : \"Gallery\", \"icon\" : \"star\"}",
-             "Unknown key 'icon'. Check the spelling or remove it."),
+             "Unknown key 'icon'; this setting was ignored. Check the spelling."),
             ("{\"section\" : \"Gallery\", \"controls\" : [{\"type\" : \"advanced\"}]}",
              "The advanced group is Foundry's own Advanced section — declare it at the top level of the inspector."),
             ("{\"type\" : \"spacing\", \"id\": \"spacing\"}, {\"section\" : \"Gallery\", \"controls\" : [{\"type\" : \"spacing\", \"id\": \"spacing\"}]}",
@@ -7036,7 +6974,7 @@ struct PartPackageTests {
             {"id" : "styled", "type" : "text", "group" : "Gallery", "defaults" : {"base" : ""}}
             """).utf8)
         )
-        #expect(strayGroup.contains { $0.message == "Unknown key 'group'. Check the spelling or remove it." })
+        #expect(strayGroup.contains { $0.message == "Unknown key 'group'; this setting was ignored. Check the spelling." })
 
         // The removed top-level groups array is an unknown manifest key.
         let legacyGroups = manifest(withInspectorEntries: controls).replacingOccurrences(

@@ -5,7 +5,7 @@ import WebKit
 @MainActor
 struct BootstrapBorderTests {
     @Test func edgesCompactWithoutChangingPresence() {
-        var edges = FrameworkBorderWidthValue()
+        var edges = ThemeBorderWidthValue()
         #expect(BootstrapBorderClasses.sides(edges) == "")
         edges.setAll(.init(token: "1"))
         #expect(BootstrapBorderClasses.sides(edges) == "border")
@@ -23,28 +23,28 @@ struct BootstrapBorderTests {
         #expect(BootstrapBorderClasses.sides(value) == "border-y border-start-0")
         #expect(BootstrapBorderClasses.defaultValue(.string("sm")) == nil)
         var node = PartNode.make(.container)
-        #expect(BootstrapPartUtilityCSS.render(node: node, framework: .standard).isEmpty)
+        #expect(BootstrapPartUtilityCSS.render(node: node, theme: .standard).isEmpty)
         node.setProperty(.init(rawValue: "borders.style"), value: .choice("dotted"))
-        #expect(BootstrapPartUtilityCSS.render(node: node, framework: .standard).contains("--bs-border-style:dotted"))
+        #expect(BootstrapPartUtilityCSS.render(node: node, theme: .standard).contains("--bs-border-style:dotted"))
         node.setProperty(.init(rawValue: "borders.style"), value: .choice("inherit"))
-        #expect(BootstrapPartUtilityCSS.render(node: node, framework: .standard).isEmpty)
-        let restored = try JSONDecoder().decode(FrameworkBorderWidthValue.self, from: JSONEncoder().encode(value))
+        #expect(BootstrapPartUtilityCSS.render(node: node, theme: .standard).isEmpty)
+        let restored = try JSONDecoder().decode(ThemeBorderWidthValue.self, from: JSONEncoder().encode(value))
         #expect(restored == value)
     }
 
     @Test(.timeLimit(.minutes(1)), arguments: [PartTemplateEnvironment.canvas, .preview, .published])
-    func bordersRenderWithFrameworkTokens(environment: PartTemplateEnvironment) async throws {
+    func bordersRenderWithThemeTokens(environment: PartTemplateEnvironment) async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
-        var framework = Framework.standard
-        framework.bootstrapTokens.custom["borderWidth"] = ["heavy"]
-        framework.bootstrapTokens.values["border-width-heavy"] = "7px"
-        framework.bootstrapTokens.custom["borderRadius"] = ["soft"]
-        framework.bootstrapTokens.values["radius-soft"] = "1.25rem"
+        var theme = Theme.standard
+        theme.bootstrapTokens.custom["borderWidth"] = ["heavy"]
+        theme.bootstrapTokens.values["border-width-heavy"] = "7px"
+        theme.bootstrapTokens.custom["borderRadius"] = ["soft"]
+        theme.bootstrapTokens.values["radius-soft"] = "1.25rem"
         var node = PartNode.make(.container)
         node.anchor = "border-test"
-        var edges = FrameworkBorderWidthValue()
+        var edges = ThemeBorderWidthValue()
         edges.setAll(.init(token: "1"))
-        node.setProperty(.init(rawValue: "borders.sides"), value: .frameworkBorderWidth(edges))
+        node.setProperty(.init(rawValue: "borders.sides"), value: .themeBorderWidth(edges))
         node.setProperty(.init(rawValue: "borders.width"), value: .choice("border-heavy"))
         node.setProperty(.init(rawValue: "borders.radius"), value: .choice("rounded-soft"))
         node.setProperty(.init(rawValue: "borders.style"), value: .choice("dashed"))
@@ -54,9 +54,9 @@ struct BootstrapBorderTests {
         let page = Page(title: "Borders", slug: "index", parts: [node])
         let html: String
         if environment == .canvas {
-            html = HTMLPageRenderer().render(page: page, language: "en", framework: framework, assets: [:], breakpoint: .mobile)
+            html = HTMLPageRenderer().render(page: page, language: "en", theme: theme, assets: [:], breakpoint: .mobile)
         } else {
-            let bundle = StaticSiteRenderer(environment: environment).render(site: Site(name: "Borders", pages: [page], framework: framework))
+            let bundle = StaticSiteRenderer(environment: environment).render(site: Site(name: "Borders", pages: [page], theme: theme))
             #expect(bundle.errors.isEmpty)
             let source = try #require(bundle.file(at: "index.html")?.contents)
             #expect(source.contains("data-foundry-") == false)

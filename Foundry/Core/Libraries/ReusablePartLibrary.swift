@@ -651,7 +651,7 @@ final class ReusablePartLibrary {
     /// Produces a copy of the entry's definition ready for the given document:
     /// embedded assets are imported into the document's asset library (reusing
     /// identical content) and every asset reference is remapped to the imported
-    /// identifiers. Framework role references pass through untouched.
+    /// identifiers. Theme role references pass through untouched.
     func importedDefinition(
         for entry: ReusablePartLibraryEntry,
         into document: FoundryDocument,

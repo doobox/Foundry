@@ -28,7 +28,7 @@ nonisolated struct CanvasScene: Sendable {
     }
 
     static func render(renderer: HTMLPageRenderer, page: Page, language: String,
-                       framework: Framework, assets: ProjectAssetContents,
+                       theme: Theme, assets: ProjectAssetContents,
                        breakpoint: ResponsiveBreakpoint, packageRevision: Int,
                        previous: Self?, consecutiveImpact: ProjectMutationImpact? = nil) throws -> (scene: Self, result: CanvasRenderResult) {
         try Task.checkCancellation()
@@ -40,7 +40,7 @@ nonisolated struct CanvasScene: Sendable {
         }
         // Breakpoint is a per-instance input, not a reason to discard the scene.
         let environment = CanvasRenderCache.Environment(site: renderer.site, page: page,
-            framework: framework, assets: assets, breakpoint: .mobile,
+            theme: theme, assets: assets, breakpoint: .mobile,
             appearance: renderer.appearance, packageRevision: packageRevision,
             knownRoutes: localIDs == nil ? nil : previous?.environment.routes)
         let candidate = previous.flatMap {
@@ -75,13 +75,13 @@ nonisolated struct CanvasScene: Sendable {
                 for (id, source) in targets {
                     try Task.checkCancellation()
                     guard let oldInput = inputs[id], let old = artifacts[id] else { continue }
-                    var own = source.resolved(at: breakpoint, screens: framework.screens)
+                    var own = source.resolved(at: breakpoint, screens: theme.screens)
                     retainUtilityOverrides(in: &own)
                     own.children = oldInput.node.children
                     let input = CanvasSceneInput(node: own, globalID: oldInput.globalID,
                         parentID: oldInput.parentID, slot: oldInput.slot, dropZone: oldInput.dropZone)
                     guard input != oldInput else { continue }
-                    let artifact = renderer.renderShell(input, page: page, framework: framework, assets: assets)
+                    let artifact = renderer.renderShell(input, page: page, theme: theme, assets: assets)
                     inputs[id] = input; artifacts[id] = artifact; count += 1
                     if artifact.html != old.html { html[id.uuidString] = artifact.html }
                     if artifact.css != old.css { styles[id.uuidString] = artifact.css }
@@ -165,7 +165,7 @@ nonisolated struct CanvasScene: Sendable {
                 } == true
                 if !isConfirmed {
                     examinedCount += 1
-                    var own = source.resolved(at: breakpoint, screens: framework.screens)
+                    var own = source.resolved(at: breakpoint, screens: theme.screens)
                     retainUtilityOverrides(in: &own)
                     own.children = source.children.map { child in
                         var identity = PartNode(id: child.id, type: child.type)
@@ -201,7 +201,7 @@ nonisolated struct CanvasScene: Sendable {
             try Task.checkCancellation()
             guard let input = inputs[id] else { continue }
             let old = artifacts[id]
-            let artifact = shellRenderer.renderShell(input, page: page, framework: framework, assets: assets)
+            let artifact = shellRenderer.renderShell(input, page: page, theme: theme, assets: assets)
             artifacts[id] = artifact
             if old?.html != artifact.html {
                 // A parent whose own markup is intact keeps its element, and
@@ -222,7 +222,7 @@ nonisolated struct CanvasScene: Sendable {
         guard let baseline, baseline.packages == packages,
               !roots.isEmpty, !baseline.roots.isEmpty else {
             return (scene, .page(renderer.renderSceneDocument(artifacts: artifacts, page: page,
-                language: language, framework: framework, assets: assets, breakpoint: breakpoint)))
+                language: language, theme: theme, assets: assets, breakpoint: breakpoint)))
         }
         let removed = departed.map(\.uuidString)
         return (scene, .scene(.init(html: html, styles: styles, removed: removed,

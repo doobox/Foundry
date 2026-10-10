@@ -69,13 +69,13 @@ struct PartTemplateTests {
         let context = PartTemplateContext(
             instanceID: id,
             packageIdentifier: "com.example.card",
-            properties: ["accent": .string("#336699"), "frameworkPadding": .string("24px 24px 24px 24px")],
+            properties: ["accent": .string("#336699"), "themePadding": .string("24px 24px 24px 24px")],
             slots: [:]
         )
         let template = """
         /* {{ instance.id }} */
         [data-foundry-id="{{ instance.id }}"] {
-          padding: {{ control.frameworkPadding }};
+          padding: {{ control.themePadding }};
           color: {{ control.accent }};
           border-color: {{ control.accent | lighten(20) }};
           background-color: {{ control.accent | darken(25) }};

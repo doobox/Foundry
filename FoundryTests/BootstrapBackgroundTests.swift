@@ -11,7 +11,7 @@ struct BootstrapBackgroundTests {
             let group = try #require(type.definition.package?.manifest.controlGroups.first { $0.type == .background })
             #expect(group.backgroundTypes.contains(.video) == (type == .container))
             #expect(group.colourSections == ["blackWhite", "surfaces"])
-            #expect(group.properties.contains { $0.control.type == .frameworkColor } == false)
+            #expect(group.properties.contains { $0.control.type.rawValue == "themePaletteColor" } == false)
         }
     }
 
@@ -19,9 +19,9 @@ struct BootstrapBackgroundTests {
     func backgroundMatchesNativeColourAndResponsiveGradient(environment: PartTemplateEnvironment) async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
         var colour = PartNode.make(.container)
-        var framework = Framework.standard
+        var theme = Theme.standard
         let base = BootstrapColourCatalogue.palette(role: .primary)
-        framework.colourPalettes.append(try ColourPalette(id: "custom.brand", name: "brand", origin: .custom,
+        theme.colourPalettes.append(try ColourPalette(id: "custom.brand", name: "brand", origin: .custom,
             shades: base.shades, lightDefaultShade: base.lightDefaultShade))
         colour.anchor = "colour"
         colour.setProperty(.init(rawValue: "background.backgroundMode"), value: .choice("static"))
@@ -37,9 +37,9 @@ struct BootstrapBackgroundTests {
         let page = Page(title: "Backgrounds", slug: "index", parts: [colour, gradient])
         let html: String
         if environment == .canvas {
-            html = HTMLPageRenderer().render(page: page, language: "en", framework: framework, assets: [:], breakpoint: .mobile)
+            html = HTMLPageRenderer().render(page: page, language: "en", theme: theme, assets: [:], breakpoint: .mobile)
         } else {
-            let bundle = StaticSiteRenderer(environment: environment).render(site: Site(name: "Backgrounds", pages: [page], framework: framework))
+            let bundle = StaticSiteRenderer(environment: environment).render(site: Site(name: "Backgrounds", pages: [page], theme: theme))
             #expect(bundle.errors.isEmpty)
             let source = try #require(bundle.file(at: "index.html")?.contents)
             #expect(source.contains("data-foundry-") == false)
@@ -81,12 +81,12 @@ struct BootstrapBackgroundTests {
         #expect(values["surface.classes"] == .string("bg-transparent"))
     }
 
-    @Test func frameworkPaintTokensAreValidatedAndKeepLiveReferences() {
-        #expect(PartColourToken.groups(for: ["surfaces", "blackWhite"]).map(\.0) == ["Black & White", "Surfaces"])
+    @Test func themePaintTokensAreValidatedAndKeepLiveReferences() {
+        #expect(PartColourToken.groups(for: ["surfaces", "blackWhite"]).map(\.0) == ["Surfaces", "Black & White"])
         #expect(PartColourToken.groups(for: []).isEmpty)
         for token in PartColourToken.all {
             #expect(BootstrapColourCatalogue.declarations["--bs-" + token.id] != nil)
-            #expect(BootstrapPaletteTheme.resolve(token.selection, framework: .standard) == token.selection)
+            #expect(BootstrapPaletteTheme.resolve(token.selection, theme: .standard) == token.selection)
             #expect(BootstrapBackgroundColour.paint(token.selection) == token.expression)
             #expect(BootstrapBackgroundColour.paint(token.selection, opacity: 20).contains(token.expression + " 20%"))
         }

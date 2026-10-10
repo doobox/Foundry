@@ -73,7 +73,7 @@ struct CanvasBreakpointPreferenceTests {
         try withDefaults { defaults in
             CanvasBreakpointPreference.remember(1536, defaults: defaults)
             var screens = ScreenTokens.standard
-            for id in FrameworkScreenID.allCases where id != .mobile {
+            for id in ThemeScreenID.allCases where id != .mobile {
                 screens.update(id) { $0.isEnabled = false }
             }
 

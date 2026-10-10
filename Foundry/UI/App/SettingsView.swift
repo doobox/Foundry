@@ -114,7 +114,7 @@ private struct GeneralSettingsView: View {
                             .disabled(libraryFolderPath == nil)
                     }
                 }
-                Text("Installed packs live here. Packs can contain parts, templates and frameworks. Point this at a synced folder (iCloud Drive, Dropbox) to share one library across your Macs — existing content is copied to the new location.")
+                Text("Installed packs live here. Packs can contain parts, templates and themes. Point this at a synced folder (iCloud Drive, Dropbox) to share one library across your Macs — existing content is copied to the new location.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

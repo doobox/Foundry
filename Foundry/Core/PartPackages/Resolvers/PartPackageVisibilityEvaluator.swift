@@ -8,7 +8,7 @@ nonisolated enum PartPackageVisibilityEvaluator {
         screens: ScreenTokens = .standard
     ) -> [String: PartPackageValue] {
         let unavailableIDs = properties.compactMap { property -> String? in
-            guard property.valueAvailability == .whenVisible,
+            guard property.outputWhenHidden == false,
                   !isVisible(property.visibleWhen, for: part, at: .mobile, screens: screens) else {
                 return nil
             }
@@ -143,13 +143,13 @@ nonisolated enum PartPackageVisibilityEvaluator {
         }
         switch value {
         case .link(let link): return link.destination == .none
-        // A framework length left at None is empty, so a part can show a
+        // A theme length left at None is empty, so a part can show a
         // control only once a limit exists.
-        case .frameworkSpacing(let single): return single.selection.isNone
-        case .frameworkPadding(let edges): return edges.isNone
-        case .frameworkMargin(let edges): return edges.isNone
-        case .frameworkBorderWidth(let edges): return edges.isNone
-        case .frameworkRadius(let edges): return edges.isNone
+        case .themeSpacing(let single): return single.selection.isNone
+        case .themePadding(let edges): return edges.isNone
+        case .themeMargin(let edges): return edges.isNone
+        case .themeBorderWidth(let edges): return edges.isNone
+        case .themeRadius(let edges): return edges.isNone
         default: return false
         }
     }
@@ -162,11 +162,10 @@ nonisolated enum PartPackageVisibilityEvaluator {
         case .token(let value): .string(value.rawValue)
         case .array(let values): .array(values.compactMap(packageValue))
         case .object(let values): .object(values.compactMapValues(packageValue))
-        case .packageColor(let value): .string(value.source)
         case .packageFontSize(let value): .string(value.source)
         case .packageShadow(let value): .string(value.source)
         case .packageStackingOrder(let value): .string(value.source)
-        case .link, .frameworkSpacing, .frameworkPadding, .frameworkMargin, .frameworkBorderWidth, .frameworkRadius: nil
+        case .link, .themeSpacing, .themePadding, .themeMargin, .themeBorderWidth, .themeRadius: nil
         }
     }
 

@@ -1,7 +1,0 @@
-{
-    "type" : "math",
-    "id" : "doubleWidth",
-    "argument1" : 24,
-    "argument2" : 2,
-    "operation" : "*"
-}

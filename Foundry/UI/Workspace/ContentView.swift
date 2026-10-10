@@ -50,10 +50,7 @@ struct ContentView: View {
     @State private var editsSharedReusableDefinition = false
     @State private var workspaceLayout = WorkspacePresetStore.initialLayoutForNewDocument()
     @State private var detachedPanelWindows = DetachedPanelWindowCoordinator()
-    /// The page the developer was on before opening a Controls showcase, so
-    /// leaving Controls returns there without a second click.
-    @State private var pageBeforeControls: UUID?
-    @State private var frameworkWindowID = UUID()
+    @State private var themeWindowID = UUID()
     @State private var siteSettingsWindowID = UUID()
     @State private var exportErrorMessage: String?
     @State private var publishingCommandDispatcher = PublishingCommandDispatcher()
@@ -99,7 +96,7 @@ struct ContentView: View {
     init(document: FoundryDocument) {
         self.document = document
         _canvasViewportWidth = State(initialValue: CanvasBreakpointPreference.restoredViewportWidth(
-            screens: document.site.framework.screens
+            screens: document.site.theme.screens
         ))
     }
 
@@ -114,19 +111,19 @@ struct ContentView: View {
             layout: $workspaceLayout,
             canvasEditorOptions: $canvasEditorOptions,
             canvasViewportWidth: $canvasViewportWidth,
-            canvasScreens: document.site.framework.screens,
+            canvasScreens: document.site.theme.screens,
             canvasAppearance: $selectedAppearance,
             appearanceMode: document.site.appearanceMode,
             openProjectSettings: {
                 openSiteSettings(section: .general)
             },
-            openFrameworkEditor: {
-                FrameworkWindowRegistry.shared.register(
-                    id: frameworkWindowID,
+            openThemeEditor: {
+                ThemeWindowRegistry.shared.register(
+                    id: themeWindowID,
                     document: document,
                     undoManager: undoManager
                 )
-                openWindow(id: "framework-editor", value: frameworkWindowID)
+                openWindow(id: "theme-editor", value: themeWindowID)
             },
             previewSite: previewSite,
             publishSite: { publishSite() },
@@ -172,8 +169,8 @@ struct ContentView: View {
             schedulePublishingChangeRefresh(immediately: true)
         }
         .onDisappear {
-            dismissWindow(id: "framework-editor", value: frameworkWindowID)
-            FrameworkWindowRegistry.shared.remove(id: frameworkWindowID)
+            dismissWindow(id: "theme-editor", value: themeWindowID)
+            ThemeWindowRegistry.shared.remove(id: themeWindowID)
             dismissWindow(id: "site-settings", value: siteSettingsWindowID)
             ProjectSettingsWindowRegistry.shared.remove(id: siteSettingsWindowID)
         }
@@ -187,9 +184,8 @@ struct ContentView: View {
                 schedulePreviewRefresh()
             }
         }
-        .onChange(of: selectedPageID) { _, pageID in
+        .onChange(of: selectedPageID) { _, _ in
             schedulePreviewRefresh(selectionOnly: true)
-            pageSelectionDidChange(to: pageID)
         }
 
         .onChange(of: document.site.pages.map(\.id)) { _, pageIDs in
@@ -267,8 +263,8 @@ struct ContentView: View {
         .sheet(item: $pageTextEditRequest) { request in
             PageTextEditorView(
                 value: request.value,
-                framework: document.site.framework,
-                pages: document.site.authoredPages,
+                theme: document.site.theme,
+                pages: document.site.pages,
                 folders: document.site.pageFolders,
                 assets: document.site.assets,
                 publicURL: document.site.publicURL,
@@ -340,7 +336,7 @@ struct ContentView: View {
         switch panel {
         case .pages:
             PagesPanel(
-                pages: document.site.authoredPages,
+                pages: document.site.pages,
                 folders: document.site.pageFolders,
                 assets: document.site.assets,
                 publishingChanges: publishingChangesByTreeItem,
@@ -473,17 +469,13 @@ struct ContentView: View {
                 selectedAssetCollectionItemID = nil
             }
         case .developer:
-            DeveloperPanel(
-                selectedControl: shownControlType,
-                showControl: showControlShowcase,
-                leaveControls: leaveControls
-            )
+            DeveloperPanel()
         case .canvas:
             CanvasView(
                 site: document.site,
                 page: selectedPage,
                 language: document.site.language,
-                framework: document.site.framework,
+                theme: document.site.theme,
                 assets: document.assetContents,
                 assetRevision: document.assetRevision,
                 mutationEvent: document.mutationEvent,
@@ -515,7 +507,7 @@ struct ContentView: View {
                     assetLibrary: document.site.assetLibrary,
                     assetContents: document.assetContents,
                     folders: document.site.pageFolders,
-                    pages: document.site.authoredPages,
+                    pages: document.site.pages,
                     publicURL: document.site.publicURL,
                     part: selectedPart,
                     selectedParts: selectedParts,
@@ -535,7 +527,7 @@ struct ContentView: View {
                     insertTemplate: { _ = insertReusablePartFromLibrary($0, .end) },
                     globalDefinition: selectedGlobalDefinition,
                     insertGlobalPart: { _ = insertGlobalPartFromLibrary($0, .end) },
-                    framework: document.site.framework,
+                    theme: document.site.theme,
                     assets: document.site.assets,
                     editor: editor,
                     reusableDefinition: selectedReusableDefinition,
@@ -648,7 +640,7 @@ struct ContentView: View {
         case .assets:
             markAllPages()
             document.site.assets.forEach { markModified($0.id) }
-        case .page, .framework, .package:
+        case .page, .theme, .package:
             markAllPages()
         case .publishingOnly:
             break
@@ -875,7 +867,7 @@ struct ContentView: View {
     }
 
     private var activeCanvasBreakpoint: ResponsiveBreakpoint {
-        ResponsiveBreakpoint.forViewportWidth(canvasViewportWidth, screens: document.site.framework.screens)
+        ResponsiveBreakpoint.forViewportWidth(canvasViewportWidth, screens: document.site.theme.screens)
     }
 
     private var selectedPart: PartNode? {
@@ -1647,50 +1639,6 @@ struct ContentView: View {
             await Task.yield()
             guard insertPartFromLibrary(type, .end) else { return }
         }
-    }
-
-    /// The Developer panel's Controls tab: show the chosen showcase on the
-    /// scratch page and select it, so the Inspector shows its controls and
-    /// the canvas its sheet.
-    private func showControlShowcase(_ type: PartType) {
-        if !document.site.pages.contains(where: \.isDeveloperPlayground) {
-            pageBeforeControls = selectedPage.flatMap { $0.isDeveloperPlayground ? nil : $0.id }
-        }
-        guard let shown = editor.showControlShowcase(type: type) else { return }
-        selectedPageID = shown.pageID
-        selectedPartID = shown.partID
-    }
-
-    /// Choosing a real page by hand also leaves Controls.
-    private func pageSelectionDidChange(to pageID: UUID?) {
-        guard let pageID,
-              document.site.pages.contains(where: { $0.id == pageID && !$0.isDeveloperPlayground }) else { return }
-        editor.discardControlPlayground()
-        pageBeforeControls = nil
-    }
-
-    /// The showcase on the scratch page, for the Controls list's highlight.
-    private var shownControlType: PartType? {
-        document.site.pages.first(where: \.isDeveloperPlayground)?.parts.first?.type
-    }
-
-    /// Leaving the Controls section: the scratch page goes first, because
-    /// its part type disappears with the pack.
-    private func leaveControls() {
-        leaveControlPlayground()
-        partCatalog.unloadControlShowcase()
-    }
-
-    /// Leaving Controls drops the scratch page and goes back to the page the
-    /// developer was on, so they need not find it again.
-    private func leaveControlPlayground() {
-        guard document.site.pages.contains(where: \.isDeveloperPlayground) else { return }
-        let destination = pageBeforeControls.flatMap { id in document.site.authoredPages.first { $0.id == id }?.id }
-            ?? document.site.authoredPages.first?.id
-        pageBeforeControls = nil
-        editor.discardControlPlayground()
-        selectedPartID = nil
-        selectedPageID = destination
     }
 
     private func insertPartFromLibrary(_ type: PartType, _ placement: PartPlacement) -> Bool {

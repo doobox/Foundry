@@ -245,7 +245,7 @@ final class PartPackageCatalog {
     func reloadInstalledPacks() {
         reloadCompleteCatalog()
         ReusablePartLibrary.shared.refresh()
-        FrameworkLibrary.shared.reload()
+        ThemeLibrary.shared.reload()
         AssetCollectionLibrary.shared.refresh()
         SiteKitLibrary.shared.refreshIfScanned()
     }
@@ -253,7 +253,7 @@ final class PartPackageCatalog {
     func reloadAllPacks() {
         reloadCompleteCatalog()
         ReusablePartLibrary.shared.refresh()
-        FrameworkLibrary.shared.reload()
+        ThemeLibrary.shared.reload()
         AssetCollectionLibrary.shared.refresh()
         SiteKitLibrary.shared.refreshIfScanned()
     }
@@ -321,53 +321,10 @@ final class PartPackageCatalog {
         revision += 1
     }
 
-    // MARK: Controls showcase
-
-    /// Whether the showcase pack is being read in.
-    private(set) var isLoadingControlShowcase = false
-    /// Bumped by every unload so a load that finishes afterwards is dropped.
-    private var controlShowcaseGeneration = 0
-
-    var hasControlShowcase: Bool {
-        packages.values.contains(where: \.isControlShowcase)
-    }
-
-    /// Reads the Controls showcase in on demand. It stays out of the start-up
-    /// load and out of memory until the Developer panel's Controls section
-    /// asks for it, and `unloadControlShowcase()` drops it again.
-    func loadControlShowcase() async {
-        guard !hasControlShowcase, !isLoadingControlShowcase,
-              let rootURL = FoundryPackLoader.builtInShowcasePackURL() else { return }
-        isLoadingControlShowcase = true
-        defer { isLoadingControlShowcase = false }
-        let generation = controlShowcaseGeneration
-        await waitUntilLoaded()
-        let outcomes = await Task.detached {
-            let urls = (try? FoundryPackLoader.load(from: rootURL).partURLs) ?? []
-            return await PartCatalogSnapshot.loadOutcomes(urls)
-        }.value
-        guard generation == controlShowcaseGeneration else { return }
-        // No replacement rights: should an installed pack already own one of
-        // these identifiers, that part stays and the showcase entry is
-        // rejected with the usual duplicate diagnostic.
-        for outcome in outcomes {
-            apply(outcome, allowsReplacement: false)
-        }
-    }
-
-    /// Forgets the showcase parts. Callers discard any scratch page showing
-    /// one first, since its part type becomes unavailable.
-    func unloadControlShowcase() {
-        controlShowcaseGeneration &+= 1
-        guard hasControlShowcase, let rootURL = FoundryPackLoader.builtInShowcasePackURL() else { return }
-        unregisterPackages(under: rootURL)
-        Task { await PartIconLoader.shared.removeIcons(underRoot: rootURL) }
-    }
-
     func openDevelopmentPack(at rootURL: URL) {
         let rootURL = rootURL.standardizedFileURL
         ReusablePartLibrary.shared.openDevelopmentPack(at: rootURL)
-        FrameworkLibrary.shared.openDevelopmentPack(at: rootURL)
+        ThemeLibrary.shared.openDevelopmentPack(at: rootURL)
         AssetCollectionLibrary.shared.openDevelopmentPack(at: rootURL)
         SiteKitLibrary.shared.openDevelopmentPack(at: rootURL)
         reloadDevelopmentPack(at: rootURL)
@@ -404,7 +361,7 @@ final class PartPackageCatalog {
     private func reloadDevelopmentPack(at rootURL: URL) {
         reloadPartPacks(under: rootURL, allowsReplacement: true)
         ReusablePartLibrary.shared.refresh()
-        FrameworkLibrary.shared.reload()
+        ThemeLibrary.shared.reload()
         AssetCollectionLibrary.shared.refresh()
         SiteKitLibrary.shared.refreshIfScanned()
     }

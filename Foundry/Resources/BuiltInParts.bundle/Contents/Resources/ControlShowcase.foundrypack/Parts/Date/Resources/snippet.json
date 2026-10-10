@@ -1,8 +1,0 @@
-{
-    "type" : "date",
-    "id" : "published",
-    "label" : "Published",
-    "defaults" : {
-        "base" : "2026-08-30"
-    }
-}

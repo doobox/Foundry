@@ -37,11 +37,10 @@ pinned by checksum in `BootstrapBundledLibraryTests`. There is no Sass, Node or
 npm step; update Bootstrap with `tools/bootstrap/update.sh <version>`.
 Bootstrap's utility scales (spacing steps, text sizes, weights, numbered radii and
 border widths, numeric z-index) are fixed because Bootstrap bakes them into its
-utilities. The framework editor shows Colours, Fonts, Extensions and Advanced.
-Extensions holds project-named additions to the fixed scales. Advanced holds,
-collapsed, the variables Bootstrap's components read: body typography, links,
-focus ring, buttons and inputs, shadow strength, the shared border width,
-component corner radii and named stacking layers. Foundry's own
+utilities. The theme editor shows Colours, Fonts and Extensions.
+Extensions holds project-named additions to the fixed scales. There is no global
+Advanced section or saved global component override API. Component and layout
+overrides belong to individual parts; Bootstrap supplies their defaults. Foundry's own
 responsive text and wrapping variants and container caps come from
 `BootstrapUtilityExtensionsCSS`, emitted after Bootstrap in the same layers.
 
@@ -60,9 +59,9 @@ Use the same Typography and Foreground titles across parts. Third-party manifest
 retain their declared order. Reuse the Bootstrap sizing group; do not duplicate
 Container's width behaviour or Button's specialised fit/full-width control.
 
-## Built-in framework artwork
+## Built-in theme artwork
 
-Always ask Gary for a supplied tile image when creating a built-in framework. Do not generate or substitute fallback artwork. See `.cursor/rules/framework-artwork.mdc`.
+Always ask Gary for a supplied tile image when creating a built-in theme. Do not generate or substitute fallback artwork. See `.cursor/rules/framework-artwork.mdc`.
 
 ## API documentation
 

@@ -110,7 +110,8 @@
           "id": "foreground",
           "colourSections": [
             "foregrounds",
-            "blackWhite"
+            "blackWhite",
+            "themes"
           ]
         }
       ]
@@ -124,7 +125,8 @@
           "id": "background",
           "colourSections": [
             "blackWhite",
-            "surfaces"
+            "surfaces",
+            "themes"
           ],
           "backgroundTypes": [
             "colour",

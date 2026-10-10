@@ -42,7 +42,7 @@ struct CollectionControlTests {
         let html = HTMLPageRenderer(site: site).render(
             page: page,
             language: "en",
-            framework: site.framework,
+            theme: site.theme,
             assets: [:],
             breakpoint: .large
         )
@@ -97,7 +97,7 @@ struct CollectionControlTests {
         let canvas = HTMLPageRenderer(site: site).render(
             page: page,
             language: "en",
-            framework: site.framework,
+            theme: site.theme,
             assets: [:],
             breakpoint: .large
         )
@@ -197,13 +197,34 @@ struct CollectionControlTests {
     }
 
     @Test @MainActor
-    func bundledExampleDeclaresRecordsAndRendersThem() async throws {
-        let catalog = PartPackageCatalog.shared
-        await catalog.waitUntilLoaded()
-        await catalog.loadControlShowcase()
-        let package = try #require(catalog.packages.values.first {
-            $0.manifest.identifier == "foundry.showcase.collection"
-        })
+    func collectionDefaultsDeclareRecordsAndRenderThem() throws {
+        let root = FileManager.default.temporaryDirectory.appending(path: UUID().uuidString)
+        let resources = root.appending(path: "Resources")
+        try FileManager.default.createDirectory(at: resources, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let manifest = """
+        {
+          "id": "com.example.collection-records", "title": "Collection", "version": "1.0.0", "minimumAPIVersion": 1,
+          "templates": {"html": "part.html"},
+          "inspector": [{"section": "Cards", "controls": [{
+            "type": "collection", "id": "cards", "itemLabel": "Card",
+            "controls": [
+              {"type": "image", "id": "image"},
+              {"type": "text", "id": "title", "defaults": {"base": ""}},
+              {"type": "textArea", "id": "description", "defaults": {"base": ""}},
+              {"type": "link", "id": "link", "defaults": {"base": ""}}
+            ],
+            "defaults": {"base": [{"title": "First card"}, {"title": "Second card"}]}
+          }]}]
+        }
+        """
+        try manifest.write(to: root.appending(path: "manifest.json"), atomically: true, encoding: .utf8)
+        try """
+        <section class="{{ part.class }}" {{ part.attributes }}>{{ loop control.cards as card }}<h3>{{ card.title }}</h3>{{ endloop }}</section>
+        """.write(to: resources.appending(path: "part.html"), atomically: true, encoding: .utf8)
+        let package = try PartPackageLoader.load(from: root)
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: package.manifest.identifier) }
         let errors = PartPackageValidator.validate(
             package.manifest,
             rootURL: package.resourceRootURL
@@ -225,7 +246,7 @@ struct CollectionControlTests {
 
         let part = PartNode.make(.init(rawValue: package.manifest.identifier))
         let site = Site(name: "Collection", pages: [Page(title: "Home", slug: "index", parts: [part])])
-        let html = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        let html = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
         #expect(html.contains("First card"))
         #expect(html.contains("Second card"))
         #expect(html.contains("{{") == false)

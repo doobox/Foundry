@@ -142,7 +142,7 @@ nonisolated enum PartCollectionValue {
                 screens: screens
             )
         }
-        for field in fields where field.valueAvailability == .whenVisible {
+        for field in fields where field.outputWhenHidden == false {
             if !PartPackageVisibilityEvaluator.isVisible(field.visibleWhen, values: values) {
                 values.removeValue(forKey: field.key.rawValue)
             }

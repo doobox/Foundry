@@ -6,7 +6,7 @@ nonisolated struct FoundryPack: Sendable {
     let metadata: FoundryPackMetadata
     let partURLs: [URL]
     let templateURLs: [URL]
-    let frameworkURLs: [URL]
+    let themeURLs: [URL]
     let assetCollectionURLs: [URL]
     let siteKitURLs: [URL]
     /// Typed items that are not a directory containing manifest.json and
@@ -19,7 +19,7 @@ nonisolated struct FoundryPack: Sendable {
 nonisolated enum FoundryPackItemKind: String, CaseIterable, Sendable {
     case part = "Parts"
     case template = "Templates"
-    case framework = "Frameworks"
+    case theme = "Themes"
     case assetCollection = "Assets"
     case site = "Sites"
 }
@@ -88,7 +88,7 @@ nonisolated enum FoundryPackLoader {
         var invalidItemPaths: [String] = []
         let partURLs = try itemURLs(in: rootURL, kind: .part, invalidPaths: &invalidItemPaths)
         let templateURLs = try itemURLs(in: rootURL, kind: .template, invalidPaths: &invalidItemPaths)
-        let frameworkURLs = try itemURLs(in: rootURL, kind: .framework, invalidPaths: &invalidItemPaths)
+        let themeURLs = try itemURLs(in: rootURL, kind: .theme, invalidPaths: &invalidItemPaths)
         let assetCollectionURLs = try itemURLs(in: rootURL, kind: .assetCollection, invalidPaths: &invalidItemPaths)
         let siteKitURLs = try itemURLs(in: rootURL, kind: .site, invalidPaths: &invalidItemPaths)
         return FoundryPack(
@@ -97,7 +97,7 @@ nonisolated enum FoundryPackLoader {
             metadata: metadata,
             partURLs: partURLs,
             templateURLs: templateURLs,
-            frameworkURLs: frameworkURLs,
+            themeURLs: themeURLs,
             assetCollectionURLs: assetCollectionURLs,
             siteKitURLs: siteKitURLs,
             invalidItemPaths: invalidItemPaths.sorted()
@@ -114,17 +114,6 @@ nonisolated enum FoundryPackLoader {
         let containerURL = partBundle.url(forResource: "BuiltInParts", withExtension: "foundrypack")
             ?? partBundle.url(forResource: "BuiltInParts", withExtension: "foundrydevpack")
             ?? partBundle.resourceURL?.appending(path: "BuiltInParts.foundrypack", directoryHint: .isDirectory)
-        return containerURL?.standardizedFileURL
-    }
-
-    /// The bundled Controls showcase: one hidden part per control and control
-    /// group. It is not part of the start-up load; the catalog brings it in
-    /// while the Developer panel's Controls section is open.
-    static func builtInShowcasePackURL() -> URL? {
-        guard let bundleURL = Bundle.main.url(forResource: "BuiltInParts", withExtension: "bundle"),
-              let partBundle = Bundle(url: bundleURL) else { return nil }
-        let containerURL = partBundle.url(forResource: "ControlShowcase", withExtension: "foundrypack")
-            ?? partBundle.url(forResource: "ControlShowcase", withExtension: "foundrydevpack")
         return containerURL?.standardizedFileURL
     }
 
@@ -175,13 +164,13 @@ nonisolated enum FoundryPackLoader {
         ["foundrypack", "foundrydevpack"].contains(url.pathExtension.lowercased())
     }
 
-    static func exportFramework(_ framework: SavedFramework, to destinationURL: URL) throws {
+    static func exportTheme(_ theme: SavedTheme, to destinationURL: URL) throws {
         let fileManager = FileManager.default
         try fileManager.createDirectory(at: destinationURL, withIntermediateDirectories: true)
         do {
             let manifest: [String: Any] = [
-                "id": "framework.\(framework.id.uuidString.lowercased())",
-                "title": framework.metadata.name,
+                "id": "framework.\(theme.id.uuidString.lowercased())",
+                "title": theme.metadata.name,
                 "version": "1.0.0",
                 "minimumAPIVersion": 1
             ]
@@ -190,14 +179,19 @@ nonisolated enum FoundryPackLoader {
                 options: [.prettyPrinted, .sortedKeys]
             )
             try data.write(to: destinationURL.appending(path: "manifest.json"), options: .atomic)
-            let frameworksURL = destinationURL.appending(
-                path: FoundryPackItemKind.framework.rawValue,
+            let themesURL = destinationURL.appending(
+                path: FoundryPackItemKind.theme.rawValue,
                 directoryHint: .isDirectory
             )
-            try fileManager.createDirectory(at: frameworksURL, withIntermediateDirectories: true)
-            try fileManager.copyItem(
-                at: framework.bundleURL,
-                to: frameworksURL.appending(path: framework.id.uuidString, directoryHint: .isDirectory)
+            try fileManager.createDirectory(at: themesURL, withIntermediateDirectories: true)
+            _ = try ThemeBundleStore.write(
+                theme: theme.theme,
+                name: theme.metadata.name,
+                preview: ThemeBundleStore.preview(from: theme.previewURL),
+                id: theme.id,
+                createdAt: theme.metadata.createdAt,
+                assetContents: ProjectAssetContents(Dictionary(uniqueKeysWithValues: theme.resources.map { ($0.asset.id, $0) })),
+                to: themesURL.appending(path: theme.id.uuidString, directoryHint: .isDirectory)
             )
         } catch {
             try? fileManager.removeItem(at: destinationURL)

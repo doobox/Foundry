@@ -73,7 +73,7 @@ struct ImagePartTests {
             #expect(html.contains("<img") == (source.isEmpty == false))
             #expect(html.contains("srcset") == false)
             #expect(html.contains("foundry-image-drop-zone") == false)
-            let canvas = HTMLPageRenderer().render(page: site.pages[0], framework: site.framework)
+            let canvas = HTMLPageRenderer().render(page: site.pages[0], theme: site.theme)
             #expect(canvas.contains("data-foundry-image-drop-zone"))
         }
     }

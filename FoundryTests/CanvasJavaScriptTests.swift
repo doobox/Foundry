@@ -153,7 +153,7 @@ struct CanvasJavaScriptTests {
         defer { webView.stopLoading() }
         for breakpoint in [ResponsiveBreakpoint.mobile, .medium] {
             webView.setFrameSize(.init(width: breakpoint == .mobile ? 390 : 900, height: 600))
-            let html = HTMLPageRenderer().render(page: page, language: "en", framework: .standard, assets: [:], breakpoint: breakpoint)
+            let html = HTMLPageRenderer().render(page: page, language: "en", theme: .standard, assets: [:], breakpoint: breakpoint)
             webView.loadHTMLString(html.replacingOccurrences(of: "<html ", with: "<html data-layout-test=\"\(breakpoint.rawValue)\" "), baseURL: nil)
             var ready = false
             for _ in 0..<200 {
@@ -402,9 +402,9 @@ struct CanvasJavaScriptTests {
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 600, height: 400), configuration: configuration)
         defer { handler.finish(); webView.stopLoading() }
         let page = Page(title: "Font test", slug: "index", parts: (0..<30).map { _ in PartNode.make(.paragraph) })
-        var framework = Framework.standard
+        var theme = Theme.standard
         let renderer = HTMLPageRenderer()
-        webView.loadHTMLString(renderer.render(page: page, framework: framework), baseURL: nil)
+        webView.loadHTMLString(renderer.render(page: page, theme: theme), baseURL: nil)
         var ready = false
         for _ in 0..<200 {
             ready = (try? await webView.callAsyncJavaScript(
@@ -424,10 +424,10 @@ struct CanvasJavaScriptTests {
             };
             window.scrollTo(0, 300);
             """, arguments: [:], in: nil, contentWorld: .defaultClient)
-        framework.typography.bodyFont.source = .remote(stylesheetURL: URL(string: "canvas-font-test://font/styles.css")!)
+        theme.typography.bodyFont.source = .remote(stylesheetURL: URL(string: "canvas-font-test://font/styles.css")!)
         _ = try await webView.callAsyncJavaScript(
             "return window.foundryReplaceDocument(html)",
-            arguments: ["html": renderer.render(page: page, framework: framework)], in: nil, contentWorld: .defaultClient)
+            arguments: ["html": renderer.render(page: page, theme: theme)], in: nil, contentWorld: .defaultClient)
         for _ in 0..<200 {
             if handler.hasPendingRequest { break }
             try await Task.sleep(for: .milliseconds(25))
@@ -528,7 +528,7 @@ struct CanvasJavaScriptTests {
     }
 
     @Test(.timeLimit(.minutes(1)))
-    func liveFrameworkUpdatesCompleteWithoutReloadingDocument() async throws {
+    func liveThemeUpdatesCompleteWithoutReloadingDocument() async throws {
         let configuration = WKWebViewConfiguration()
         configuration.defaultWebpagePreferences.allowsContentJavaScript = false
         configuration.userContentController.addUserScript(.init(
@@ -553,7 +553,7 @@ struct CanvasJavaScriptTests {
         try #require(ready, "The real canvas interaction script must be installed")
 
         // A reload would discard this client-world state. Reconcile several successive
-        // framework shades, as happens while changing a colour or dragging Soften.
+        // theme shades, as happens while changing a colour or dragging Soften.
         _ = try await webView.callAsyncJavaScript(
             "window.canvasTestSentinel = {}; window.originalCanvasTestSentinel = window.canvasTestSentinel",
             arguments: [:], in: nil, contentWorld: .defaultClient

@@ -17,9 +17,9 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         self.packageRevision = packageRevision
     }
 
-    private func prepared(page: Page, framework: Framework, assets: ProjectAssetContents, breakpoint: ResponsiveBreakpoint) -> Self {
+    private func prepared(page: Page, theme: Theme, assets: ProjectAssetContents, breakpoint: ResponsiveBreakpoint) -> Self {
         var copy = self
-        copy.cacheSession = artifactCache?.session(environment: .init(site: site, page: page, framework: framework,
+        copy.cacheSession = artifactCache?.session(environment: .init(site: site, page: page, theme: theme,
             assets: assets, breakpoint: breakpoint, appearance: appearance, packageRevision: packageRevision),
             liveIDs: Set(page.parts.flatMap(flattened).map(\.id)))
         return copy
@@ -47,26 +47,26 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         own.children = []
         return own
     }
-    func render(page: Page, framework: Framework) -> String {
-        render(page: page, language: "en", framework: framework, assets: [:], breakpoint: .extraLarge)
+    func render(page: Page, theme: Theme) -> String {
+        render(page: page, language: "en", theme: theme, assets: [:], breakpoint: .extraLarge)
     }
 
-    func render(page: Page, language: String, framework: Framework, assets: ProjectAssetContents, breakpoint: ResponsiveBreakpoint) -> String {
+    func render(page: Page, language: String, theme: Theme, assets: ProjectAssetContents, breakpoint: ResponsiveBreakpoint) -> String {
         guard !Task.isCancelled else { return "" }
         if artifactCache != nil, cacheSession == nil {
-            return prepared(page: page, framework: framework, assets: assets, breakpoint: breakpoint)
-                .render(page: page, language: language, framework: framework, assets: assets, breakpoint: breakpoint)
+            return prepared(page: page, theme: theme, assets: assets, breakpoint: breakpoint)
+                .render(page: page, language: language, theme: theme, assets: assets, breakpoint: breakpoint)
         }
         let body = page.parts.isEmpty
             ? rootDropZone
-            : page.parts.map { render($0, page: page, framework: framework, assets: assets, globalDefinitionID: $0.reusableDefinitionID, breakpoint: breakpoint) }.joined(separator: "\n")
+            : page.parts.map { render($0, page: page, theme: theme, assets: assets, globalDefinitionID: $0.reusableDefinitionID, breakpoint: breakpoint) }.joined(separator: "\n")
         let pageTitle = page.metadata.browserTitle.isEmpty ? page.title : page.metadata.browserTitle
         let browserTitle = pageTitle + (site?.titleSuffix ?? "")
         let metadata = metadataHTML(for: page, browserTitle: browserTitle, site: site, assets: assets)
-        let headStart = placedHTML(for: page, framework: framework, placement: .headStart)
-        let headEnd = placedHTML(for: page, framework: framework, placement: .headEnd)
-        let bodyStart = placedHTML(for: page, framework: framework, placement: .bodyStart)
-        let bodyEnd = placedHTML(for: page, framework: framework, placement: .bodyEnd)
+        let headStart = placedHTML(for: page, theme: theme, placement: .headStart)
+        let headEnd = placedHTML(for: page, theme: theme, placement: .headEnd)
+        let bodyStart = placedHTML(for: page, theme: theme, placement: .bodyStart)
+        let bodyEnd = placedHTML(for: page, theme: theme, placement: .bodyEnd)
         let customHeadCode = site?.customCodeEnabled == true ? site?.headCode ?? "" : ""
         let customBodyStartCode = site?.customCodeEnabled == true ? site?.bodyStartCode ?? "" : ""
         let customBodyEndCode = site?.customCodeEnabled == true ? site?.bodyEndCode ?? "" : ""
@@ -84,7 +84,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
           <title>\(escape(browserTitle))</title>
         \(metadata)
           <style data-foundry-font-sources>
-            \(framework.fontSourceCSS(assets: assets, destination: .canvas))
+            \(theme.fontSourceCSS(assets: assets, destination: .canvas))
           </style>
           <style>
             :root {
@@ -147,7 +147,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             .foundry-empty-page { min-height: 100vh; }
             .foundry-contentless-drop-zone { min-height: 32px; padding: 6px 12px; }
             [data-foundry-global].foundry-editing { outline-color: var(--foundry-editor-chrome) !important; }
-            body { background: \(page.backgroundColour(framework: framework, appearance: appearance)); }
+            body { background: \(page.backgroundColour(theme: theme, appearance: appearance)); }
             .foundry-image-drop-zone, .foundry-video-drop-zone {
               /* The zone span inherits the replaced media element's own
                  classes so part CSS keeps positioning it — which means part
@@ -165,13 +165,13 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             .unavailable { padding: 16px; border: 2px dashed #C33; color: #922; background: #FFF5F5; }
             \(FoundryWebLibraryRegistry.canvasCSS(for: PartArtifactPlan(page: page).packages))
           </style>
-          <style data-foundry-framework-styles>
-            \(BootstrapThemeCSS.render(framework: framework))
-            \(BootstrapColorCSS.canvas(framework: framework, appearance: appearance))
+          <style data-foundry-theme-styles>
+            \(BootstrapThemeCSS.render(theme: theme))
+            \(BootstrapColorCSS.canvas(theme: theme, appearance: appearance))
           </style>
-        \(instanceStyleElements(for: page, framework: framework, assets: assets, breakpoint: breakpoint))
+        \(instanceStyleElements(for: page, theme: theme, assets: assets, breakpoint: breakpoint))
           <style data-foundry-shared-styles>
-            \(packageStyles(for: page, framework: framework, assets: assets, breakpoint: breakpoint))
+            \(packageStyles(for: page, theme: theme, assets: assets, breakpoint: breakpoint))
           </style>
         \(analyticsCode)
         \(headEnd)
@@ -184,14 +184,14 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     func renderSubtree(
         partID: UUID,
         page: Page,
-        framework: Framework,
+        theme: Theme,
         assets: ProjectAssetContents,
         breakpoint: ResponsiveBreakpoint
     ) -> RenderedPartSubtree? {
         guard !Task.isCancelled else { return nil }
         if artifactCache != nil, cacheSession == nil {
-            return prepared(page: page, framework: framework, assets: assets, breakpoint: breakpoint)
-                .renderSubtree(partID: partID, page: page, framework: framework, assets: assets, breakpoint: breakpoint)
+            return prepared(page: page, theme: theme, assets: assets, breakpoint: breakpoint)
+                .renderSubtree(partID: partID, page: page, theme: theme, assets: assets, breakpoint: breakpoint)
         }
         guard let target = subtreeTarget(partID: partID, in: page.parts) else { return nil }
         return RenderedPartSubtree(
@@ -199,7 +199,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             html: render(
                 target.node,
                 page: page,
-                framework: framework,
+                theme: theme,
                 assets: assets,
                 globalDefinitionID: target.inheritedGlobalDefinitionID,
                 breakpoint: breakpoint,
@@ -211,7 +211,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 instanceStyles(
                     for: flattened(target.node),
                     page: page,
-                    framework: framework,
+                    theme: theme,
                     assets: assets,
                     breakpoint: breakpoint
                 ).map { ($0.partID.uuidString, $0.css) },
@@ -220,7 +220,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         )
     }
 
-    private func placedHTML(for page: Page, framework: Framework, placement: PartPackageTemplateFile.Placement) -> String {
+    private func placedHTML(for page: Page, theme: Theme, placement: PartPackageTemplateFile.Placement) -> String {
         var seenPackages: Set<String> = []
         return page.parts.flatMap(flattened).compactMap { node -> String? in
             guard let package = node.type.definition.package,
@@ -231,7 +231,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                 packageIdentifier: package.manifest.identifier,
                 properties: [:],
-                templateValues: templateValues(for: page, framework: framework),
+                templateValues: templateValues(for: page, theme: theme),
                 slots: [:],
                 assetBasePath: canvasAssetBasePath(for: package),
                 assetPaths: canvasAssetPaths(for: package),
@@ -242,9 +242,9 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         }.joined(separator: "\n")
     }
 
-    private func templateValues(for page: Page, framework: Framework) -> [String: PartPackageValue] {
+    private func templateValues(for page: Page, theme: Theme) -> [String: PartPackageValue] {
         templateValuesCache.values(for: page.id) {
-            let breakpointValues = PartBreakpointTemplateValues.values(screens: framework.screens)
+            let breakpointValues = PartBreakpointTemplateValues.values(screens: theme.screens)
             guard let site else { return breakpointValues }
             return PartNavigationTemplateValues.values(site: site, currentPage: page)
                 .merging(breakpointValues) { current, _ in current }
@@ -314,14 +314,14 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         baseURL + StaticSiteRenderer.urlPath(for: page, pages: site.pages, folders: site.pageFolders)
     }
 
-    private func render(_ sourceNode: PartNode, page: Page, framework: Framework, assets: ProjectAssetContents, globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentPartID: UUID? = nil, parentSlot: PartPackageSlot? = nil, parentDropZoneSlotID: String? = nil) -> String {
+    private func render(_ sourceNode: PartNode, page: Page, theme: Theme, assets: ProjectAssetContents, globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentPartID: UUID? = nil, parentSlot: PartPackageSlot? = nil, parentDropZoneSlotID: String? = nil) -> String {
         guard !Task.isCancelled else { return "" }
         if var html = sceneArtifacts?[sourceNode.id]?.html {
             for child in sourceNode.children {
                 let marker = "<!--foundry-child:\(child.id.uuidString)-->"
                 if html.contains(marker) {
                     html = html.replacingOccurrences(of: marker, with: render(child, page: page,
-                        framework: framework, assets: assets, globalDefinitionID: nil, breakpoint: breakpoint))
+                        theme: theme, assets: assets, globalDefinitionID: nil, breakpoint: breakpoint))
                 }
             }
             return html
@@ -330,53 +330,53 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             return "<!--foundry-child:\(sourceNode.id.uuidString)-->"
         }
         return cachedText(.html, key: .init(node: sourceNode, globalID: globalDefinitionID, parentID: parentPartID, slot: parentSlot, dropZone: parentDropZoneSlotID)) {
-            renderUncached(sourceNode, page: page, framework: framework, assets: assets, globalDefinitionID: globalDefinitionID,
+            renderUncached(sourceNode, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID,
                 breakpoint: breakpoint, parentPartID: parentPartID, parentSlot: parentSlot, parentDropZoneSlotID: parentDropZoneSlotID)
         }
     }
 
     /// Renders one instance only. Child content is represented by stable identities,
     /// never copied into the parent's artifact. Published rendering is unchanged.
-    func renderShell(_ input: CanvasSceneInput, page: Page, framework: Framework,
+    func renderShell(_ input: CanvasSceneInput, page: Page, theme: Theme,
                      assets: ProjectAssetContents) -> CanvasSceneArtifact {
         var renderer = self
         renderer.shellRootID = input.node.id
-        let html = renderer.render(input.node, page: page, framework: framework, assets: assets,
+        let html = renderer.render(input.node, page: page, theme: theme, assets: assets,
             globalDefinitionID: input.globalID, breakpoint: .mobile, parentPartID: input.parentID,
             parentSlot: input.slot, parentDropZoneSlotID: input.dropZone)
-        let css = renderer.instanceStyles(for: [input.node], page: page, framework: framework,
+        let css = renderer.instanceStyles(for: [input.node], page: page, theme: theme,
             assets: assets, breakpoint: .mobile).first?.css ?? ""
         return .init(html: html, css: css)
     }
 
     func renderSceneDocument(artifacts: [UUID: CanvasSceneArtifact], page: Page, language: String,
-                             framework: Framework, assets: ProjectAssetContents,
+                             theme: Theme, assets: ProjectAssetContents,
                              breakpoint: ResponsiveBreakpoint) -> String {
         var renderer = self
         renderer.sceneArtifacts = artifacts
-        return renderer.render(page: page, language: language, framework: framework,
+        return renderer.render(page: page, language: language, theme: theme,
                                assets: assets, breakpoint: breakpoint)
     }
 
-    private func renderUncached(_ sourceNode: PartNode, page: Page, framework: Framework, assets: ProjectAssetContents, globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentPartID: UUID?, parentSlot: PartPackageSlot?, parentDropZoneSlotID: String?) -> String {
-        let node = sourceNode.resolved(at: breakpoint, screens: framework.screens)
+    private func renderUncached(_ sourceNode: PartNode, page: Page, theme: Theme, assets: ProjectAssetContents, globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentPartID: UUID?, parentSlot: PartPackageSlot?, parentDropZoneSlotID: String?) -> String {
+        let node = sourceNode.resolved(at: breakpoint, screens: theme.screens)
         let globalDefinitionID = node.reusableDefinitionID ?? globalDefinitionID
         switch node.type.definition.renderKind {
         case .package:
             guard let package = node.type.definition.package else {
-                return unavailablePart(node, page: page, framework: framework, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: parentPartID)
+                return unavailablePart(node, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: parentPartID)
             }
             do {
                 try package.preparePayload()
             } catch {
-                return failedPart(node, page: page, package: package, framework: framework, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: parentPartID)
+                return failedPart(node, page: page, package: package, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: parentPartID)
             }
             let slots = Dictionary(uniqueKeysWithValues: package.renderDefinition.slots.map { slot in
                 let children = node.children.filter {
                     ($0.slotID ?? (package.hasDropZone ? nil : package.renderDefinition.slots.first?.id)) == slot.id
                 }
                 let html = children.map {
-                    render($0, page: page, framework: framework, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: node.id, parentSlot: slot)
+                    render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: node.id, parentSlot: slot)
                 }.joined()
                 return (slot.id, html.isEmpty ? "<div class=\"foundry-empty-drop-zone\" data-foundry-empty-parent=\"\(node.id.uuidString)\" data-foundry-slot-id=\"\(escapeAttribute(slot.id))\"><span class=\"foundry-drop-label\">\(FoundryDropZoneGlyphs.part)</span></div>" : html)
             })
@@ -384,7 +384,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 let slotID = package.dropZoneSlotID(for: name)
                 let children = node.children.filter { $0.slotID == slotID || (index == 0 && $0.slotID == nil) }
                 let html = children.map {
-                    render($0, page: page, framework: framework, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: node.id, parentDropZoneSlotID: slotID)
+                    render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: node.id, parentDropZoneSlotID: slotID)
                 }.joined()
                 let output = html.isEmpty
                     ? "<div class=\"foundry-empty-drop-zone\" data-foundry-empty-parent=\"\(node.id.uuidString)\" data-foundry-slot-id=\"\(escapeAttribute(slotID))\"><span class=\"foundry-drop-label\">\(FoundryDropZoneGlyphs.part)</span></div>"
@@ -399,12 +399,12 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             let canvasAttributes = attributes(for: node, globalDefinitionID: globalDefinitionID, parentPartID: parentPartID, parentSlot: parentSlot, parentDropZoneSlotID: parentDropZoneSlotID) +
                 (defaultSlotID.map { " data-foundry-default-slot=\"\(escapeAttribute($0))\"" } ?? "") +
                 adjacentDropAttribute
-            let renderedProperties = packageProperties(node, framework: framework, assets: assets, breakpoint: breakpoint)
+            let renderedProperties = packageProperties(node, theme: theme, assets: assets, breakpoint: breakpoint)
             let templateContext = PartTemplateContext(
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
                     properties: renderedProperties,
-                    templateValues: templateValues(for: page, framework: framework),
+                    templateValues: templateValues(for: page, theme: theme),
                     slots: slots,
                     dropZones: dropZones,
                     partClass: partClass(node) + " " +
@@ -416,7 +416,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     environment: .canvas,
                     richTextLinkContext: richTextLinkContext,
                     richTextColourContext: .init(
-                        palettes: framework.colourPalettes,
+                        palettes: theme.colourPalettes,
                         mode: appearance == .light ? .light : .dark
                     ),
                     loopMaximums: package.loopMaximums
@@ -433,7 +433,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             }
             return "<div \(canvasAttributes)>\(decorated)</div>"
         case .unavailable:
-            return unavailablePart(node, page: page, framework: framework, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: parentPartID)
+            return unavailablePart(node, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: parentPartID)
         }
     }
 
@@ -450,7 +450,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
 
     private func packageStyles(
         for page: Page,
-        framework: Framework,
+        theme: Theme,
         assets: ProjectAssetContents,
         breakpoint: ResponsiveBreakpoint
     ) -> String {
@@ -465,7 +465,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)),
                     packageIdentifier: package.manifest.identifier,
                     properties: [:],
-                    templateValues: templateValues(for: page, framework: framework),
+                    templateValues: templateValues(for: page, theme: theme),
                     slots: [:],
                     assetBasePath: canvasAssetBasePath(for: package),
                     assetPaths: canvasAssetPaths(for: package),
@@ -483,14 +483,14 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     /// original rules in place for a patch to fight with.
     private func instanceStyleElements(
         for page: Page,
-        framework: Framework,
+        theme: Theme,
         assets: ProjectAssetContents,
         breakpoint: ResponsiveBreakpoint
     ) -> String {
         instanceStyles(
             for: page.parts.flatMap(flattened),
             page: page,
-            framework: framework,
+            theme: theme,
             assets: assets,
             breakpoint: breakpoint
         ).map { instance in
@@ -509,7 +509,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     private func instanceStyles(
         for nodes: [PartNode],
         page: Page,
-        framework: Framework,
+        theme: Theme,
         assets: ProjectAssetContents,
         breakpoint: ResponsiveBreakpoint
     ) -> [(partID: UUID, css: String)] {
@@ -518,16 +518,16 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             if let artifact = sceneArtifacts?[sourceNode.id] {
                 return artifact.css.isEmpty ? nil : (sourceNode.id, artifact.css)
             }
-            let node = sourceNode.resolved(at: breakpoint, screens: framework.screens)
+            let node = sourceNode.resolved(at: breakpoint, screens: theme.screens)
             let text = cachedText(.css, key: .init(node: ownValues(node))) {
-            var pieces: [String] = [BootstrapPartUtilityCSS.render(node: node, framework: framework)]
+            var pieces: [String] = [BootstrapPartUtilityCSS.render(node: node, theme: theme)]
             if sourceNode.type.definition.package?.manifest.controlGroups.contains(where: { $0.type == .background }) == true {
-                pieces.append(PartPackageBackgroundResolver.stylesheet(packageProperties(sourceNode, framework: framework, assets: assets, breakpoint: .mobile)))
+                pieces.append(PartPackageBackgroundResolver.stylesheet(packageProperties(sourceNode, theme: theme, assets: assets, breakpoint: .mobile)))
                 for level in ResponsiveBreakpoint.allCases.dropFirst() {
-                    guard let width = level.minimumWidth(in: framework.screens),
+                    guard let width = level.minimumWidth(in: theme.screens),
                           sourceNode.responsiveOverrides?.contains(where: { $0.breakpoint == level }) == true else { continue }
-                    let resolved = sourceNode.resolved(at: level, screens: framework.screens)
-                    let css = PartPackageBackgroundResolver.stylesheet(packageProperties(resolved, framework: framework, assets: assets, breakpoint: level))
+                    let resolved = sourceNode.resolved(at: level, screens: theme.screens)
+                    let css = PartPackageBackgroundResolver.stylesheet(packageProperties(resolved, theme: theme, assets: assets, breakpoint: level))
                     if !css.isEmpty { pieces.append("@media(min-width:\(width)px){\(css)}") }
                 }
             }
@@ -539,8 +539,8 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     context: .init(
                         instanceID: node.id,
                         packageIdentifier: package.manifest.identifier,
-                        properties: packageProperties(node, framework: framework, assets: assets, breakpoint: breakpoint),
-                        templateValues: templateValues(for: page, framework: framework),
+                        properties: packageProperties(node, theme: theme, assets: assets, breakpoint: breakpoint),
+                        templateValues: templateValues(for: page, theme: theme),
                         slots: [:],
                         assetBasePath: canvasAssetBasePath(for: package),
                         assetPaths: canvasAssetPaths(for: package),
@@ -631,18 +631,18 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         })
     }
 
-    private func packageProperties(_ node: PartNode, framework: Framework, assets: ProjectAssetContents, breakpoint: ResponsiveBreakpoint) -> [String: PartPackageValue] {
+    private func packageProperties(_ node: PartNode, theme: Theme, assets: ProjectAssetContents, breakpoint: ResponsiveBreakpoint) -> [String: PartPackageValue] {
         if node.type.definition.properties.contains(where: { $0.control.isCollection }) {
-            return uncachedPackageProperties(node, framework: framework, assets: assets, breakpoint: breakpoint)
+            return uncachedPackageProperties(node, theme: theme, assets: assets, breakpoint: breakpoint)
         }
-        guard let cacheSession else { return uncachedPackageProperties(node, framework: framework, assets: assets) }
+        guard let cacheSession else { return uncachedPackageProperties(node, theme: theme, assets: assets) }
         if case .properties(let values) = cacheSession.value(.properties, key: .init(node: ownValues(node)), compute: {
-            .properties(uncachedPackageProperties(node, framework: framework, assets: assets))
+            .properties(uncachedPackageProperties(node, theme: theme, assets: assets))
         }) { return values }
-        return uncachedPackageProperties(node, framework: framework, assets: assets)
+        return uncachedPackageProperties(node, theme: theme, assets: assets)
     }
 
-    private func uncachedPackageProperties(_ node: PartNode, framework: Framework, assets: ProjectAssetContents, breakpoint: ResponsiveBreakpoint = .mobile) -> [String: PartPackageValue] {
+    private func uncachedPackageProperties(_ node: PartNode, theme: Theme, assets: ProjectAssetContents, breakpoint: ResponsiveBreakpoint = .mobile) -> [String: PartPackageValue] {
         // One definition fetch, one stored-value index and one manifest
         // property expansion for the whole pass; repeating any of them per
         // key dominates page-render profiles.
@@ -652,30 +652,30 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         let manifestPropertiesByID = partDefinition.package?.renderDefinition.propertiesByID ?? [:]
         var values: [String: PartPackageValue] = Dictionary(uniqueKeysWithValues: definitions.map { definition in
             let value = node.storedPropertyValue(definition.key) ?? definition.defaultValue
-            if let classes = BootstrapControlGroupClasses.resolve(node: node, key: definition.key, framework: framework) {
+            if let classes = BootstrapControlGroupClasses.resolve(node: node, key: definition.key, theme: theme) {
                 return (definition.key.rawValue, .string(classes))
             }
-            if case .frameworkBorderWidth(let width) = value {
-                return (definition.key.rawValue, PartPackageFrameworkBorderWidthControl.resolved(width, framework: framework))
+            if case .themeBorderWidth(let width) = value {
+                return (definition.key.rawValue, PartPackageThemeBorderWidthControl.resolved(width, theme: theme))
             }
-            if case .frameworkRadius(let radius) = value {
-                return (definition.key.rawValue, PartPackageFrameworkRadiusControl.resolved(radius, framework: framework))
+            if case .themeRadius(let radius) = value {
+                return (definition.key.rawValue, PartPackageThemeRadiusControl.resolved(radius, theme: theme))
             }
-            if case .frameworkMargin(let margin) = value {
-                return (definition.key.rawValue, PartPackageFrameworkMarginControl.resolved(margin, framework: framework))
+            if case .themeMargin(let margin) = value {
+                return (definition.key.rawValue, PartPackageThemeMarginControl.resolved(margin, theme: theme))
             }
-            if case .frameworkSpacing(let spacing) = value {
+            if case .themeSpacing(let spacing) = value {
                 return (definition.key.rawValue, PartPackageSingleSpacingControl.resolved(
                     spacing,
-                    framework: framework,
+                    theme: theme,
                     noneValue: manifestPropertiesByID[definition.key.rawValue]?.noneValue
                 ))
             }
-            if case .frameworkPadding(let padding) = value {
-                return (definition.key.rawValue, PartPackageFrameworkPaddingControl.resolved(padding, framework: framework))
+            if case .themePadding(let padding) = value {
+                return (definition.key.rawValue, PartPackageThemePaddingControl.resolved(padding, theme: theme))
             }
-            if case .frameworkFont = definition.control {
-                return (definition.key.rawValue, PartPackageFontControl.resolved(definition.key.rawValue, node: node, framework: framework))
+            if case .themeFont = definition.control {
+                return (definition.key.rawValue, PartPackageFontControl.resolved(definition.key.rawValue, node: node, theme: theme))
             }
             if case .collection(_, let fields) = definition.control {
                 let records = value.arrayValue ?? []
@@ -686,7 +686,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                             record,
                             fields: fields,
                             breakpoint: breakpoint,
-                            framework: framework,
+                            theme: theme,
                             source: { source, control in
                                 if case .video = control { return YouTubeVideo.id(from: source) == nil ? "" : source }
                                 return canvasSource(source, assets: assets)
@@ -702,14 +702,6 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                                         absoluteURL: absoluteURL
                                     )
                                 }
-                            },
-                            packageColor: { color, opacity in
-                                PartPackageColorResolver.resolve(
-                                    color,
-                                    framework: framework,
-                                    opacity: opacity,
-                                    appearance: appearance
-                                )
                             }
                         )
                     })
@@ -725,46 +717,36 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 return (definition.key.rawValue, .string(canvasSource(source, assets: assets)))
             }
             if case .color = definition.control {
-                return (definition.key.rawValue, .string(node.colorProperty(definition.key, framework: framework)))
+                return (definition.key.rawValue, .string(node.colorProperty(definition.key, theme: theme)))
             }
-            if case .packageColor(_, let opacity, _, _) = definition.control,
-               case .packageColor(let colorValue) = value {
-                return (
-                    definition.key.rawValue,
-                    .string(PartPackageColorResolver.resolve(
-                        colorValue, framework: framework,
-                        opacity: opacity, appearance: appearance
-                    ))
-                )
-            }
-            if case .themeColor = definition.control {
-                return (definition.key.rawValue, .string(BootstrapPaletteTheme.resolve(node.property(definition.key), framework: framework)))
+            if case .themeColors = definition.control {
+                return (definition.key.rawValue, .string(BootstrapPaletteTheme.resolve(node.property(definition.key), theme: theme)))
             }
             if node.type == .container && definition.key.rawValue == "width" {
-                return (definition.key.rawValue, .string(BootstrapLayout.containerClass(node.property(definition.key), screens: framework.screens)))
+                return (definition.key.rawValue, .string(BootstrapLayout.containerClass(node.property(definition.key), screens: theme.screens)))
             }
-            if case .frameworkFontSize = definition.control {
+            if case .themeFontSize = definition.control {
 
-                return (definition.key.rawValue, .string(framework.fontSizeCSSVariable(for: node.property(definition.key))))
+                return (definition.key.rawValue, .string(theme.fontSizeCSSVariable(for: node.property(definition.key))))
             }
-            if case .frameworkStackingOrder = definition.control {
+            if case .themeStackingOrder = definition.control {
                 if case .packageStackingOrder(let selected) = value, selected.isCustom {
                     return (definition.key.rawValue, .string(String(Int(selected.customValue))))
                 }
-                return (definition.key.rawValue, .string(framework.zIndexCSSVariable(for: node.property(definition.key))))
+                return (definition.key.rawValue, .string(theme.zIndexCSSVariable(for: node.property(definition.key))))
             }
             if case .packageShadow = definition.control,
                case .packageShadow(let shadowValue) = value {
                 if manifestPropertiesByID[definition.key.rawValue]?.controlGroupSource?.type == .filters {
-                    return (definition.key.rawValue, .string(PartPackageShadowResolver.filter(shadowValue, framework: framework)))
+                    return (definition.key.rawValue, .string(PartPackageShadowResolver.filter(shadowValue, theme: theme)))
                 }
                 return (
                     definition.key.rawValue,
-                    .string(PartPackageShadowResolver.resolve(shadowValue, framework: framework))
+                    .string(PartPackageShadowResolver.resolve(shadowValue, theme: theme))
                 )
             }
             if case .number = definition.control {
-                return (definition.key.rawValue, .number(node.numberProperty(definition.key, framework: framework)))
+                return (definition.key.rawValue, .number(node.numberProperty(definition.key, theme: theme)))
             }
             return (definition.key.rawValue, packageValue(value))
         })
@@ -774,7 +756,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             }
         }
         for definition in definitions {
-            if definition.control.isFrameworkSpacing,
+            if definition.control.isThemeSpacing,
                case .object(let fields) = values[definition.key.rawValue] {
                 for (field, value) in fields {
                     let key = definition.key.rawValue + "." + field
@@ -786,35 +768,15 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 // Direct interpolation is the shorthand; qualified fields remain available above.
                 values[definition.key.rawValue] = fields["css"]
             }
-            if case .frameworkFont = definition.control,
+            if case .themeFont = definition.control,
                case .object(let fields) = values[definition.key.rawValue] {
                 for (field, value) in fields { values[definition.key.rawValue + "." + field] = value }
             }
-            if case .frameworkFontSize = definition.control {
-                // The size's paired leading travels with it in the framework.
+            if case .themeFontSize = definition.control {
+                // The size's paired leading travels with it in the theme.
                 values[definition.key.rawValue + ".lineHeight"] = .string(
-                    framework.lineHeightCSSVariable(for: node.property(definition.key))
+                    theme.lineHeightCSSVariable(for: node.property(definition.key))
                 )
-            }
-            if case .packageColor(_, let opacity, _, _) = definition.control,
-               case .packageColor(let colorValue) = node.propertyValue(definition.key) {
-                // The canvas renders one appearance at a time, so unqualified
-                // colour outputs resolve concretely for whichever is on screen.
-                let light = PartPackageColorResolver.channels(colorValue, framework: framework, opacity: opacity, appearance: .light)
-                let dark = PartPackageColorResolver.channels(colorValue, framework: framework, opacity: opacity, appearance: .dark)
-                PartPackageDerivedValueResolver.addFrameworkColorValues(
-                    for: definition.key.rawValue,
-                    light: light,
-                    dark: dark,
-                    primary: appearance,
-                    combinesAppearances: false,
-                    includesOpacity: opacity,
-                    to: &values
-                )
-                if let format = manifestPropertiesByID[definition.key.rawValue]?.control.outputFormat,
-                   let current = appearance == .light ? light : dark {
-                    values[definition.key.rawValue] = .string(current.formatted(as: format, includesOpacity: opacity))
-                }
             }
         }
         if let package = partDefinition.package {
@@ -913,7 +875,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             resolved,
             properties: manifestProperties,
             for: node,
-            screens: framework.screens
+            screens: theme.screens
         )
     }
 
@@ -930,16 +892,15 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         case .array(let values): .array(values.map(packageValue))
         case .object(let values): .object(values.mapValues(packageValue))
         case .link: .string("")
-        case .packageColor(let value): .string(value.source)
         case .packageFontSize(let value): .string(value.source)
         case .packageShadow(let value): .string(value.source)
         case .packageStackingOrder(let value): .string(value.source)
-        case .frameworkSpacing, .frameworkPadding, .frameworkMargin, .frameworkBorderWidth, .frameworkRadius: .string("")
+        case .themeSpacing, .themePadding, .themeMargin, .themeBorderWidth, .themeRadius: .string("")
         }
     }
 
-    private func unavailablePart(_ node: PartNode, page: Page, framework: Framework, assets: ProjectAssetContents, globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentPartID: UUID?) -> String {
-        let children = node.children.map { render($0, page: page, framework: framework, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: node.id) }.joined()
+    private func unavailablePart(_ node: PartNode, page: Page, theme: Theme, assets: ProjectAssetContents, globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentPartID: UUID?) -> String {
+        let children = node.children.map { render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: node.id) }.joined()
         let name = node.missingPackageSnapshot?.name ?? node.type.rawValue
         // The snapshot travels in the document, so the title and the pack's
         // help address show even on a machine that never had the pack.
@@ -948,8 +909,8 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         return "<div class=\"unavailable\" \(attributes(for: node, globalDefinitionID: globalDefinitionID, parentPartID: parentPartID))>Missing part: \(escape(name))\(help)\(children)</div>"
     }
 
-    private func failedPart(_ node: PartNode, page: Page, package: LoadedPartPackage, framework: Framework, assets: ProjectAssetContents, globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentPartID: UUID?) -> String {
-        let children = node.children.map { render($0, page: page, framework: framework, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: node.id) }.joined()
+    private func failedPart(_ node: PartNode, page: Page, package: LoadedPartPackage, theme: Theme, assets: ProjectAssetContents, globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentPartID: UUID?) -> String {
+        let children = node.children.map { render($0, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: node.id) }.joined()
         return "<div class=\"unavailable\" \(attributes(for: node, globalDefinitionID: globalDefinitionID, parentPartID: parentPartID))>Part files could not be loaded: \(escape(package.manifest.name))\(children)</div>"
     }
 

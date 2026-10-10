@@ -10,7 +10,7 @@ struct BootstrapButtonTests {
         var inherited = PartNode.make(.button)
         inherited.anchor = "inherited-button"
         #expect(inherited.property(.init(rawValue: "theme")) == "inherit")
-        #expect(BootstrapPaletteTheme.resolve("inherit", framework: .standard) == "")
+        #expect(BootstrapPaletteTheme.resolve("inherit", theme: .standard) == "")
         var explicit = PartNode.make(.button)
         explicit.anchor = "explicit-button"
         explicit.setProperty(.init(rawValue: "theme"), value: .choice("framework.primary"))
@@ -22,7 +22,7 @@ struct BootstrapButtonTests {
         let page = Page(title: "Inherited theme", slug: "index", parts: [parent])
         let html: String
         if environment == .canvas {
-            html = HTMLPageRenderer().render(page: page, framework: .standard)
+            html = HTMLPageRenderer().render(page: page, theme: .standard)
         } else {
             let bundle = StaticSiteRenderer(environment: environment).render(site: Site(name: "Themes", pages: [page]))
             #expect(bundle.errors.isEmpty)
@@ -67,7 +67,7 @@ struct BootstrapButtonTests {
             html = document.contents.replacingOccurrences(of: "</head>", with: "<style>\(styles)</style></head>")
         } else {
             html = HTMLPageRenderer(appearance: destination == "canvas-dark" ? .dark : .light)
-                .render(page: page, framework: .standard)
+                .render(page: page, theme: .standard)
         }
         let webView = WKWebView(frame: CGRect(x: 0, y: 0, width: 800, height: 600))
         defer { webView.stopLoading() }
@@ -144,7 +144,7 @@ struct BootstrapButtonTests {
         button.setProperty(.init(rawValue: "size"), value: .choice("btn-lg"))
         let page = Page(title: "Bootstrap button", slug: "index", parts: [button])
         let site = Site(name: "Buttons", pages: [page])
-        let canvas = HTMLPageRenderer().render(page: page, framework: site.framework)
+        let canvas = HTMLPageRenderer().render(page: page, theme: site.theme)
         let exported = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html"))
         for html in [canvas, exported.contents] {
             #expect(html.contains("btn btn-outline theme-danger btn-lg"))
@@ -172,7 +172,7 @@ struct BootstrapButtonTests {
         let page = Page(title: "Icons", slug: "index", parts: buttons)
         let html: String
         if destination == "canvas" {
-            html = HTMLPageRenderer().render(page: page, framework: .standard)
+            html = HTMLPageRenderer().render(page: page, theme: .standard)
         } else {
             let bundle = StaticSiteRenderer().render(site: Site(name: "Icons", pages: [page]))
             let output = try #require(bundle.file(at: "index.html"))

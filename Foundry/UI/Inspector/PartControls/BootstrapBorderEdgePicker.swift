@@ -1,8 +1,8 @@
 import SwiftUI
 
 /// Uses the shared edge widget, with native Bootstrap border presence choices.
-struct BootstrapBorderEdgePicker<Policy: FrameworkSpacingPolicy>: View {
-    @Binding var value: FrameworkSpacingValue<Policy>.EdgeValue
+struct BootstrapBorderEdgePicker<Policy: ThemeSpacingPolicy>: View {
+    @Binding var value: ThemeSpacingValue<Policy>.EdgeValue
     let title: String
 
     var body: some View {

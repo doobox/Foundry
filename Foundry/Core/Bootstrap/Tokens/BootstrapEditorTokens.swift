@@ -5,6 +5,33 @@ nonisolated struct BootstrapEditorTokens: Codable, Equatable, Sendable {
     var values: [String: String] = [:]
     var custom: [String: [String]] = [:]
 
+    init(values: [String: String] = [:], custom: [String: [String]] = [:]) {
+        self.values = values
+        self.custom = custom
+    }
+
+    private enum CodingKeys: String, CodingKey { case values, custom }
+
+    /// Removed global settings are discarded on load and never written back.
+    private var supportedValues: [String: String] {
+        let ids = Set(BootstrapEditorSection.allCases.flatMap { tokens(in: $0).map(\.id) })
+        return values.filter { ids.contains($0.key) }
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        values = try container.decodeIfPresent([String: String].self, forKey: .values) ?? [:]
+        custom = try container.decodeIfPresent([String: [String]].self, forKey: .custom) ?? [:]
+        custom = custom.filter { BootstrapEditorSection(rawValue: $0.key)?.allowsCustom == true }
+        values = supportedValues
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var container = encoder.container(keyedBy: CodingKeys.self)
+        try container.encode(supportedValues, forKey: .values)
+        try container.encode(custom.filter { BootstrapEditorSection(rawValue: $0.key)?.allowsCustom == true }, forKey: .custom)
+    }
+
     /// Project-owned additions only; edits to Bootstrap's built-in tokens stay with the theme.
     var customAdditions: Self {
         let sections = custom.filter { BootstrapEditorSection(rawValue: $0.key)?.allowsCustom == true }
@@ -27,7 +54,7 @@ nonisolated struct BootstrapEditorTokens: Codable, Equatable, Sendable {
     func isChanged(_ section: BootstrapEditorSection) -> Bool {
         section.tokens.contains { values[$0.id] != nil }
     }
-    /// Only Bootstrap's component tokens and the project's own additions accept edits.
+    /// Only colour tokens and the project's own additions accept edits.
     func isEditable(_ token: BootstrapEditorToken) -> Bool {
         BootstrapEditorSection.allCases.contains { section in
             section.tokens.contains { $0.id == token.id } || customTokens(in: section).contains { $0.id == token.id }
@@ -70,7 +97,7 @@ nonisolated struct BootstrapEditorToken: Identifiable, Sendable {
 /// spacing steps, numbered radii and borders, numeric z-index) are not editable;
 /// their sections carry only project-named additions.
 nonisolated enum BootstrapEditorSection: String, CaseIterable, Sendable {
-    case fontSize, borderWidth, borderRadius, shadows, shadowColours, blackWhite, colourScales, zIndex, body, links, linkColours, focusRing, controls
+    case fontSize, borderWidth, borderRadius, shadows, shadowColours, blackWhite, colourScales, zIndex, linkColours
 
     var title: String {
         switch self {
@@ -82,11 +109,7 @@ nonisolated enum BootstrapEditorSection: String, CaseIterable, Sendable {
         case .blackWhite: "Black & White"
         case .colourScales: "Colour Scales"
         case .zIndex: "Z-index"
-        case .body: "Body Typography"
-        case .links: "Links"
         case .linkColours: "Link Colours"
-        case .focusRing: "Focus Ring"
-        case .controls: "Buttons & Inputs"
         }
     }
 
@@ -99,14 +122,8 @@ nonisolated enum BootstrapEditorSection: String, CaseIterable, Sendable {
 
     var tokens: [BootstrapEditorToken] {
         switch self {
-        case .fontSize:
+        case .fontSize, .borderWidth, .borderRadius, .shadows, .zIndex:
             return []
-        case .borderWidth:
-            return [.init("border-width", "Components", range: 0...12, step: 0.5)]
-        case .borderRadius:
-            return [.init("radius-5", "Buttons and inputs", range: 0...5), .init("radius-7", "Cards", range: 0...5), .init("radius-pill", "Pill", range: 0...50)]
-        case .shadows:
-            return [.init("shadow-strength-light", "Light strength", fallback: "1", range: 0...5, step: 0.1), .init("shadow-strength-dark", "Dark strength", fallback: "2.4", range: 0...5, step: 0.1)]
         case .shadowColours:
             return [.init("shadow-color", "Shadow")]
         case .blackWhite:
@@ -115,22 +132,8 @@ nonisolated enum BootstrapEditorSection: String, CaseIterable, Sendable {
             return BootstrapColourCatalogue.hues.flatMap { hue in
                 ColourShade.allCases.map { .init("\(hue)-\($0.bootstrapLabel)", $0.bootstrapLabel) }
             }
-        case .zIndex:
-            return Self.levels.map { .init("z-" + $0, "z-" + $0, range: -10...1100, step: 1) }
-        case .body:
-            return [.init("body-font-size", "Font size", range: 0.5...3), .init("body-font-weight", "Font weight"), .init("body-line-height", "Line height", range: 0.5...3, step: 0.05), .init("heading-color", "Heading colour"), .init("code-font-size", "Code size", range: 50...150, step: 1), .init("code-color", "Code colour")]
-        case .links:
-            return ["link-decoration", "link-underline-offset"].map { .init($0) }
         case .linkColours:
             return [.init("link-color", "Link"), .init("link-hover-color", "Link hover")]
-        case .focusRing:
-            return [.init("focus-ring-width", "Width", range: 0...12, step: 0.5), .init("focus-ring-offset", "Offset", range: -10...10, step: 0.5), .init("focus-ring-color", "Colour")]
-        case .controls:
-            return ["", "xs-", "sm-", "lg-"].flatMap { size in
-                ["gap", "min-height", "padding-y", "padding-x", "font-size", "line-height", "border-radius"].map {
-                    BootstrapEditorToken("btn-input-" + size + $0, (size.isEmpty ? "Default " : size.replacingOccurrences(of: "-", with: " ")) + $0)
-                }
-            } + [.init("btn-input-font-weight"), .init("control-disabled-opacity", range: 0...1, step: 0.05)]
         }
     }
 

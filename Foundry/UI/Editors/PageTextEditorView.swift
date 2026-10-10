@@ -28,7 +28,7 @@ struct PageTextEditorView: View {
     @State private var popoverReference: RichTextColourReference?
     @State private var popoverColor: Color?
 
-    let framework: Framework
+    let theme: Theme
     let pages: [Page]
     let folders: [PageFolder]
     let assets: [ProjectAsset]
@@ -38,7 +38,7 @@ struct PageTextEditorView: View {
 
     init(
         value: String,
-        framework: Framework,
+        theme: Theme,
         pages: [Page],
         folders: [PageFolder],
         assets: [ProjectAsset],
@@ -46,8 +46,8 @@ struct PageTextEditorView: View {
         cancel: @escaping () -> Void,
         save: @escaping (String) -> Void
     ) {
-        _text = State(initialValue: RichTextHTMLCodec.attributedString(from: value, palettes: framework.colourPalettes))
-        self.framework = framework
+        _text = State(initialValue: RichTextHTMLCodec.attributedString(from: value, palettes: theme.colourPalettes))
+        self.theme = theme
         self.pages = pages
         self.folders = folders
         self.assets = assets
@@ -173,7 +173,7 @@ struct PageTextEditorView: View {
             .accessibilityLabel("Text colour")
             .popover(isPresented: $showsColourPicker, arrowEdge: .bottom) {
                 RichTextColourPicker(
-                    framework: framework,
+                    theme: theme,
                     reference: popoverReference,
                     apply: applyColourReference,
                     clear: clearColour
@@ -321,7 +321,7 @@ struct PageTextEditorView: View {
     private func applyColourReference(_ reference: RichTextColourReference) {
         // The reference is authoritative; the resolved light-appearance colour
         // is only the editor's WYSIWYG rendering of it.
-        let display = reference.resolve(in: framework.colourPalettes, appearance: .light)
+        let display = reference.resolve(in: theme.colourPalettes, appearance: .light)
             .flatMap { Color(hex: $0) }
         popoverReference = reference
         popoverColor = display
@@ -372,18 +372,18 @@ struct PageTextEditorView: View {
     }
 }
 
-/// The framework palette picker for text runs: shade ribbon for the current
+/// The theme palette picker for text runs: shade ribbon for the current
 /// palette, the shared palette list, and a remove action. Text colours are
-/// palette references only — one-off custom colours belong to the framework's
+/// palette references only — one-off custom colours belong to the theme's
 /// palettes, not to individual paragraphs.
 private struct RichTextColourPicker: View {
-    let framework: Framework
+    let theme: Theme
     let reference: RichTextColourReference?
     let apply: (RichTextColourReference) -> Void
     let clear: () -> Void
 
     private var palette: ColourPalette? {
-        reference.flatMap { framework.colourPalettes.resolvedPalette(id: $0.paletteID) }
+        reference.flatMap { theme.colourPalettes.resolvedPalette(id: $0.paletteID) }
     }
 
     var body: some View {
@@ -437,11 +437,11 @@ private struct RichTextColourPicker: View {
                 }
             }
             InspectorPaletteMenu(
-                palettes: framework.colourPalettes,
+                palettes: theme.colourPalettes,
                 selectedID: reference?.paletteID ?? ""
             ) { value in
-                guard let palette = framework.colourPalettes.resolvedPalette(id: value) else { return }
-                let role = value.hasPrefix("framework.") ? FrameworkColorRole(rawValue: String(value.dropFirst(10))) : nil
+                guard let palette = theme.colourPalettes.resolvedPalette(id: value) else { return }
+                let role = value.hasPrefix("framework.") ? ThemePaletteColorRole(rawValue: String(value.dropFirst(10))) : nil
                 apply(RichTextColourReference(
                     source: role?.rawValue ?? value,
                     lightShade: palette.lightDefaultShade,
@@ -463,7 +463,7 @@ private struct RichTextColourPicker: View {
 #Preview {
     PageTextEditorView(
         value: "Lorem ipsum dolor sit amet, consectetur adipiscing elit.",
-        framework: .standard,
+        theme: .standard,
         pages: [],
         folders: [],
         assets: [],

@@ -164,24 +164,6 @@ nonisolated struct LoadedPartPackage: Sendable {
 
     static let reservedIdentifierMessage = "The 'foundry.' prefix is reserved for Foundry's own parts. Use your own reverse-DNS prefix, for example com.example.focal-point-hero."
 
-    /// A part of the bundled Controls showcase, listed only in the Developer
-    /// panel's Controls section. Only the app's own copy counts: an installed
-    /// pack that happens to share the name is an ordinary pack.
-    var isControlShowcase: Bool {
-        isBuiltIn && rootURL.pathComponents.contains { $0 == "ControlShowcase.foundrypack" || $0 == "ControlShowcase.foundrydevpack" }
-    }
-
-    /// The copy-and-go snippets a showcase part keeps beside its templates:
-    /// the control declaration, its template usage and any CSS.
-    var showcaseSnippets: [PartShowcaseSnippet] {
-        guard isControlShowcase else { return [] }
-        return PartShowcaseSnippet.all.compactMap { snippet in
-            guard let text = try? String(contentsOf: resourceRootURL.appending(path: snippet.filename), encoding: .utf8),
-                  !text.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return nil }
-            return snippet.with(text: text)
-        }
-    }
-
     var developmentPackRootURL: URL? {
         var candidate = rootURL.standardizedFileURL
         while candidate.path != "/" {
@@ -506,18 +488,19 @@ nonisolated enum PartPackageLoader {
             let readStart = clock.now
             data = try Data(contentsOf: manifestURL)
             timings.manifestRead = readStart.duration(to: clock.now)
+            let prepared = try PartPackageManifestSchema.preparingControls(in: data)
             if validates {
                 let validationStart = clock.now
-                schemaDiagnostics = try PartPackageManifestSchema.diagnostics(for: data)
+                schemaDiagnostics = prepared.warnings + (try PartPackageManifestSchema.validatePreparedData(prepared.data))
                 timings.schemaValidation = validationStart.duration(to: clock.now)
                 guard !schemaDiagnostics.contains(where: { $0.severity == .error }) else {
                     throw PartPackageLoadingError.invalid(schemaDiagnostics)
                 }
             } else {
-                schemaDiagnostics = []
+                schemaDiagnostics = prepared.warnings
             }
             let decodeStart = clock.now
-            manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
+            manifest = try JSONDecoder().decode(PartPackageManifest.self, from: prepared.data)
             timings.manifestDecoding = decodeStart.duration(to: clock.now)
         } catch let error as PartPackageLoadingError {
             throw error
@@ -597,18 +580,19 @@ nonisolated enum PartPackageLoader {
             let readStart = clock.now
             data = try Data(contentsOf: manifestURL)
             timings.manifestRead = readStart.duration(to: clock.now)
+            let prepared = try PartPackageManifestSchema.preparingControls(in: data)
             if validates {
                 let schemaStart = clock.now
-                schemaDiagnostics = try PartPackageManifestSchema.diagnostics(for: data)
+                schemaDiagnostics = prepared.warnings + (try PartPackageManifestSchema.validatePreparedData(prepared.data))
                 timings.schemaValidation = schemaStart.duration(to: clock.now)
                 guard !schemaDiagnostics.contains(where: { $0.severity == .error }) else {
                     throw PartPackageLoadingError.invalid(schemaDiagnostics)
                 }
             } else {
-                schemaDiagnostics = []
+                schemaDiagnostics = prepared.warnings
             }
             let decodingStart = clock.now
-            manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
+            manifest = try JSONDecoder().decode(PartPackageManifest.self, from: prepared.data)
             timings.manifestDecoding = decodingStart.duration(to: clock.now)
         } catch let error as PartPackageLoadingError {
             throw error

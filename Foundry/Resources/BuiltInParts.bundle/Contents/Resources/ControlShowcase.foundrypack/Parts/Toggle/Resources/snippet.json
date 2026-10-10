@@ -1,8 +1,0 @@
-{
-    "type" : "toggle",
-    "id" : "featured",
-    "label" : "Featured",
-    "defaults" : {
-        "base" : false
-    }
-}

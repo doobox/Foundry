@@ -88,7 +88,7 @@ struct SectionContentLayoutTests {
         await PartPackageCatalog.shared.waitUntilLoaded()
         let part = PartNode.make(.section)
         let site = Site(name: "Section", pages: [Page(title: "Home", slug: "index", parts: [part])])
-        let html = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        let html = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
         let expression = try NSRegularExpression(pattern: #"(?s)\.fd-section__content \{(.*?)\}"#)
         let match = try #require(expression.firstMatch(in: html, range: NSRange(html.startIndex..., in: html)))
         let body = String(html[try #require(Range(match.range(at: 1), in: html))])

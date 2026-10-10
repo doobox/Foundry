@@ -48,7 +48,7 @@ extension ProjectEditor {
                 on: page,
                 to: .before(id)
               ) else { return nil }
-        let wrapper = PartNode.make(customization.wrapperType, framework: document.site.framework)
+        let wrapper = PartNode.make(customization.wrapperType)
         var wrapped = false
         mutate(actionName: customization.actionTitle) { site in
             guard let pageIndex = site.pages.firstIndex(where: { $0.id == pageID }) else { return }
@@ -70,7 +70,7 @@ extension ProjectEditor {
         placement: PartPlacement
     ) -> UUID? {
         guard let page = document.site.pages.first(where: { $0.id == pageID }) else { return nil }
-        let part = PartNode.make(type, framework: document.site.framework)
+        let part = PartNode.make(type)
         let sharedInsertion = document.site.sharedGlobalInsertion(on: page, at: placement)
         let ownerID = page.parts.parentID(for: placement)
         let impact: ProjectMutationImpact = sharedInsertion.authoritativeInstances.isEmpty

@@ -13,14 +13,14 @@ nonisolated protocol PageRendering: Sendable {
     func render(
         page: Page,
         language: String,
-        framework: Framework,
+        theme: Theme,
         assets: ProjectAssetContents,
         breakpoint: ResponsiveBreakpoint
     ) -> String
     func renderSubtree(
         partID: UUID,
         page: Page,
-        framework: Framework,
+        theme: Theme,
         assets: ProjectAssetContents,
         breakpoint: ResponsiveBreakpoint
     ) -> RenderedPartSubtree?
@@ -30,18 +30,18 @@ extension PageRendering {
     func renderSubtree(
         partID: UUID,
         page: Page,
-        framework: Framework,
+        theme: Theme,
         assets: ProjectAssetContents,
         breakpoint: ResponsiveBreakpoint
     ) -> RenderedPartSubtree? {
         nil
     }
 
-    func render(page: Page, framework: Framework) -> String {
-        render(page: page, language: "en", framework: framework, assets: [:], breakpoint: .extraLarge)
+    func render(page: Page, theme: Theme) -> String {
+        render(page: page, language: "en", theme: theme, assets: [:], breakpoint: .extraLarge)
     }
 
-    func render(page: Page, framework: Framework, assets: ProjectAssetContents) -> String {
-        render(page: page, language: "en", framework: framework, assets: assets, breakpoint: .extraLarge)
+    func render(page: Page, theme: Theme, assets: ProjectAssetContents) -> String {
+        render(page: page, language: "en", theme: theme, assets: assets, breakpoint: .extraLarge)
     }
 }

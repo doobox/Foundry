@@ -6,27 +6,27 @@ nonisolated enum BootstrapLinkStyling {
         "fd-links-" + node.id.uuidString.lowercased() + "-" + group.namespace
     }
 
-    static func css(node: PartNode, group: PartPackageControlGroup, framework: Framework) -> String {
+    static func css(node: PartNode, group: PartPackageControlGroup, theme: Theme) -> String {
         let properties = node.type.definition.package?.manifest.resolvedProperties.filter { $0.controlGroupSource?.namespace == group.namespace } ?? []
         func selected(_ id: String) -> String? {
             guard let property = properties.first(where: { $0.controlGroupSource?.localID == id }) else { return nil }
             let value = node.propertyValue(.init(rawValue: property.id)).stringValue
             guard value != "none", value != "inherit",
-                  property.control.type == .themeColor || property.control.options?.contains(where: { $0.value == value }) == true else { return nil }
+                  property.control.type == .themeColors || property.control.options?.contains(where: { $0.value == value }) == true else { return nil }
             return value
         }
         var base: [String] = [], hover: [String] = []
         if let value = selected("colour") {
             let tokens: [String]
             if value == "token:link-color" { tokens = ["link-color", "link-hover-color"] }
-            else if let palette = framework.colourPalettes.first(where: {
+            else if let palette = theme.colourPalettes.first(where: {
                 $0.origin == .custom && $0.colourKind == .link && value == "token:" + $0.colourTokens[0]
             }) { tokens = palette.colourTokens }
             else { tokens = [] }
             if tokens.count == 2 {
                 if tokens[0] == "link-color" {
                     for token in BootstrapEditorSection.linkColours.tokens {
-                        base.append("--bs-\(token.id):\(framework.bootstrapTokens.value(token))")
+                        base.append("--bs-\(token.id):\(theme.bootstrapTokens.value(token))")
                     }
                 } else {
                     base.append("--bs-link-color:var(--bs-\(tokens[0]))")

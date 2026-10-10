@@ -71,11 +71,8 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
     /// so crawlers aren't invited to a page they're told not to index.
     var includeInSearch: Bool
     var includeInSitemap: Bool
-    /// Nil intentionally follows the framework's Page defaults in both appearances.
-    var backgroundOverride: PartPackageColorValue?
-    /// The developer's Controls page: a scratch page the Parts panel fills
-    /// with a control showcase. It is never exported, listed or linked.
-    var isDeveloperPlayground: Bool
+    /// Nil intentionally follows the theme's Page defaults in both appearances.
+    var backgroundOverride: String?
 
     init(
         id: UUID = UUID(),
@@ -93,8 +90,7 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         language: String? = nil,
         includeInSearch: Bool = true,
         includeInSitemap: Bool = true,
-        backgroundOverride: PartPackageColorValue? = nil,
-        isDeveloperPlayground: Bool = false
+        backgroundOverride: String? = nil
     ) {
         self.id = id
         self.title = title
@@ -112,13 +108,11 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         self.includeInSearch = includeInSearch
         self.includeInSitemap = includeInSitemap
         self.backgroundOverride = backgroundOverride
-        self.isDeveloperPlayground = isDeveloperPlayground
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, title, slug, metadata, parts, folderID, parentPageID, order, includeInNavigation, preferredExtension,
-             folderOverride, filenameOverride, language, includeInSearch, includeInSitemap, backgroundOverride,
-             isDeveloperPlayground
+             folderOverride, filenameOverride, language, includeInSearch, includeInSitemap, backgroundOverride
     }
 
     init(from decoder: Decoder) throws {
@@ -138,22 +132,12 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         language = try container.decodeIfPresent(String.self, forKey: .language)
         includeInSearch = try container.decodeIfPresent(Bool.self, forKey: .includeInSearch) ?? true
         includeInSitemap = try container.decodeIfPresent(Bool.self, forKey: .includeInSitemap) ?? true
-        backgroundOverride = try container.decodeIfPresent(PartPackageColorValue.self, forKey: .backgroundOverride)
-        isDeveloperPlayground = try container.decodeIfPresent(Bool.self, forKey: .isDeveloperPlayground) ?? false
+        backgroundOverride = try container.decodeIfPresent(String.self, forKey: .backgroundOverride)
     }
 
-    func backgroundColour(framework: Framework, appearance: SiteAppearance) -> String {
+    func backgroundColour(theme: Theme, appearance: SiteAppearance) -> String {
         guard let backgroundOverride else { return "var(--bs-bg-body)" }
-        return PartPackageColorResolver.resolve(backgroundOverride, framework: framework, opacity: false, appearance: appearance)
-    }
-
-    func backgroundSelection(framework: Framework) -> PartPackageColorValue {
-        if let backgroundOverride { return backgroundOverride }
-        let palette = framework.colourPalettes.resolvedPalette(id: "framework.background")
-        var value = PartPackageColorValue(source: "background", customColor: framework.color(for: .background), opacity: 1,
-            shade: palette?.lightDefaultShade, darkShade: palette?.darkDefaultShade)
-        value.darkCustomColor = framework.color(for: .background, appearance: .dark)
-        return value
+        return BootstrapBackgroundColour.paint(BootstrapPaletteTheme.resolve(backgroundOverride, theme: theme))
     }
 
     static func slugify(_ value: String) -> String {

@@ -73,7 +73,7 @@ nonisolated enum PartPackageAdapter {
     private static func propertyDefinitions(_ property: PartPackageProperty) -> [PartPropertyDefinition] {
         var definitions = basePropertyDefinitions(property)
         for index in definitions.indices {
-            definitions[index].valueAvailability = property.valueAvailability
+            definitions[index].outputWhenHidden = property.outputWhenHidden
         }
         for (name, value) in property.breakpointDefaults {
             guard let breakpoint = ResponsiveBreakpoint(rawValue: name), breakpoint != .mobile else { continue }
@@ -262,17 +262,16 @@ nonisolated enum PartPackageAdapter {
                 }),
                 isResponsive: property.responsive,
                 visibleWhen: property.visibleWhen,
-                frameworkValueSource: property.control.frameworkValueSource,
-                allowsCustomFrameworkValue: property.control.allowsCustom == true,
+                themeValueSource: property.control.themeValueSource,
+                allowsCustomThemeValue: property.control.allowsCustom == true,
                 dateMinimum: property.control.minimumDate.flatMap(PartDateValue.init).map(\.date),
                 dateMaximum: property.control.maximumDate.flatMap(PartDateValue.init).map(\.date),
                 presentation: property.control.presentation
             )]
         }
-        if property.control.type == .frameworkColor { return frameworkColorProperties(for: property) }
-        if property.control.type == .frameworkBorder { return PartPackageFrameworkBorderControl.properties(property) }
-        if property.control.type == .frameworkFont { return PartPackageFontControl.properties(property) }
-        if property.control.type == .frameworkShadow { return shadowProperties(for: property) }
+        if property.control.type == .themeBorder { return PartPackageThemeBorderControl.properties(property) }
+        if property.control.type == .themeFont { return PartPackageFontControl.properties(property) }
+        if property.control.type == .themeShadow { return shadowProperties(for: property) }
         if property.control.type == .edges || property.control.type == .corners { return boxLengthProperties(for: property) }
         return [PartPropertyDefinition(
             key: .init(rawValue: property.id),
@@ -294,12 +293,13 @@ nonisolated enum PartPackageAdapter {
             isInspectorVisible: property.control.type != .math &&
                 (property.control.type != .note || !property.noteBody.isEmpty),
             visibleWhen: property.visibleWhen,
-            frameworkValueSource: property.control.frameworkValueSource,
-            allowsCustomFrameworkValue: property.control.allowsCustom == true
-                && property.control.frameworkValueSource != .fontFamilies,
+            themeValueSource: property.control.themeValueSource,
+            allowsCustomThemeValue: property.control.allowsCustom == true
+                && property.control.themeValueSource != .fontFamilies,
             dateMinimum: property.control.minimumDate.flatMap(PartDateValue.init).map(\.date),
             dateMaximum: property.control.maximumDate.flatMap(PartDateValue.init).map(\.date),
-            presentation: property.control.presentation
+            presentation: property.control.presentation,
+            colourSections: property.control.colourSections ?? ["themes"]
         )]
     }
 
@@ -327,55 +327,23 @@ nonisolated enum PartPackageAdapter {
         .init(rawValue: "__foundry_image_focal_point_\(propertyID)")
     }
 
-    private static func frameworkColorProperties(for property: PartPackageProperty) -> [PartPropertyDefinition] {
-        let key = PartProperty.Key(rawValue: property.id)
-        let section = PartPropertySection(rawValue: property.group)
-        guard case .object(let initial) = property.defaultValue else { return [] }
-        let lightShade = initial["lightShade"]?.numberValue.flatMap { Int(exactly: $0) }.flatMap(ColourShade.init(rawValue:))
-        let darkShade = initial["darkShade"]?.numberValue.flatMap { Int(exactly: $0) }.flatMap(ColourShade.init(rawValue:))
-        return [
-            PartPropertyDefinition(
-                key: key, label: property.label, section: section,
-                control: .packageColor(
-                    frameworkValues: true,
-                    opacity: property.control.opacity ?? false,
-                    initialLightShade: lightShade,
-                    initialDarkShade: darkShade
-                ),
-                defaultValue: .packageColor(.init(
-                    source: PartFrameworkValueSelection.storedSource(
-                        forManifestValue: initial["palette"]?.stringValue ?? ""
-                    ),
-                    customColor: property.control.customColor ?? "#000000",
-                    opacity: initial["opacity"]?.numberValue ?? 1,
-                    shade: lightShade,
-                    darkShade: darkShade
-                )),
-                isResponsive: property.responsive,
-                visibleWhen: property.visibleWhen,
-                frameworkValueSource: property.control.frameworkValueSource,
-                allowsCustomFrameworkValue: property.control.allowsCustom == true
-            )
-        ]
-    }
-
     /// The generic edges/corners controls: raw four-length inputs with the box-model
-    /// editor but no framework tokens. They reuse the margin/radius storage (linking,
+    /// editor but no theme tokens. They reuse the margin/radius storage (linking,
     /// persistence, resolution) with custom-only values.
     private static func boxLengthProperties(for property: PartPackageProperty) -> [PartPropertyDefinition] {
         let isCorners = property.control.type == .corners
         let units = normalizedBoxUnits(property.units, isCorners: isCorners)
         let defaultValue: PartProperty.Value
         if isCorners {
-            var value = PartPackageFrameworkRadiusControl.customDefaultValue(property.defaultValue, units: units)
-                ?? PartPackageFrameworkRadiusControl.customZero(units: units)
+            var value = PartPackageThemeRadiusControl.customDefaultValue(property.defaultValue, units: units)
+                ?? PartPackageThemeRadiusControl.customZero(units: units)
             if property.control.linked == false { value.unlinkAll() }
-            defaultValue = .frameworkRadius(value)
+            defaultValue = .themeRadius(value)
         } else {
-            var value = PartPackageFrameworkMarginControl.customDefaultValue(property.defaultValue, units: units)
-                ?? PartPackageFrameworkMarginControl.customZero(units: units)
+            var value = PartPackageThemeMarginControl.customDefaultValue(property.defaultValue, units: units)
+                ?? PartPackageThemeMarginControl.customZero(units: units)
             if property.control.linked == false { value.unlinkAll() }
-            defaultValue = .frameworkMargin(value)
+            defaultValue = .themeMargin(value)
         }
         return [PartPropertyDefinition(
             key: .init(rawValue: property.id),
@@ -396,7 +364,7 @@ nonisolated enum PartPackageAdapter {
     }
 
     private static func shadowProperties(for property: PartPackageProperty) -> [PartPropertyDefinition] {
-        let source = PartFrameworkValueSelection.storedSource(
+        let source = PartThemeValueSelection.storedSource(
             forManifestValue: property.defaultValue.stringValue
         )
         return [PartPropertyDefinition(
@@ -410,8 +378,8 @@ nonisolated enum PartPackageAdapter {
             )),
             isResponsive: property.responsive,
             visibleWhen: property.visibleWhen,
-            frameworkValueSource: .shadows,
-            allowsCustomFrameworkValue: property.control.allowsCustom == true
+            themeValueSource: .shadows,
+            allowsCustomThemeValue: property.control.allowsCustom == true
         )]
     }
 
@@ -425,18 +393,17 @@ nonisolated enum PartPackageAdapter {
                 step: control.step ?? 1, unit: unit
             )
         case .color: .literalColor(allowsOpacity: control.opacity == true)
-        case .frameworkColor: .derived
-        case .themeColor: .themeColor
-        case .frameworkFont: .frameworkFont
-        case .frameworkFontSize: .frameworkFontSize
-        case .frameworkStackingOrder: .frameworkStackingOrder
+        case .themeColors: .themeColors
+        case .themeFont: .themeFont
+        case .themeFontSize: .themeFontSize
+        case .themeStackingOrder: .themeStackingOrder
         case .pageFolder: .pageFolder
-        case .frameworkPadding: .frameworkPadding
-        case .frameworkMargin: .frameworkMargin
-        case .frameworkSpacing: .frameworkSpacing
-        case .frameworkBorder: .derived
-        case .borderSides: .frameworkBorderWidth
-        case .frameworkRadius: .frameworkRadius
+        case .themePadding: .themePadding
+        case .themeMargin: .themeMargin
+        case .themeSpacing: .themeSpacing
+        case .themeBorder: .derived
+        case .borderSides: .themeBorderWidth
+        case .themeRadius: .themeRadius
         case .edges, .corners: .derived // Unreachable: boxLengthProperties handles these first.
         case .fontWeight: .fontWeight(font: control.font)
         case .fontStyle: .fontStyle(font: control.font)
@@ -468,7 +435,7 @@ nonisolated enum PartPackageAdapter {
         case .svg: .svg
         case .video: .video
         case .math: .derived
-        case .frameworkShadow: .packageShadow
+        case .themeShadow: .packageShadow
         case .childPicker: .derived
         case .collection: .derived
         }
@@ -477,7 +444,7 @@ nonisolated enum PartPackageAdapter {
     static func defaultValue(for property: PartPackageProperty) -> PartProperty.Value {
         let resolved = value(property.defaultValue, control: property.control.type)
         guard let source = property.controlGroupSource, source.type == .sizing,
-              case .frameworkSpacing(var spacing) = resolved,
+              case .themeSpacing(var spacing) = resolved,
               !spacing.selection.isCustom else { return resolved }
         // Seed the inactive Custom mode without enabling a maximum constraint.
         // Switching modes already preserves the user's last amount and unit.
@@ -487,27 +454,27 @@ nonisolated enum PartPackageAdapter {
         default: return resolved
         }
         spacing.selection.unit = "px"
-        return .frameworkSpacing(spacing)
+        return .themeSpacing(spacing)
     }
 
     private static func value(
         _ value: PartPackageValue,
         control: PartPackageControl.Kind
     ) -> PartProperty.Value {
-        if control == .frameworkSpacing, let value = PartPackageSingleSpacingControl.defaultValue(value) {
-            return .frameworkSpacing(value)
+        if control == .themeSpacing, let value = PartPackageSingleSpacingControl.defaultValue(value) {
+            return .themeSpacing(value)
         }
-        if control == .frameworkRadius, let value = PartPackageFrameworkRadiusControl.defaultValue(value) {
-            return .frameworkRadius(value)
+        if control == .themeRadius, let value = PartPackageThemeRadiusControl.defaultValue(value) {
+            return .themeRadius(value)
         }
         if control == .borderSides, let borders = BootstrapBorderClasses.defaultValue(value) {
-            return .frameworkBorderWidth(borders)
+            return .themeBorderWidth(borders)
         }
-        if control == .frameworkMargin, let margin = PartPackageFrameworkMarginControl.defaultValue(value) {
-            return .frameworkMargin(margin)
+        if control == .themeMargin, let margin = PartPackageThemeMarginControl.defaultValue(value) {
+            return .themeMargin(margin)
         }
-        if control == .frameworkPadding, let padding = PartPackageFrameworkPaddingControl.defaultValue(value) {
-            return .frameworkPadding(padding)
+        if control == .themePadding, let padding = PartPackageThemePaddingControl.defaultValue(value) {
+            return .themePadding(padding)
         }
         return convertedValue(value, control: control)
     }
@@ -520,8 +487,8 @@ nonisolated enum PartPackageAdapter {
             switch control {
             case .link: .link(.init(destination: value.isEmpty ? .none : .url(value)))
             case .color: .color(value)
-            case .frameworkColor, .themeColor: .choice(value)
-            case .icon, .select, .frameworkFont, .frameworkFontSize, .frameworkStackingOrder, .pageFolder, .fontStyle, .textAlignment, .frameworkShadow: .choice(value)
+            case .themeColors: .choice(value)
+            case .icon, .select, .themeFont, .themeFontSize, .themeStackingOrder, .pageFolder, .fontStyle, .textAlignment, .themeShadow: .choice(value)
             case .date: .string(value)
             case .image, .svg, .video: .url(value)
             default: .string(value)

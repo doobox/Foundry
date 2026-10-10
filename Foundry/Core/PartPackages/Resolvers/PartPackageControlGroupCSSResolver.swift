@@ -180,8 +180,8 @@ nonisolated enum PartPackageControlGroupCSSResolver {
     ) -> [String] {
         let enabled = boolean(values["effectsEnabled"]) ?? false
         var declarations: [String] = []
-        if declared.contains("frameworkShadow") {
-            declarations.append("box-shadow: \(enabled ? string(values["frameworkShadow"]) ?? "none" : "none");")
+        if declared.contains("themeShadow") {
+            declarations.append("box-shadow: \(enabled ? string(values["themeShadow"]) ?? "none" : "none");")
         }
         return declarations
     }
@@ -206,7 +206,7 @@ nonisolated enum PartPackageControlGroupCSSResolver {
         default: break
         }
         // Exactly one offset value exists at a time — the other is withheld by
-        // its `whenVisible` availability — so whichever is present is the one
+        // its `outputWhenHidden: false` setting — so whichever is present is the one
         // the author chose.
         if let offsets = string(values["offsets"]), offsets != "none",
            let inset = string(values["offset"]) ?? string(values["offsetEdges"]) {

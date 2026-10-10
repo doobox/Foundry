@@ -42,7 +42,7 @@ struct BootstrapColourScaleTests {
     func customBaseStorageOutputOpacityAndUndoUseOneDefinition() async throws {
         let scale = try #require(BootstrapColourScale(base: "oklch(58.125% 0.213456 252.75)"))
         let shades = try await BootstrapScalePreviewResolver().resolve(scale)
-        let model = FrameworkColourPreviewModel()
+        let model = ThemeColourPreviewModel()
         model.add()
         let original = try #require(model.storedPalettes.first)
         var edited = original
@@ -63,32 +63,17 @@ struct BootstrapColourScaleTests {
         #expect(restored.bootstrapScale?.base == "oklch(58.125% 0.213456 252.75)")
         #expect(restored.lightDefaultShade == .seven)
         #expect(restored.darkDefaultShade == .seven)
-        var framework = Framework.standard
-        framework.colourPalettes.insert(restored, at: 0)
-        let selected = PartPackageColorValue(source: restored.id, customColor: "#000000", opacity: 0.5,
-                                            shade: .three, darkShade: .eleven)
-        #expect(PartPackageColorResolver.resolve(selected, framework: framework, opacity: false) == scale.expression(at: .three))
-        #expect(PartPackageColorResolver.resolve(selected, framework: framework, opacity: true) ==
-            "color-mix(in oklch, \(scale.expression(at: .three)) 50%, transparent)")
-        #expect(PartPackageColorResolver.resolve(selected, framework: framework, opacity: false, appearance: .dark) == scale.expression(at: .eleven))
+        var theme = Theme.standard
+        theme.colourPalettes.insert(restored, at: 0)
         #expect(PreviewColourPalette(stored: restored).storedValue == restored)
         let reference = RichTextColourReference(source: restored.id, lightShade: .three, darkShade: .eleven)
         let rich = FoundryRichTextCodec.resolvingColours(in: "<span data-foundry-color=\"\(reference.marker)\">Brand</span>",
-            context: .init(palettes: framework.colourPalettes, mode: .both))
+            context: .init(palettes: theme.colourPalettes, mode: .both))
         #expect(rich.contains("light-dark(\(scale.expression(at: .three)), \(scale.expression(at: .eleven)))"))
-        var page = Page(title: "Custom scale", slug: "index")
-        page.backgroundOverride = selected
-        var site = Site(name: "Custom scale", pages: [page])
-        site.framework = framework
-        site.appearanceMode = .both
-        let exported = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
-        #expect(exported.contains("background-color: light-dark(\(scale.expression(at: .three)), \(scale.expression(at: .eleven)))"))
-        let canvas = HTMLPageRenderer(appearance: .dark).render(page: page, framework: framework)
-        #expect(canvas.contains("background: \(scale.expression(at: .eleven))"))
     }
 
     @Test func namesDuplicationAndDeletedBindingsPreserveScales() throws {
-        let model = FrameworkColourPreviewModel()
+        let model = ThemeColourPreviewModel()
         let native = try #require(model.palettes.first { $0.name == "Blue" })
         model.duplicate(native)
         var copy = try #require(model.palettes.first)

@@ -65,7 +65,7 @@ struct PartCustomCSSTests {
         part.customCSS = ":instance { letter-spacing: 0.3em; }"
         let site = Site(name: "Custom CSS", pages: [Page(title: "Home", slug: "index", parts: [part])])
 
-        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
         #expect(canvas.contains("& { letter-spacing: 0.3em; }"))
         let exported = StaticSiteRenderer().render(site: site).files.map(\.contents).joined(separator: "\n")
         #expect(exported.contains("& { letter-spacing: 0.3em; }"))

@@ -22,18 +22,18 @@ struct BootstrapEditorTokenTests {
         editor.setBootstrapColourScale("blue", scale: scale)
         editor.setBootstrapToken(BootstrapEditorToken("link-color"), value: "#123456")
         undo.endUndoGrouping()
-        let edited = document.site.framework
+        let edited = document.site.theme
         for shade in ColourShade.allCases {
             #expect(edited.bootstrapTokens.values["blue-" + shade.bootstrapLabel] == scale.expression(at: shade))
         }
         undo.beginUndoGrouping()
         editor.resetBootstrapTokens(.colourScales)
         undo.endUndoGrouping()
-        #expect(document.site.framework.bootstrapTokens.isChanged(.colourScales) == false)
-        #expect(document.site.framework.bootstrapTokens.values["link-color"] == "#123456")
+        #expect(document.site.theme.bootstrapTokens.isChanged(.colourScales) == false)
+        #expect(document.site.theme.bootstrapTokens.values["link-color"] == "#123456")
         undo.undo()
-        #expect(document.site.framework == edited)
-        #expect(try JSONDecoder().decode(Framework.self, from: JSONEncoder().encode(edited)) == edited)
+        #expect(document.site.theme == edited)
+        #expect(try JSONDecoder().decode(Theme.self, from: JSONEncoder().encode(edited)) == edited)
     }
 
     @Test func colourGroupSourcesRegenerateHoverAndKeepLiveReferences() throws {
@@ -43,23 +43,23 @@ struct BootstrapEditorTokenTests {
         let editor = ProjectEditor(document: document, undoManager: undo)
         #expect(BootstrapColourSource.selected(in: .standard, section: .linkColours) == "default")
         let blue = try #require(BootstrapColourSource.choices(for: .linkColours).first { $0.id == "hue-blue" })
-        document.site.framework.bootstrapTokens.values["link-hover-color"] = "#abcdef"
+        document.site.theme.bootstrapTokens.values["link-hover-color"] = "#abcdef"
         undo.beginUndoGrouping()
         editor.setBootstrapColourGroup(.linkColours, base: blue.expression)
         undo.endUndoGrouping()
-        #expect(document.site.framework.bootstrapTokens.values["link-color"] == blue.expression)
-        #expect(document.site.framework.bootstrapTokens.values["link-hover-color"] == nil)
-        #expect(BootstrapColourSource.selected(in: document.site.framework, section: .linkColours) == "hue-blue")
+        #expect(document.site.theme.bootstrapTokens.values["link-color"] == blue.expression)
+        #expect(document.site.theme.bootstrapTokens.values["link-hover-color"] == nil)
+        #expect(BootstrapColourSource.selected(in: document.site.theme, section: .linkColours) == "hue-blue")
         undo.undo()
-        #expect(document.site.framework.bootstrapTokens.values["link-hover-color"] == "#abcdef")
-        #expect(document.site.framework.bootstrapTokens.values["link-color"] == nil)
+        #expect(document.site.theme.bootstrapTokens.values["link-hover-color"] == "#abcdef")
+        #expect(document.site.theme.bootstrapTokens.values["link-color"] == nil)
         undo.beginUndoGrouping()
         editor.setBootstrapColourGroup(.linkColours, base: "#123456")
         editor.setBootstrapColourGroup(.shadowColours, base: "var(--bs-gray-500)")
         undo.endUndoGrouping()
-        #expect(BootstrapColourSource.selected(in: document.site.framework, section: .linkColours) == "custom")
-        #expect(BootstrapColourSource.selected(in: document.site.framework, section: .shadowColours) == "hue-gray")
-        #expect(BootstrapEditorCSS.render(document.site.framework).contains("--bs-shadow-color:var(--bs-gray-500)"))
+        #expect(BootstrapColourSource.selected(in: document.site.theme, section: .linkColours) == "custom")
+        #expect(BootstrapColourSource.selected(in: document.site.theme, section: .shadowColours) == "hue-gray")
+        #expect(BootstrapEditorCSS.render(document.site.theme).contains("--bs-shadow-color:var(--bs-gray-500)"))
     }
 
     @Test func blackWhiteResetPreservesOtherColours() throws {
@@ -71,59 +71,43 @@ struct BootstrapEditorTokenTests {
             editor.setBootstrapToken(token, value: token.id == "black" ? "#112233" : "#eeeeee")
         }
         editor.setBootstrapToken(BootstrapEditorToken("link-color"), value: "#123456")
-        let edited = document.site.framework
+        let edited = document.site.theme
         #expect(BootstrapEditorCSS.render(edited).contains("--bs-black:#112233"))
         #expect(BootstrapEditorCSS.render(edited).contains("--bs-white:#eeeeee"))
-        #expect(try JSONDecoder().decode(Framework.self, from: JSONEncoder().encode(edited)) == edited)
+        #expect(try JSONDecoder().decode(Theme.self, from: JSONEncoder().encode(edited)) == edited)
         editor.resetBootstrapTokens(.blackWhite)
-        #expect(document.site.framework.bootstrapTokens.isChanged(.blackWhite) == false)
-        #expect(document.site.framework.bootstrapTokens.values["link-color"] == "#123456")
+        #expect(document.site.theme.bootstrapTokens.isChanged(.blackWhite) == false)
+        #expect(document.site.theme.bootstrapTokens.values["link-color"] == "#123456")
     }
 
-    @Test func shadowColourAndStrengthResetIndependently() {
+    @Test func removedGlobalSettingsAreIgnoredAndDiscarded() throws {
+        let removed = ["shadow-strength-light", "shadow-strength-dark", "link-decoration",
+            "link-underline-offset", "body-font-size", "body-line-height", "radius-7",
+            "border-width", "z-menu", "focus-ring-width", "btn-input-padding-x"]
         let document = FoundryDocument()
         let editor = ProjectEditor(document: document, undoManager: nil)
-        document.site.framework.bootstrapTokens.values = [
-            "shadow-color": "#123456", "shadow-strength-light": "1.5", "shadow-strength-dark": "3"
-        ]
-        #expect(BootstrapEditorSection.shadows.tokens.map(\.id) == ["shadow-strength-light", "shadow-strength-dark"])
-        #expect(BootstrapEditorSection.shadowColours.tokens.map(\.id) == ["shadow-color"])
-        editor.resetBootstrapTokens(.shadows)
-        #expect(document.site.framework.bootstrapTokens.values["shadow-color"] == "#123456")
-        #expect(document.site.framework.bootstrapTokens.values["shadow-strength-light"] == nil)
-        #expect(document.site.framework.bootstrapTokens.values["shadow-strength-dark"] == nil)
-        #expect(BootstrapEditorCSS.render(document.site.framework).contains("--bs-shadow-color:#123456"))
-        editor.setBootstrapToken(BootstrapEditorToken("shadow-strength-dark"), value: "3")
-        editor.resetBootstrapTokens(.shadowColours)
-        #expect(document.site.framework.bootstrapTokens.values["shadow-color"] == nil)
-        #expect(document.site.framework.bootstrapTokens.values["shadow-strength-dark"] == "3")
-    }
-
-    @Test func linkColoursAndLinkLayoutResetIndependently() {
-        let document = FoundryDocument()
-        let editor = ProjectEditor(document: document, undoManager: nil)
-        document.site.framework.bootstrapTokens.values = [
-            "link-color": "#123456", "link-hover-color": "#abcdef", "link-decoration": "none"
-        ]
-        #expect(BootstrapEditorSection.links.tokens.map(\.id) == ["link-decoration", "link-underline-offset"])
-        #expect(BootstrapEditorSection.linkColours.tokens.map(\.id) == ["link-color", "link-hover-color"])
-        #expect(BootstrapEditorCSS.render(document.site.framework).contains("--bs-link-color:#123456"))
-        editor.resetBootstrapTokens(.links)
-        #expect(document.site.framework.bootstrapTokens.values["link-color"] == "#123456")
-        #expect(document.site.framework.bootstrapTokens.values["link-hover-color"] == "#abcdef")
-        #expect(document.site.framework.bootstrapTokens.values["link-decoration"] == nil)
-        editor.setBootstrapToken(BootstrapEditorToken("link-decoration"), value: "none")
-        editor.resetBootstrapTokens(.linkColours)
-        #expect(document.site.framework.bootstrapTokens.values["link-color"] == nil)
-        #expect(document.site.framework.bootstrapTokens.values["link-hover-color"] == nil)
-        #expect(document.site.framework.bootstrapTokens.values["link-decoration"] == "none")
+        for id in removed {
+            editor.setBootstrapToken(.init(id), value: "2")
+            #expect(document.site.theme.bootstrapTokens.values[id] == nil)
+        }
+        var values = Dictionary(uniqueKeysWithValues: removed.map { ($0, "2") })
+        values["link-color"] = "#123456"
+        document.site.theme.bootstrapTokens.values = values
+        let css = BootstrapEditorCSS.render(document.site.theme)
+        for id in removed { #expect(!css.contains("--bs-" + id + ":")) }
+        #expect(css.contains("--bs-link-color:#123456"))
+        let raw = try JSONSerialization.data(withJSONObject: ["values": values])
+        let decoded = try JSONDecoder().decode(BootstrapEditorTokens.self, from: raw)
+        #expect(decoded.values == ["link-color": "#123456"])
+        let encoded = try JSONEncoder().encode(document.site.theme.bootstrapTokens)
+        #expect(try JSONDecoder().decode(BootstrapEditorTokens.self, from: encoded).values == decoded.values)
     }
 
     @Test func defaultsAreNativeAndBootstrapScalesStayFixed() throws {
         // Defaults need only Foundry's heading-font extension, not token overrides.
         #expect(BootstrapEditorCSS.render(.standard) == ":root,:host{--bs-font-heading:inherit}@layer content{h1,h2,h3,h4,h5,h6,.h1,.h2,.h3,.h4,.h5,.h6{font-family:var(--bs-font-heading)}}@layer utilities{.font-heading{font-family:var(--bs-font-heading)}}")
         #expect(BootstrapEditorSection.fontSize.tokens.isEmpty)
-        for section in BootstrapEditorSection.allCases where section != .fontSize {
+        for section in BootstrapEditorSection.allCases where !section.allowsCustom {
             #expect(section.tokens.isEmpty == false, "\(section)")
             for token in section.tokens {
                 #expect(BootstrapEditorToken.safeValue(token.defaultValue), "\(token.id)")
@@ -135,19 +119,19 @@ struct BootstrapEditorTokenTests {
         let editor = ProjectEditor(document: document, undoManager: nil)
         for id in ["font-size-md", "line-height-md", "font-weight-bold", "border-width-2", "border-width-keyline", "radius-3", "box-shadow-sm", "z-1", "spacer-5"] {
             editor.setBootstrapToken(.init(id), value: "9px")
-            #expect(document.site.framework.bootstrapTokens.values[id] == nil, "\(id)")
+            #expect(document.site.theme.bootstrapTokens.values[id] == nil, "\(id)")
         }
-        // Component tokens and project additions remain editable.
+        // Only project additions remain editable.
         editor.setBootstrapToken(.init("radius-7"), value: "1rem")
-        #expect(document.site.framework.bootstrapTokens.values["radius-7"] == "1rem")
+        #expect(document.site.theme.bootstrapTokens.values["radius-7"] == nil)
         editor.addBootstrapToken("soft", section: .shadows)
         let custom = try #require(BootstrapEditorSection.shadows.customTokens(named: "soft").first)
         let geometry = BootstrapShadowGeometry.parse(custom.defaultValue)
         #expect(geometry.isEmpty == false)
         #expect(BootstrapShadowGeometry.parse(geometry.map(\.css).joined(separator: ", ")) == geometry)
         editor.setBootstrapToken(custom, value: "0 2px 4px black")
-        #expect(document.site.framework.bootstrapTokens.values[custom.id] == "0 2px 4px black")
-        #expect(BootstrapEditorCSS.render(document.site.framework).contains(".shadow-soft{box-shadow:0 2px 4px black}"))
+        #expect(document.site.theme.bootstrapTokens.values[custom.id] == "0 2px 4px black")
+        #expect(BootstrapEditorCSS.render(document.site.theme).contains(".shadow-soft{box-shadow:0 2px 4px black}"))
         #expect(1070.0.bootstrapCSSNumber == "1070")
         #expect(0.125.bootstrapCSSNumber == "0.125")
         #expect(BootstrapEditorToken("z-menu").acceptsNumber(1.5) == false)
@@ -166,23 +150,23 @@ struct BootstrapEditorTokenTests {
         let token = try #require(BootstrapEditorSection.fontSize.customTokens(named: "hero").first)
         editor.setBootstrapToken(token, value: "2rem")
         undo.endUndoGrouping()
-        let edited = document.site.framework
+        let edited = document.site.theme
         #expect(edited.bootstrapTokens.value(token) == "2rem")
-        #expect(BootstrapCustomTokenClasses.choices(existing: ["fs-md"], framework: edited) == ["fs-hero"])
+        #expect(BootstrapCustomTokenClasses.choices(existing: ["fs-md"], theme: edited) == ["fs-hero"])
         undo.beginUndoGrouping()
         editor.setBootstrapToken(token, value: "3rem")
         undo.endUndoGrouping()
-        #expect(document.site.framework.bootstrapTokens.isChanged(.fontSize) == false)
-        #expect(document.site.framework.bootstrapTokens.custom["fontSize"] == ["hero"])
+        #expect(document.site.theme.bootstrapTokens.isChanged(.fontSize) == false)
+        #expect(document.site.theme.bootstrapTokens.custom["fontSize"] == ["hero"])
         undo.undo()
-        #expect(document.site.framework == edited)
-        let restored = try JSONDecoder().decode(Framework.self, from: JSONEncoder().encode(edited))
+        #expect(document.site.theme == edited)
+        let restored = try JSONDecoder().decode(Theme.self, from: JSONEncoder().encode(edited))
         #expect(restored == edited)
         undo.beginUndoGrouping()
-        editor.selectFramework(.standard, sourceID: UUID())
-        editor.selectFramework(.standard, sourceID: FrameworkBundleStore.systemFrameworkID)
+        editor.selectTheme(.standard, sourceID: UUID())
+        editor.selectTheme(.standard, sourceID: ThemeBundleStore.systemThemeID)
         undo.endUndoGrouping()
-        #expect(document.site.framework.bootstrapTokens == edited.bootstrapTokens)
+        #expect(document.site.theme.bootstrapTokens == edited.bootstrapTokens)
         for name in ["md", "none", "bad name", "x;}body{", "primary"] {
             #expect(editor.canAddBootstrapToken(name, section: .fontSize) == false)
         }
@@ -192,19 +176,19 @@ struct BootstrapEditorTokenTests {
 
     @Test(.timeLimit(.minutes(1)))
     func editedTokensReachComponentsWhileUtilitiesStayNative() async throws {
-        var framework = Framework.standard
-        framework.bootstrapTokens.values = [
+        var theme = Theme.standard
+        theme.bootstrapTokens.values = [
             "radius-7": "1.25rem", "border-width": "3px", "z-menu": "1200",
             "body-font-size": "1.125rem", "body-line-height": "1.6", "link-color": "#123456",
             "focus-ring-width": "5px", "btn-input-padding-x": "2rem",
             "shadow-strength-light": "1.5", "shadow-strength-dark": "3"
         ]
-        framework.bootstrapTokens.custom["fontSize"] = ["hero"]
-        framework.bootstrapTokens.values["font-size-hero"] = "3rem"
-        framework.typography.bodyFont = .system(family: "serif", weights: [400])
+        theme.bootstrapTokens.custom["fontSize"] = ["hero"]
+        theme.bootstrapTokens.values["font-size-hero"] = "3rem"
+        theme.typography.bodyFont = .system(family: "serif", weights: [400])
         let browser = BootstrapTokenBrowser()
         try await browser.load("""
-            <html data-bs-theme="light"><head><style>\(BootstrapColourCatalogue.sourceCSS)</style><style id="theme">\(BootstrapThemeCSS.render(framework: framework))</style></head><body>
+            <html data-bs-theme="light"><head><style>\(BootstrapColourCatalogue.sourceCSS)</style><style id="theme">\(BootstrapThemeCSS.render(theme: theme))</style></head><body>
             <div id="text" class="text-md fw-bold">Test</div><div id="hero" class="fs-hero">Hero</div>
             <div id="card" class="card"><div class="card-body">Card</div></div><div id="border" class="border border-2 rounded-5"></div>
             <div id="z" class="z-menu"></div><a id="link" href="#">Link</a>
@@ -219,20 +203,23 @@ struct BootstrapEditorTokenTests {
             s('button').paddingLeft,getComputedStyle(document.body).fontSize,
             getComputedStyle(document.body).fontFamily,getComputedStyle(document.documentElement).getPropertyValue('--bs-focus-ring-width').trim()];})()
             """) as? [String])
-        // Components follow the edited variables. Utilities keep Bootstrap's fixed values:
-        // `border-2` stays 2px and `z-menu` stays 1000 while the component layer variable moves to 1200.
-        #expect(values == ["16px", "24px", "700", "48px", "20px", "3px", "2px", "1000", "1200", "32px", "18px", "serif", "5px"])
+        // Removing stale global overrides must produce the same component values.
+        var clean = theme
+        clean.bootstrapTokens.values = ["font-size-hero": "3rem", "link-color": "#123456"]
+        #expect(BootstrapThemeCSS.render(theme: theme) == BootstrapThemeCSS.render(theme: clean))
+        #expect(Array(values.prefix(4)) == ["16px", "24px", "700", "48px"])
+        #expect(values[11] == "serif")
         let light = try #require(try await browser.web.evaluateJavaScript("getComputedStyle(document.getElementById('shadow')).boxShadow") as? String)
         let dark = try #require(try await browser.web.evaluateJavaScript("document.documentElement.dataset.bsTheme='dark'; getComputedStyle(document.getElementById('shadow')).boxShadow") as? String)
         #expect(light != dark)
         let before = try #require(try await browser.web.evaluateJavaScript("getComputedStyle(document.getElementById('text')).fontSize") as? String)
-        framework.bootstrapTokens.values["font-size-md"] = "2.5rem"
-        let css = String(decoding: try JSONEncoder().encode(BootstrapThemeCSS.render(framework: framework)), as: UTF8.self)
+        theme.bootstrapTokens.values["font-size-md"] = "2.5rem"
+        let css = String(decoding: try JSONEncoder().encode(BootstrapThemeCSS.render(theme: theme)), as: UTF8.self)
         let after = try #require(try await browser.web.evaluateJavaScript("document.getElementById('theme').textContent=\(css);getComputedStyle(document.getElementById('text')).fontSize") as? String)
         #expect(before == "16px")
         #expect(after == "16px")
-        framework.bootstrapTokens.values["blue-500"] = "#123456"
-        let scaleCSS = String(decoding: try JSONEncoder().encode(BootstrapThemeCSS.render(framework: framework)), as: UTF8.self)
+        theme.bootstrapTokens.values["blue-500"] = "#123456"
+        let scaleCSS = String(decoding: try JSONEncoder().encode(BootstrapThemeCSS.render(theme: theme)), as: UTF8.self)
         let themeColour = try #require(try await browser.web.evaluateJavaScript("""
             document.getElementById('theme').textContent=\(scaleCSS);
             document.getElementById('hero').style.color='var(--bs-primary-base)';

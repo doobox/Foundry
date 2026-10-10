@@ -1,8 +1,0 @@
-{
-    "type" : "text",
-    "id" : "heading",
-    "label" : "Heading",
-    "defaults" : {
-        "base" : "Welcome"
-    }
-}

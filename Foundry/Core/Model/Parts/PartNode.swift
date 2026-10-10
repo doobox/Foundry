@@ -103,61 +103,22 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
         self.rootAttributes = rootAttributes
     }
 
-    static func make(_ type: PartType, framework: Framework = .standard) -> PartNode {
+    static func make(_ type: PartType) -> PartNode {
         var ancestry: Set<PartType> = []
         var remainingNodeCount = 1_000
         var node = make(type, ancestry: &ancestry, remainingNodeCount: &remainingNodeCount)
-        node.selectInitialColourShades(from: framework)
+        node.applyInitialResponsiveDefaults()
         return node
     }
 
-    mutating func selectInitialColourShades(from framework: Framework) {
-        let definition = type.definition
-        let definitionsByKey = Dictionary(
-            definition.properties.map { ($0.key, $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        let manifestPropertiesByID = Dictionary(
-            (definition.package?.manifest.resolvedProperties ?? []).map { ($0.id, $0) },
-            uniquingKeysWith: { first, _ in first }
-        )
-        var initialDefaults: [ResponsivePropertyOverride] = []
-        for propertyDefinition in definition.properties {
-            for (breakpoint, initialValue) in propertyDefinition.breakpointDefaults {
-                var initialValue = initialValue
-                if case .packageColor(var colour) = initialValue,
-                   let palette = framework.colourPalettes.resolvedPalette(id: colour.paletteID) {
-                    let declaration = manifestPropertiesByID[propertyDefinition.key.rawValue]?
-                        .breakpointDefaults[breakpoint.rawValue]
-                    if case .object(let fields) = declaration {
-                        if fields["lightShade"] == nil { colour.shade = palette.lightDefaultShade }
-                        if fields["darkShade"] == nil { colour.darkShade = palette.darkDefaultShade }
-                    }
-                    initialValue = .packageColor(colour)
-                }
-                initialDefaults.append(.init(
-                    breakpoint: breakpoint,
-                    key: propertyDefinition.key,
-                    value: initialValue
-                ))
+    mutating func applyInitialResponsiveDefaults() {
+        responsiveOverrides = type.definition.properties.flatMap { property in
+            property.breakpointDefaults.map { breakpoint, value in
+                ResponsivePropertyOverride(breakpoint: breakpoint, key: property.key, value: value)
             }
         }
-        responsiveOverrides = initialDefaults.isEmpty ? nil : initialDefaults
-        for index in properties.indices {
-            if case .packageColor(var value) = properties[index].value,
-               let palette = framework.colourPalettes.resolvedPalette(id: value.paletteID) {
-                if let propertyDefinition = definitionsByKey[properties[index].key],
-                   case .packageColor(_, _, let initialLightShade, let initialDarkShade) = propertyDefinition.control {
-                    value.shade = initialLightShade ?? palette.lightDefaultShade
-                    value.darkShade = initialDarkShade ?? palette.darkDefaultShade
-                } else {
-                    value.shade = palette.lightDefaultShade
-                    value.darkShade = palette.darkDefaultShade
-                }
-                properties[index].value = .packageColor(value)
-            }
-        }
-        for index in children.indices { children[index].selectInitialColourShades(from: framework) }
+        if responsiveOverrides?.isEmpty == true { responsiveOverrides = nil }
+        for index in children.indices { children[index].applyInitialResponsiveDefaults() }
     }
 
     private static func make(
@@ -313,17 +274,17 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
         propertyValue(key).numberValue ?? 0
     }
 
-    func colorProperty(_ key: PartProperty.Key, framework: Framework) -> String {
+    func colorProperty(_ key: PartProperty.Key, theme: Theme) -> String {
         let value = propertyValue(key)
-        if let token = value.tokenValue, let color = framework.color(for: token) {
+        if let token = value.tokenValue, let color = theme.color(for: token) {
             return color
         }
         return value.stringValue
     }
 
-    func numberProperty(_ key: PartProperty.Key, framework: Framework) -> Double {
+    func numberProperty(_ key: PartProperty.Key, theme: Theme) -> Double {
         let value = propertyValue(key)
-        if let token = value.tokenValue, let number = framework.number(for: token) {
+        if let token = value.tokenValue, let number = theme.number(for: token) {
             return number
         }
         return value.numberValue ?? 0
@@ -367,23 +328,23 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
         setProperty(key, value: propertyValue)
     }
 
-    mutating func replaceFrameworkReference(_ reference: String, with replacement: String) {
-        transformPropertyValues { $0.replacingFrameworkReference(reference, with: replacement) }
+    mutating func replaceThemeReference(_ reference: String, with replacement: String) {
+        transformPropertyValues { $0.replacingThemeReference(reference, with: replacement) }
     }
 
     mutating func replaceSpacingReference(_ reference: String, with replacement: String) {
         transformPropertyValues { $0.replacingSpacingReference(reference, with: replacement) }
     }
 
-    mutating func bakeFrameworkSpacingReference(_ reference: String, amountRem: Double, fallbackToken: String) {
+    mutating func bakeThemeSpacingReference(_ reference: String, amountRem: Double, fallbackToken: String) {
         transformPropertyValues {
-            $0.bakingFrameworkSpacingReference(reference, amountRem: amountRem, fallbackToken: fallbackToken)
+            $0.bakingThemeSpacingReference(reference, amountRem: amountRem, fallbackToken: fallbackToken)
         }
     }
 
-    mutating func bakeFrameworkDimensionReference(_ reference: String, amountPx: Double, fallbackToken: String, isRadius: Bool) {
+    mutating func bakeThemeDimensionReference(_ reference: String, amountPx: Double, fallbackToken: String, isRadius: Bool) {
         transformPropertyValues {
-            $0.bakingFrameworkDimensionReference(reference, amountPx: amountPx, fallbackToken: fallbackToken, isRadius: isRadius)
+            $0.bakingThemeDimensionReference(reference, amountPx: amountPx, fallbackToken: fallbackToken, isRadius: isRadius)
         }
     }
 

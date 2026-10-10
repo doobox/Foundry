@@ -35,7 +35,7 @@ struct BackgroundMediaTests {
         let color = try #require(controls.first { $0.id == "surface.backgroundOverlayColor" })
         #expect(toggle.defaultValue == .boolean(false))
         #expect(color.defaultValue == .string("token:black"))
-        #expect(color.control.type == .themeColor)
+        #expect(color.control.type == .themeColors)
         #expect(controls.first { $0.id == "surface.backgroundOverlayColorOpacity" }?.defaultValue == .number(20))
         #expect(controls.contains { $0.id.contains("OverlayGradient") } == false)
         #expect(controls.filter { $0.id.contains("Overlay") }.count == 3)

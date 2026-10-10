@@ -4,7 +4,7 @@
   "systemImage": "arrow.left.and.right",
   "controls": [
     {
-      "type": "frameworkSpacing",
+      "type": "themeSpacing",
       "id": "gap",
       "label": "Gap",
       "responsive": true,
@@ -13,7 +13,7 @@
       }
     },
     {
-      "type": "frameworkSpacing",
+      "type": "themeSpacing",
       "id": "rowGap",
       "label": "Row gap",
       "responsive": true,
@@ -22,7 +22,7 @@
       }
     },
     {
-      "type": "frameworkSpacing",
+      "type": "themeSpacing",
       "id": "columnGap",
       "label": "Column gap",
       "responsive": true,

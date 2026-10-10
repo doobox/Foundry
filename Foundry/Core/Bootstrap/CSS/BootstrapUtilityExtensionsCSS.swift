@@ -10,7 +10,7 @@ import Foundation
 /// never redefined and need no Sass build.
 nonisolated enum BootstrapUtilityExtensionsCSS {
     struct Breakpoint: Sendable {
-        let id: FrameworkScreenID
+        let id: ThemeScreenID
         let prefix: String
         var escapedPrefix: String { prefix == "2xl" ? "\\32 xl\\:" : prefix + "\\:" }
         var minimumWidth: Int { Int(ScreenTokens.standard.screen(id).minimumWidth) }
@@ -31,11 +31,11 @@ nonisolated enum BootstrapUtilityExtensionsCSS {
         ("truncate", "overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-wrap:nowrap")
     ]
 
-    static func render(framework: Framework) -> String {
-        containerCSS(framework.screens) + typographyCSS(customSizes: framework.bootstrapTokens.custom["fontSize"] ?? [])
+    static func render(theme: Theme) -> String {
+        containerCSS(theme.screens) + typographyCSS(customSizes: theme.bootstrapTokens.custom["fontSize"] ?? [])
     }
 
-    /// Bootstrap grows `.container` at every breakpoint. When a framework disables a
+    /// Bootstrap grows `.container` at every breakpoint. When a theme disables a
     /// breakpoint, the container keeps the previous enabled width instead.
     ///
     /// From the first breakpoint that differs from Bootstrap, every later breakpoint is

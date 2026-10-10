@@ -15,7 +15,7 @@ nonisolated enum PartPackageFontControl {
         let fields = defaults(property.defaultValue)
         var result = [PartPropertyDefinition(
             key: .init(rawValue: property.id), label: property.label,
-            subtitle: property.subtitles.first, section: .init(rawValue: property.group), control: .frameworkFont,
+            subtitle: property.subtitles.first, section: .init(rawValue: property.group), control: .themeFont,
             defaultValue: .choice(fields["family"]?.stringValue ?? "body"),
             isResponsive: property.responsive && property.control.showsFamily != false,
             isInspectorVisible: property.control.showsFamily != false, visibleWhen: property.visibleWhen)]
@@ -34,7 +34,7 @@ nonisolated enum PartPackageFontControl {
         if property.control.showsSize == true {
             result.append(PartPropertyDefinition(
                 key: fieldKey(property.id, "size"), label: "Size", section: .init(rawValue: property.group),
-                control: .frameworkFontSize, defaultValue: .choice(fields["size"]?.stringValue ?? "base"),
+                control: .themeFontSize, defaultValue: .choice(fields["size"]?.stringValue ?? "base"),
                 isResponsive: property.responsive, visibleWhen: property.visibleWhen))
         }
         for index in result.indices {
@@ -51,9 +51,9 @@ nonisolated enum PartPackageFontControl {
         return node.propertyValue(key).stringValue
     }
 
-    static func resolved(_ id: String, node: PartNode, framework: Framework) -> PartPackageValue {
+    static func resolved(_ id: String, node: PartNode, theme: Theme) -> PartPackageValue {
         let family = familyReference(id, node: node)
-        var fields: [String: PartPackageValue] = ["family": .string(PartPackageFrameworkValueResolver.resolve(family, from: .fontFamilies, framework: framework) ?? "inherit")]
+        var fields: [String: PartPackageValue] = ["family": .string(PartPackageThemeValueResolver.resolve(family, from: .fontFamilies, theme: theme) ?? "inherit")]
         let definitions = node.type.definition.properties
         let weightKey = fieldKey(id, "weight")
         if definitions.contains(where: { $0.key == weightKey }) {
@@ -66,7 +66,7 @@ nonisolated enum PartPackageFontControl {
         let sizeKey = fieldKey(id, "size")
         if definitions.contains(where: { $0.key == sizeKey }) {
             let size = node.propertyValue(sizeKey).stringValue
-            fields["size"] = .string(PartPackageFrameworkValueResolver.resolve(size, from: .fontSizes, framework: framework) ?? "inherit")
+            fields["size"] = .string(PartPackageThemeValueResolver.resolve(size, from: .fontSizes, theme: theme) ?? "inherit")
         }
         return .object(fields)
     }

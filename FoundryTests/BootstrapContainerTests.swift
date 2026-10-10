@@ -10,35 +10,35 @@ struct BootstrapContainerTests {
         var node = PartNode.make(.container)
         node.anchor = "spacing-test"
         let horizontal = PartProperty.Key(rawValue: "spacing.padding")
-        var padding = FrameworkPaddingValue()
+        var padding = ThemePaddingValue()
         padding.setAll(.init(token: "3"))
         padding.set(.init(token: "2"), for: .left)
         padding.set(.init(token: "2"), for: .right)
-        node.setProperty(horizontal, value: .frameworkPadding(padding))
+        node.setProperty(horizontal, value: .themePadding(padding))
         padding.togglePair(using: .left)
         padding.set(.init(token: "5"), for: .left)
         #expect(padding.value(for: .right).token == "5")
-        node.setResponsiveProperty(horizontal, value: .frameworkPadding(padding), at: .medium)
+        node.setResponsiveProperty(horizontal, value: .themePadding(padding), at: .medium)
         padding.set(.init(token: "12"), for: .left)
-        node.setResponsiveProperty(horizontal, value: .frameworkPadding(padding), at: .extraLarge)
-        var margin = FrameworkMarginValue()
+        node.setResponsiveProperty(horizontal, value: .themePadding(padding), at: .extraLarge)
+        var margin = ThemeMarginValue()
         margin.setAll(.init(token: "none"))
         margin.set(.init(token: "hero"), for: .top)
         margin.set(.init(token: "hero"), for: .bottom)
-        node.setProperty(.init(rawValue: "spacing.margin"), value: .frameworkMargin(margin))
-        var framework = Framework.standard
-        framework.spacing.custom = [.init(name: "hero", value: 6)]
-        #expect(BootstrapSpacingClasses.resolve(node: node.resolved(at: .medium), key: horizontal, screens: framework.screens) == "py-3 px-2 md:py-3 md:px-5")
-        var allScreens = framework.screens
+        node.setProperty(.init(rawValue: "spacing.margin"), value: .themeMargin(margin))
+        var theme = Theme.standard
+        theme.spacing.custom = [.init(name: "hero", value: 6)]
+        #expect(BootstrapSpacingClasses.resolve(node: node.resolved(at: .medium), key: horizontal, screens: theme.screens) == "py-3 px-2 md:py-3 md:px-5")
+        var allScreens = theme.screens
         allScreens.update(.extraLarge) { $0.isEnabled = true }
         #expect(BootstrapSpacingClasses.resolve(node: node, key: horizontal, screens: allScreens)?.contains("xl:px-12") == true)
         let page = Page(title: "Spacing", slug: "index", parts: [node])
         let html: String
         if destination == "canvas" {
-            html = HTMLPageRenderer().render(page: page, framework: framework)
+            html = HTMLPageRenderer().render(page: page, theme: theme)
         } else {
             var site = Site(name: "Spacing", pages: [page])
-            site.framework = framework
+            site.theme = theme
             let bundle = StaticSiteRenderer(environment: destination == "preview" ? .preview : .published).render(site: site)
             #expect(bundle.errors.isEmpty)
             let output = try #require(bundle.file(at: "index.html"))
@@ -77,11 +77,11 @@ struct BootstrapContainerTests {
         }
         let page = Page(title: "Containers", slug: "index", parts: containers)
         var site = Site(name: "Containers", pages: [page])
-        site.framework.screens.update(.extraLarge) { $0.isEnabled = true }
-        site.framework.screens.update(.doubleExtraLarge) { $0.isEnabled = true }
+        site.theme.screens.update(.extraLarge) { $0.isEnabled = true }
+        site.theme.screens.update(.doubleExtraLarge) { $0.isEnabled = true }
         let html: String
         if destination == "canvas" {
-            html = HTMLPageRenderer().render(page: page, framework: site.framework)
+            html = HTMLPageRenderer().render(page: page, theme: site.theme)
         } else {
             let bundle = StaticSiteRenderer(environment: destination == "preview" ? .preview : .published).render(site: site)
             #expect(bundle.errors.isEmpty)

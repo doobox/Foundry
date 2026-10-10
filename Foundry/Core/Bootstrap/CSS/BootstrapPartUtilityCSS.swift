@@ -2,7 +2,7 @@ import Foundation
 
 /// Only explicit, currently used extensions are included in canvas and output.
 nonisolated enum BootstrapPartUtilityCSS {
-    static func render(node: PartNode, framework: Framework) -> String {
+    static func render(node: PartNode, theme: Theme) -> String {
         let styles = node.type.definition.package?.manifest.resolvedProperties.compactMap { property -> String? in
             if let source = property.controlGroupSource, source.type == .foreground, source.localID == "opacity",
                node.propertyValue(.init(rawValue: source.namespace + ".theme")).stringValue != "inherit",
@@ -26,13 +26,13 @@ nonisolated enum BootstrapPartUtilityCSS {
             }
             guard source.localID == "style" else { return nil }
             let value = node.propertyValue(.init(rawValue: property.id)).stringValue
-            guard PartPackageFrameworkBorderControl.styles.contains(value),
+            guard PartPackageThemeBorderControl.styles.contains(value),
                   property.control.options?.contains(where: { $0.value == value }) == true else { return nil }
             return ".border-style-\(value){--bs-border-style:\(value)}"
         } ?? []
         let borderCSS = styles.isEmpty ? "" : "@layer utilities{\(Set(styles).sorted().joined())}"
         let links = node.type.definition.package?.manifest.controlGroups.filter { $0.type == .linkStyling }.map {
-            BootstrapLinkStyling.css(node: node, group: $0, framework: framework)
+            BootstrapLinkStyling.css(node: node, group: $0, theme: theme)
         }.joined() ?? ""
         return borderCSS + links
     }

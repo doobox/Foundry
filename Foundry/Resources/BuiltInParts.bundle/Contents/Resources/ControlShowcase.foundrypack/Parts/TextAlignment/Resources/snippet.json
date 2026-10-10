@@ -1,9 +1,0 @@
-{
-    "type" : "textAlignment",
-    "id" : "alignment",
-    "label" : "Alignment",
-    "defaults" : {
-        "base" : "start"
-    },
-    "responsive" : true
-}

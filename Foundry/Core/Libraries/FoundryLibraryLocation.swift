@@ -1,7 +1,7 @@
 import Foundation
 
 /// Where Foundry keeps its shared, cross-project library content: installed
-/// packs containing parts, saved templates and saved frameworks. Defaults to Application
+/// packs containing parts, saved templates and saved themes. Defaults to Application
 /// Support; users can point it at a synced folder (iCloud Drive, Dropbox) so
 /// every Mac shares one library. Caches and development packs never live here.
 nonisolated enum FoundryLibraryLocation {

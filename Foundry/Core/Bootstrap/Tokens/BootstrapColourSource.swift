@@ -21,9 +21,9 @@ nonisolated struct BootstrapColourSource: Identifiable {
             + ["black", "white"].map { Self(id: $0, title: $0.capitalized, expression: "var(--bs-\($0))") }
     }
 
-    static func selected(in framework: Framework, section: BootstrapEditorSection) -> String {
+    static func selected(in theme: Theme, section: BootstrapEditorSection) -> String {
         guard let token = section.tokens.first else { return "custom" }
-        let value = framework.bootstrapTokens.value(token).filter { !$0.isWhitespace }
+        let value = theme.bootstrapTokens.value(token).filter { !$0.isWhitespace }
         return choices(for: section).first { $0.expression.filter { !$0.isWhitespace } == value }?.id ?? "custom"
     }
 }

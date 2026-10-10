@@ -9,23 +9,23 @@ struct CustomSpacingTests {
         #expect(SpacingTokens.standard.choices.map(\.amount) == SpacingTokens.multipliers)
         let legacy = try JSONDecoder().decode(SpacingTokens.self, from: Data(#"{"values":[9,9,9,9,9,9,9,9,9,9,9,9,9],"custom":[]}"#.utf8))
         #expect(legacy == .standard)
-        #expect(BootstrapThemeCSS.render(framework: .standard).contains("--bs-spacer-5") == false)
+        #expect(BootstrapThemeCSS.render(theme: .standard).contains("--bs-spacer-5") == false)
     }
 
-    @Test func renameDeleteAndFrameworkSwitchPreserveReferences() throws {
+    @Test func renameDeleteAndThemeSwitchPreserveReferences() throws {
         let document = FoundryDocument()
         let undo = UndoManager()
         undo.groupsByEvent = false
         let editor = ProjectEditor(document: document, undoManager: undo)
         undo.beginUndoGrouping()
         editor.addCustomSpacing()
-        let token = try #require(document.site.framework.spacing.custom.first)
-        var padding = FrameworkPaddingValue()
+        let token = try #require(document.site.theme.spacing.custom.first)
+        var padding = ThemePaddingValue()
         padding.setAll(.init(token: token.name))
         var child = PartNode.make(.container)
         let key = PartProperty.Key(rawValue: "spacing.padding")
-        child.setProperty(key, value: .frameworkPadding(padding))
-        child.setResponsiveProperty(key, value: .frameworkPadding(padding), at: .medium)
+        child.setProperty(key, value: .themePadding(padding))
+        child.setResponsiveProperty(key, value: .themePadding(padding), at: .medium)
         child.setProperty(.init(rawValue: "label"), value: .string(token.name))
         var parent = PartNode.make(.container)
         parent.children = [child]
@@ -33,23 +33,23 @@ struct CustomSpacingTests {
         #expect(editor.renameCustomSpacing(token.id, name: "hero"))
         undo.endUndoGrouping()
         let renamed = document.site.pages[0].parts[0].children[0]
-        #expect(BootstrapSpacingClasses.utilities(renamed.propertyValue(key), spacing: document.site.framework.spacing) == ["p-hero"])
+        #expect(BootstrapSpacingClasses.utilities(renamed.propertyValue(key), spacing: document.site.theme.spacing) == ["p-hero"])
         #expect(renamed.propertyValue(.init(rawValue: "label")) == .string(token.name))
-        #expect(renamed.responsiveOverrides?.first?.value == .frameworkPadding({ var p = FrameworkPaddingValue(); p.setAll(.init(token: "hero")); return p }()))
+        #expect(renamed.responsiveOverrides?.first?.value == .themePadding({ var p = ThemePaddingValue(); p.setAll(.init(token: "hero")); return p }()))
         undo.beginUndoGrouping()
         editor.removeCustomSpacing(token.id, replacingWith: "5")
         undo.endUndoGrouping()
-        #expect(document.site.framework.spacing.custom.isEmpty)
+        #expect(document.site.theme.spacing.custom.isEmpty)
         #expect(BootstrapSpacingClasses.utilities(document.site.pages[0].parts[0].children[0].propertyValue(key)) == ["p-5"])
         undo.undo()
-        #expect(document.site.framework.spacing.custom.first?.name == "hero")
+        #expect(document.site.theme.spacing.custom.first?.name == "hero")
         undo.beginUndoGrouping()
-        editor.selectFramework(.standard, sourceID: UUID())
+        editor.selectTheme(.standard, sourceID: UUID())
         undo.endUndoGrouping()
-        #expect(document.site.framework.spacing.custom.first?.name == "hero")
+        #expect(document.site.theme.spacing.custom.first?.name == "hero")
         let restored = try JSONDecoder().decode(Site.self, from: JSONEncoder().encode(document.site))
-        #expect(restored.framework.spacing == document.site.framework.spacing)
-        #expect(restored.framework.spacing.choices.count == 14)
+        #expect(restored.theme.spacing == document.site.theme.spacing)
+        #expect(restored.theme.spacing.choices.count == 14)
     }
 
     @Test func customNamesAndValuesAreValidatedWhenLoading() throws {

@@ -5,19 +5,19 @@ import WebKit
 @MainActor
 struct BootstrapPaletteThemeTests {
     @Test func onlySemanticThemesAreAvailable() throws {
-        var framework = Framework.standard
+        var theme = Theme.standard
         let custom = try BootstrapColourCatalogue.palette(role: .accent).duplicated()
-        framework.colourPalettes.insert(custom, at: 0)
-        let palettes = BootstrapPaletteTheme.selectablePalettes(in: framework)
+        theme.colourPalettes.insert(custom, at: 0)
+        let palettes = BootstrapPaletteTheme.selectablePalettes(in: theme)
         #expect(palettes.count == 8)
         for palette in palettes {
-            #expect(BootstrapPaletteTheme.resolve(palette.id, framework: framework) == "theme-" + (BootstrapPaletteTheme.nativeRole(palette) ?? ""))
+            #expect(BootstrapPaletteTheme.resolve(palette.id, theme: theme) == "theme-" + (BootstrapPaletteTheme.nativeRole(palette) ?? ""))
         }
         for excluded in [custom.id, "standard.pink", "framework.background", "missing"] {
-            #expect(BootstrapPaletteTheme.resolve(excluded, framework: framework) == "theme-reset")
+            #expect(BootstrapPaletteTheme.resolve(excluded, theme: theme) == "theme-reset")
         }
-        #expect(BootstrapPaletteTheme.resolve("theme-danger", framework: framework) == "theme-danger")
-        let css = BootstrapColorCSS.export(framework: framework, mode: .both)
+        #expect(BootstrapPaletteTheme.resolve("theme-danger", theme: theme) == "theme-danger")
+        let css = BootstrapColorCSS.export(theme: theme, mode: .both)
         #expect(css.contains("theme-palette-") == false)
         #expect(css.contains(".theme-pink") == false)
     }
@@ -25,25 +25,25 @@ struct BootstrapPaletteThemeTests {
     @Test(.timeLimit(.minutes(1)), arguments: ["canvas", "export"])
     func editedThemeReachesButtonAndBrowser(destination: String) async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
-        var framework = Framework.standard
-        let primaryIndex = try #require(framework.colourPalettes.firstIndex { $0.id == "framework.primary" })
-        framework.colourPalettes[primaryIndex] = BootstrapColourCatalogue.palette(role: .primary, hue: "indigo")
-        framework.colourPalettes[primaryIndex].bootstrapTokens["primary-bg"] = BootstrapTokenColour(
+        var theme = Theme.standard
+        let primaryIndex = try #require(theme.colourPalettes.firstIndex { $0.id == "framework.primary" })
+        theme.colourPalettes[primaryIndex] = BootstrapColourCatalogue.palette(role: .primary, hue: "indigo")
+        theme.colourPalettes[primaryIndex].bootstrapTokens["primary-bg"] = BootstrapTokenColour(
             light: BootstrapColourScale(base: "oklch(50% 0.15 350)"), dark: BootstrapColourScale(base: "oklch(40% 0.15 350)"))
-        framework.colourPalettes[primaryIndex].bootstrapTokens["primary-contrast"] = BootstrapTokenColour(
+        theme.colourPalettes[primaryIndex].bootstrapTokens["primary-contrast"] = BootstrapTokenColour(
             light: BootstrapColourScale.native("white"), dark: BootstrapColourScale.native("white"))
         var button = PartNode.make(.button)
         button.setProperty(.init(rawValue: "theme"), value: .choice("framework.primary"))
         let page = Page(title: "Theme", slug: "index", parts: [button])
         var site = Site(name: "Theme", pages: [page])
-        site.framework = framework
+        site.theme = theme
         site.appearanceMode = .both
         var replacement = site
-        replacement.replacePartFrameworkReference("framework.primary", with: "framework.danger")
+        replacement.replacePartThemeReference("framework.primary", with: "framework.danger")
         #expect(replacement.pages[0].parts[0].property(.init(rawValue: "theme")) == "framework.danger")
         let html: String
         if destination == "canvas" {
-            html = HTMLPageRenderer().render(page: page, framework: framework)
+            html = HTMLPageRenderer().render(page: page, theme: theme)
         } else {
             let bundle = StaticSiteRenderer().render(site: site)
             let document = try #require(bundle.file(at: "index.html"))

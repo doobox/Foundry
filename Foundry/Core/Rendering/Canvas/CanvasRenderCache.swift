@@ -9,13 +9,13 @@ nonisolated final class CanvasRenderCache: Sendable {
         let site: Site?
         let page: Page
         let routes: [String]
-        let framework: Framework
+        let theme: Theme
         let assets: ProjectAssetContents
         let breakpoint: ResponsiveBreakpoint
         let appearance: SiteAppearance
         let packageRevision: Int
 
-        init(site: Site?, page: Page, framework: Framework, assets: ProjectAssetContents,
+        init(site: Site?, page: Page, theme: Theme, assets: ProjectAssetContents,
              breakpoint: ResponsiveBreakpoint, appearance: SiteAppearance, packageRevision: Int,
              knownRoutes: [String]? = nil) {
             // Part content is tracked by artifact keys. Everything outside it
@@ -35,7 +35,7 @@ nonisolated final class CanvasRenderCache: Sendable {
             var contextPage = page
             contextPage.parts = []
             self.page = contextPage
-            self.framework = framework
+            self.theme = theme
             self.assets = assets
             self.breakpoint = breakpoint
             self.appearance = appearance

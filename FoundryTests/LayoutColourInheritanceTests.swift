@@ -7,20 +7,20 @@ struct LayoutColourInheritanceTests {
     @Test(.timeLimit(.minutes(1)), arguments: [PartTemplateEnvironment.canvas, .preview, .published], [PartType.container, .flex, .grid])
     func nestedLinksRespectInheritance(environment: PartTemplateEnvironment, layout: PartType) async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
-        let model = FrameworkColourPreviewModel()
+        let model = ThemeColourPreviewModel()
         model.addTheme(named: "editorial", kind: .link)
         var palette = try #require(model.storedPalettes.last)
         palette.bootstrapTokens[palette.colourTokens[0]] = .init(light: .native("red"), dark: .native("green"))
         palette.bootstrapTokens[palette.colourTokens[1]] = .init(light: .native("pink"), dark: .native("blue"))
-        var framework = Framework.standard
-        framework.colourPalettes.append(palette)
+        var theme = Theme.standard
+        theme.colourPalettes.append(palette)
         var parent = PartNode.make(layout)
         let groups = try #require(parent.type.definition.package?.manifest.controlGroups)
         #expect(groups.contains { $0.type == .background })
         #expect(groups.contains { $0.type == .foreground })
         #expect(groups.contains { $0.type == .linkStyling })
         let group = try #require(groups.first { $0.type == .linkStyling })
-        #expect(BootstrapLinkStyling.css(node: parent, group: group, framework: framework).isEmpty)
+        #expect(BootstrapLinkStyling.css(node: parent, group: group, theme: theme).isEmpty)
         parent.setProperty(.init(rawValue: "links.colour"), value: .choice("token:" + palette.colourTokens[0]))
         parent.setProperty(.init(rawValue: "links.decoration"), value: .choice("off"))
         func paragraph(_ id: String) -> PartNode {
@@ -39,9 +39,9 @@ struct LayoutColourInheritanceTests {
         let page = Page(title: "Links", slug: "index", parts: [parent, paragraph("outside")])
         let html: String
         if environment == .canvas {
-            html = HTMLPageRenderer().render(page: page, framework: framework)
+            html = HTMLPageRenderer().render(page: page, theme: theme)
         } else {
-            let bundle = StaticSiteRenderer(environment: environment).render(site: Site(name: "Links", pages: [page], framework: framework))
+            let bundle = StaticSiteRenderer(environment: environment).render(site: Site(name: "Links", pages: [page], theme: theme))
             #expect(bundle.errors.isEmpty)
             let source = try #require(bundle.file(at: "index.html")?.contents)
             let css = try #require(bundle.file(at: "files/site.css")?.contents) + (try #require(bundle.file(at: "files/page.css")?.contents))

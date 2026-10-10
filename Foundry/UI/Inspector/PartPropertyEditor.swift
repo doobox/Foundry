@@ -8,12 +8,12 @@ struct PartPropertyEditor: View {
     @State private var generatedVideoPoster: NSImage?
     @State private var isAnalysingVideo = false
     @State private var videoAnalysisError: String?
-    @Namespace private var frameworkSpacingFocusNamespace
+    @Namespace private var themeSpacingFocusNamespace
     let definition: PartPropertyDefinition
     let part: PartNode
     let selectedParts: [PartNode]
     let currentPage: Page?
-    let framework: Framework
+    let theme: Theme
     let assets: [ProjectAsset]
     let assetContents: ProjectAssetContents
     let pages: [Page]
@@ -35,7 +35,7 @@ struct PartPropertyEditor: View {
         part: PartNode,
         selectedParts: [PartNode],
         currentPage: Page?,
-        framework: Framework,
+        theme: Theme,
         assets: [ProjectAsset],
         assetContents: ProjectAssetContents,
         pages: [Page],
@@ -54,7 +54,7 @@ struct PartPropertyEditor: View {
         self.part = part
         self.selectedParts = selectedParts
         self.currentPage = currentPage
-        self.framework = framework
+        self.theme = theme
         self.assets = assets
         self.assetContents = assetContents
         self.pages = pages
@@ -148,7 +148,7 @@ struct PartPropertyEditor: View {
                     return Self.anchorIDs(
                         in: HTMLPageRenderer(site: site).render(
                             page: renderedPage,
-                            framework: framework,
+                            theme: theme,
                             assets: assetContents
                         )
                     )
@@ -224,21 +224,8 @@ struct PartPropertyEditor: View {
             )
         case .icon:
             IconPartControl(label: definition.label, indicator: responsiveIndicator, selection: stringBinding(as: .choice))
-        case .packageColor(let frameworkValues, let opacity, _, _):
-            FrameworkColorPartControl(
-                label: definition.label,
-                choices: frameworkValues ? framework.colorChoices : [],
-                allowsCustom: definition.allowsCustomFrameworkValue,
-                framework: framework,
-                source: packageColorSourceBinding,
-                shade: packageColorShadeBinding,
-                customColor: packageCustomColorBinding,
-                opacityPercent: packageColorOpacityBinding,
-                allowsOpacity: opacity,
-                indicator: responsiveIndicator
-            )
-        case .themeColor:
-            ThemeColorPartControl(label: definition.label, framework: framework,
+        case .themeColors:
+            ThemeColorsPartControl(label: definition.label, theme: theme,
                 indicator: responsiveIndicator,
                 tokenSections: colourTokenSections,
                 linksOnly: isLinkColour,
@@ -263,85 +250,85 @@ struct PartPropertyEditor: View {
                     selection: stringBinding(as: .choice)
                 )
             }
-        case .frameworkFont:
-            FrameworkFontPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator, selection: stringBinding(as: .choice))
-        case .frameworkSpacing:
-            let singleSpacingSelection: FrameworkPaddingValue.EdgeValue = {
-                if case .frameworkSpacing(let value) = displayPart.propertyValue(definition.key) { return value.selection }
-                if case .frameworkSpacing(let value) = definition.defaultValue { return value.selection }
-                return FrameworkPaddingValue.EdgeValue()
+        case .themeFont:
+            ThemeFontPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator, selection: stringBinding(as: .choice))
+        case .themeSpacing:
+            let singleSpacingSelection: ThemePaddingValue.EdgeValue = {
+                if case .themeSpacing(let value) = displayPart.propertyValue(definition.key) { return value.selection }
+                if case .themeSpacing(let value) = definition.defaultValue { return value.selection }
+                return ThemePaddingValue.EdgeValue()
             }()
             InspectorRow(title: definition.label.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? "Spacing" : definition.label, indicator: responsiveIndicator) {
                 HStack(spacing: 8) {
-                    FrameworkSpacingInput<PaddingPolicy>(binding: Binding(get: {
-                        if case .frameworkSpacing(let value) = displayPart.propertyValue(definition.key) { return value.selection }
-                        if case .frameworkSpacing(let value) = definition.defaultValue { return value.selection }
-                        return FrameworkPaddingValue.EdgeValue()
-                    }, set: { setProperty(.frameworkSpacing(.init(selection: $0))) }), title: definition.label.isEmpty ? "Spacing" : definition.label, framework: framework, focusNamespace: frameworkSpacingFocusNamespace, bootstrapSpacing: bootstrapGapPrefix != nil, bootstrapClassPrefix: bootstrapGapPrefix ?? "gap")
+                    ThemeSpacingInput<PaddingPolicy>(binding: Binding(get: {
+                        if case .themeSpacing(let value) = displayPart.propertyValue(definition.key) { return value.selection }
+                        if case .themeSpacing(let value) = definition.defaultValue { return value.selection }
+                        return ThemePaddingValue.EdgeValue()
+                    }, set: { setProperty(.themeSpacing(.init(selection: $0))) }), title: definition.label.isEmpty ? "Spacing" : definition.label, theme: theme, focusNamespace: themeSpacingFocusNamespace, bootstrapSpacing: bootstrapGapPrefix != nil, bootstrapClassPrefix: bootstrapGapPrefix ?? "gap")
 
                     if bootstrapGapPrefix == nil {
-                        FrameworkModeToggle(usesFrameworkTokens: !singleSpacingSelection.isCustom) {
-                            var value = FrameworkSingleSpacingValue(selection: singleSpacingSelection)
-                            value.setUsesFrameworkTokens(singleSpacingSelection.isCustom)
-                            setProperty(.frameworkSpacing(value))
+                        ThemeModeToggle(usesThemeTokens: !singleSpacingSelection.isCustom) {
+                            var value = ThemeSingleSpacingValue(selection: singleSpacingSelection)
+                            value.setUsesThemeTokens(singleSpacingSelection.isCustom)
+                            setProperty(.themeSpacing(value))
                         }
                     }
                 }
             }
-            .focusScope(frameworkSpacingFocusNamespace)
+            .focusScope(themeSpacingFocusNamespace)
             .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Spacing")
-        case .frameworkBorderWidth:
-            FrameworkBorderWidthPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator,
+        case .themeBorderWidth:
+            ThemeBorderWidthPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
                 bootstrapBorders: part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.control.type == .borderSides,
                 value: Binding(get: {
-                    if case .frameworkBorderWidth(let value) = displayPart.propertyValue(definition.key) { return value }
-                    if case .frameworkBorderWidth(let value) = definition.defaultValue { return value }
-                    return FrameworkBorderWidthValue()
-                }, set: { setProperty(.frameworkBorderWidth($0)) }))
+                    if case .themeBorderWidth(let value) = displayPart.propertyValue(definition.key) { return value }
+                    if case .themeBorderWidth(let value) = definition.defaultValue { return value }
+                    return ThemeBorderWidthValue()
+                }, set: { setProperty(.themeBorderWidth($0)) }))
                 .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == (definition.inspectorControlID ?? definition.key.rawValue) }?.tooltip ?? "Border")
-        case .frameworkRadius:
-            FrameworkRadiusPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator,
+        case .themeRadius:
+            ThemeRadiusPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
                 value: Binding(get: {
-                    if case .frameworkRadius(let value) = displayPart.propertyValue(definition.key) { return value }
-                    if case .frameworkRadius(let value) = definition.defaultValue { return value }
-                    return FrameworkRadiusValue()
-                }, set: { setProperty(.frameworkRadius($0)) }))
+                    if case .themeRadius(let value) = displayPart.propertyValue(definition.key) { return value }
+                    if case .themeRadius(let value) = definition.defaultValue { return value }
+                    return ThemeRadiusValue()
+                }, set: { setProperty(.themeRadius($0)) }))
                 .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Radius")
-        case .frameworkMargin:
-            FrameworkMarginPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator,
+        case .themeMargin:
+            ThemeMarginPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
                 bootstrapSpacing: isBootstrapSpacing,
                 value: Binding(get: {
-                    if case .frameworkMargin(let value) = displayPart.propertyValue(definition.key) { return value }
-                    if case .frameworkMargin(let value) = definition.defaultValue { return value }
-                    return FrameworkMarginValue()
-                }, set: { setProperty(.frameworkMargin($0)) }))
+                    if case .themeMargin(let value) = displayPart.propertyValue(definition.key) { return value }
+                    if case .themeMargin(let value) = definition.defaultValue { return value }
+                    return ThemeMarginValue()
+                }, set: { setProperty(.themeMargin($0)) }))
                 .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Margin")
-        case .frameworkPadding:
-            FrameworkPaddingPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator,
+        case .themePadding:
+            ThemePaddingPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
                 bootstrapSpacing: isBootstrapSpacing,
                 value: Binding(get: {
-                    if case .frameworkPadding(let value) = displayPart.propertyValue(definition.key) { return value }
-                    if case .frameworkPadding(let value) = definition.defaultValue { return value }
-                    return FrameworkPaddingValue()
-                }, set: { setProperty(.frameworkPadding($0)) }))
+                    if case .themePadding(let value) = displayPart.propertyValue(definition.key) { return value }
+                    if case .themePadding(let value) = definition.defaultValue { return value }
+                    return ThemePaddingValue()
+                }, set: { setProperty(.themePadding($0)) }))
                 .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Padding")
         case .edges(let units):
-            FrameworkMarginPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator,
-                allowsFrameworkTokens: false, unitChoices: units, fallbackLabel: "Edges",
+            ThemeMarginPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
+                allowsThemeTokens: false, unitChoices: units, fallbackLabel: "Edges",
                 value: Binding(get: {
-                    if case .frameworkMargin(let value) = displayPart.propertyValue(definition.key) { return value }
-                    if case .frameworkMargin(let value) = definition.defaultValue { return value }
-                    return PartPackageFrameworkMarginControl.customZero(units: units)
-                }, set: { setProperty(.frameworkMargin($0)) }))
+                    if case .themeMargin(let value) = displayPart.propertyValue(definition.key) { return value }
+                    if case .themeMargin(let value) = definition.defaultValue { return value }
+                    return PartPackageThemeMarginControl.customZero(units: units)
+                }, set: { setProperty(.themeMargin($0)) }))
                 .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Edges")
         case .corners(let units):
-            FrameworkRadiusPartControl(label: definition.label, framework: framework, indicator: responsiveIndicator,
-                allowsFrameworkTokens: false, unitChoices: units, fallbackLabel: "Corners",
+            ThemeRadiusPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
+                allowsThemeTokens: false, unitChoices: units, fallbackLabel: "Corners",
                 value: Binding(get: {
-                    if case .frameworkRadius(let value) = displayPart.propertyValue(definition.key) { return value }
-                    if case .frameworkRadius(let value) = definition.defaultValue { return value }
-                    return PartPackageFrameworkRadiusControl.customZero(units: units)
-                }, set: { setProperty(.frameworkRadius($0)) }))
+                    if case .themeRadius(let value) = displayPart.propertyValue(definition.key) { return value }
+                    if case .themeRadius(let value) = definition.defaultValue { return value }
+                    return PartPackageThemeRadiusControl.customZero(units: units)
+                }, set: { setProperty(.themeRadius($0)) }))
                 .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Corners")
         case .fontWeight(let font):
             FontFacePartControl(label: definition.label,
@@ -351,10 +338,10 @@ struct PartPropertyEditor: View {
             FontFacePartControl(label: definition.label,
                 options: fontFaceOptions(font: font, editsWeight: false),
                 indicator: responsiveIndicator, weight: .constant(400), style: stringBinding(as: .choice), editsWeight: false)
-        case .frameworkFontSize:
+        case .themeFontSize:
             SelectPartControl(
                 label: definition.label,
-                options: framework.fontSizeChoices.map { .init(title: $0.label, value: $0.value) },
+                options: theme.fontSizeChoices.map { .init(title: $0.label, value: $0.value) },
                 indicator: responsiveIndicator,
                 selection: stringBinding(as: .choice)
             )
@@ -381,7 +368,7 @@ struct PartPropertyEditor: View {
                     .accessibilityLabel(definition.label)
                 }
             }
-        case .frameworkStackingOrder:
+        case .themeStackingOrder:
             let stackingValue: PartPackageStackingOrderValue = {
                 if case .packageStackingOrder(let value) = displayPart.propertyValue(definition.key) { return value }
                 return .init(source: displayPart.propertyValue(definition.key).stringValue)
@@ -401,19 +388,19 @@ struct PartPropertyEditor: View {
                             get: { stackingValue.source },
                             set: { setProperty(.packageStackingOrder(.init(source: $0, customValue: stackingValue.customValue))) }
                         )) {
-                            if !framework.zIndexes.predefined.contains(where: { $0.id == stackingValue.source }),
-                               !framework.zIndexes.custom.contains(where: { $0.reference == stackingValue.source }) {
+                            if !theme.zIndexes.predefined.contains(where: { $0.id == stackingValue.source }),
+                               !theme.zIndexes.custom.contains(where: { $0.reference == stackingValue.source }) {
                                 Text("Missing value").tag(stackingValue.source)
                             }
-                            if !framework.zIndexes.custom.isEmpty {
+                            if !theme.zIndexes.custom.isEmpty {
                                 Section("Custom") {
-                                    ForEach(framework.zIndexes.custom) { token in
+                                    ForEach(theme.zIndexes.custom) { token in
                                         Text("\(token.name) - \(Int(token.value))").tag(token.reference)
                                     }
                                 }
                             }
-                            Section("Framework values") {
-                                ForEach(framework.zIndexes.predefined) { token in
+                            Section("Theme values") {
+                                ForEach(theme.zIndexes.predefined) { token in
                                     Text("\(token.title) - \(Int(token.value))").tag(token.id)
                                 }
                             }
@@ -423,22 +410,22 @@ struct PartPropertyEditor: View {
                         .frame(maxWidth: .infinity)
                         .accessibilityLabel(definition.label)
                     }
-                    FrameworkModeToggle(usesFrameworkTokens: !stackingValue.isCustom) {
+                    ThemeModeToggle(usesThemeTokens: !stackingValue.isCustom) {
                         if stackingValue.isCustom {
-                            // Back to framework: select the token closest to the entered value.
-                            let tokens = framework.zIndexes.predefined.map { ($0.id, $0.value) }
-                                + framework.zIndexes.custom.map { ($0.reference, $0.value) }
+                            // Back to theme: select the token closest to the entered value.
+                            let tokens = theme.zIndexes.predefined.map { ($0.id, $0.value) }
+                                + theme.zIndexes.custom.map { ($0.reference, $0.value) }
                             let nearest = tokens.min {
                                 abs($0.1 - stackingValue.customValue) < abs($1.1 - stackingValue.customValue)
                             }?.0 ?? "base"
                             setProperty(.packageStackingOrder(.init(source: nearest, customValue: stackingValue.customValue)))
                         } else {
                             // To custom: carry the selected token's own value.
-                            let amount = framework.zIndexes.predefined.first { $0.id == stackingValue.source }?.value
-                                ?? framework.zIndexes.custom.first { $0.reference == stackingValue.source }?.value
+                            let amount = theme.zIndexes.predefined.first { $0.id == stackingValue.source }?.value
+                                ?? theme.zIndexes.custom.first { $0.reference == stackingValue.source }?.value
                                 ?? 0
                             setProperty(.packageStackingOrder(.init(
-                                source: PartFrameworkValueSelection.manualCustom,
+                                source: PartThemeValueSelection.manualCustom,
                                 customValue: amount
                             )))
                         }
@@ -446,9 +433,9 @@ struct PartPropertyEditor: View {
                 }
             }
         case .packageShadow:
-            FrameworkShadowPartControl(
+            ThemeShadowPartControl(
                 label: definition.label,
-                choices: framework.shadowChoices,
+                choices: theme.shadowChoices,
                 source: packageShadowSourceBinding,
                 customLayers: packageShadowLayersBinding,
                 indicator: responsiveIndicator
@@ -552,7 +539,7 @@ struct PartPropertyEditor: View {
                 part: part,
                 selectedParts: selectedParts,
                 currentPage: currentPage,
-                framework: framework,
+                theme: theme,
                 assets: assets,
                 assetContents: assetContents,
                 pages: pages,
@@ -831,7 +818,7 @@ struct PartPropertyEditor: View {
                 fieldID: definition.key.rawValue,
                 in: collectionRecord.wrappedValue,
                 at: effectiveBreakpoint,
-                screens: framework.screens
+                screens: theme.screens
             )
             guard current == original else { return false }
         } else if let current = editor.document.site.pages.flatMap(\.parts).node(withID: part.id),
@@ -893,7 +880,7 @@ struct PartPropertyEditor: View {
             get: {
                 let value = displayPart.property(definition.key)
                 if part.type == .container && definition.key.rawValue == "width" {
-                    return BootstrapLayout.containerClass(value, screens: framework.screens)
+                    return BootstrapLayout.containerClass(value, screens: theme.screens)
                 }
                 return value
             },
@@ -912,12 +899,12 @@ struct PartPropertyEditor: View {
     private func choicesForCurrentContext(
         _ choices: [PartPropertyChoice]
     ) -> [PartPropertyChoice] {
-        let custom = BootstrapCustomTokenClasses.choices(existing: choices.map(\.value), framework: framework)
+        let custom = BootstrapCustomTokenClasses.choices(existing: choices.map(\.value), theme: theme)
         let choices = choices + custom.enumerated().map { index, value in
-            PartPropertyChoice(value: value, label: BootstrapCustomTokenClasses.label(for: value, framework: framework), separatorBefore: index == 0)
+            PartPropertyChoice(value: value, label: BootstrapCustomTokenClasses.label(for: value, theme: theme), separatorBefore: index == 0)
         }
         if part.type == .container && definition.key.rawValue == "width" {
-            return choices.filter { BootstrapLayout.allowsContainerClass($0.value, screens: framework.screens) }
+            return choices.filter { BootstrapLayout.allowsContainerClass($0.value, screens: theme.screens) }
         }
         guard let context = backgroundInspectorContext else { return choices }
         return context.choices(choices, mode: displayPart.property(context.modeKey))
@@ -963,21 +950,21 @@ struct PartPropertyEditor: View {
         let companion = companions.count == 1 ? companions.first.map { displayPart.propertyValue($0.key) } : nil
         return FontFaceOptions(
             reference: font.map { PartPackageFontControl.familyReference($0, node: displayPart) },
-            framework: framework, assets: assetContents,
+            theme: theme, assets: assetContents,
             selectedWeight: editsWeight ? nil : companion?.numberValue.map(Int.init),
             selectedStyle: editsWeight ? companion?.stringValue : nil)
     }
 
     private var numberBinding: Binding<Double> {
         Binding(
-            get: { displayPart.numberProperty(definition.key, framework: framework) },
+            get: { displayPart.numberProperty(definition.key, theme: theme) },
             set: { setProperty(.number($0)) }
         )
     }
 
     private var colorBinding: Binding<Color> {
         Binding(
-            get: { Color(hex: displayPart.colorProperty(definition.key, framework: framework)) ?? .white },
+            get: { Color(hex: displayPart.colorProperty(definition.key, theme: theme)) ?? .white },
             set: {
                 setProperty(.color(
                     definition.control.allowsLiteralColorOpacity
@@ -1052,68 +1039,6 @@ struct PartPropertyEditor: View {
         )
     }
 
-    private var packageColorValue: PartPackageColorValue {
-        if case .packageColor(let value) = displayPart.propertyValue(definition.key) { return value }
-        if case .packageColor(let value) = definition.defaultValue { return value }
-        return .init(source: PartFrameworkValueSelection.manualCustom, customColor: "#000000", opacity: 1)
-    }
-
-    private var packageColorSourceBinding: Binding<String> {
-        Binding(
-            get: { packageColorValue.source },
-            set: { source in
-                var value = packageColorValue
-                value.source = source
-                if let palette = framework.colourPalettes.resolvedPalette(id: value.paletteID) {
-                    value.shade = palette.lightDefaultShade
-                    value.darkShade = palette.darkDefaultShade
-                }
-                setProperty(.packageColor(value))
-            }
-        )
-    }
-
-    private var packageColorShadeBinding: Binding<ColourShade> {
-        Binding(get: { appearance == .light ? packageColorValue.shade : packageColorValue.darkShade }, set: { shade in
-            var value = packageColorValue
-            if appearance == .light { value.shade = shade } else { value.darkShade = shade }
-            setProperty(.packageColor(value))
-        })
-    }
-
-    private var packageColorOpacityBinding: Binding<Double> {
-        Binding(
-            get: { (appearance == .light ? packageColorValue.opacity : packageColorValue.darkOpacity) * 100 },
-            set: { percent in
-                var value = packageColorValue
-                let alpha = min(max(percent / 100, 0), 1)
-                if appearance == .light { value.opacity = alpha } else { value.darkOpacity = alpha }
-                setProperty(.packageColor(value))
-            }
-        )
-    }
-
-    private var packageCustomColorBinding: Binding<Color> {
-        Binding(
-            get: {
-                Color.stored(
-                    hex: appearance == .light ? packageColorValue.customColor : packageColorValue.darkCustomColor,
-                    opacity: appearance == .light ? packageColorValue.opacity : packageColorValue.darkOpacity
-                )
-            },
-            set: { color in
-                var value = packageColorValue
-                // Read the well's colour as it is; only convert for the hex.
-                let picked = NSColor(color)
-                let alpha = Double(picked.alphaComponent)
-                guard let hex = color.hexString else { return }
-                if appearance == .light { value.customColor = hex; value.opacity = alpha }
-                else { value.darkCustomColor = hex; value.darkOpacity = alpha }
-                setProperty(.packageColor(value))
-            }
-        )
-    }
-
     private var packageShadowValue: PartPackageShadowValue {
         if case .packageShadow(let value) = displayPart.propertyValue(definition.key) { return value }
         if case .packageShadow(let value) = definition.defaultValue { return value }
@@ -1131,7 +1056,7 @@ struct PartPropertyEditor: View {
         )
     }
 
-    private var packageShadowLayersBinding: Binding<[FrameworkShadowLayer]> {
+    private var packageShadowLayersBinding: Binding<[ThemeShadowLayer]> {
         Binding(
             get: { packageShadowValue.customLayers },
             set: { layers in
@@ -1238,7 +1163,7 @@ struct PartPropertyEditor: View {
                     fieldID: definition.key.rawValue,
                     in: collectionRecord.wrappedValue,
                     at: .mobile,
-                    screens: framework.screens
+                    screens: theme.screens
                 ) != definition.defaultValue
         }
         return effectiveBreakpoint != .mobile
@@ -1248,13 +1173,13 @@ struct PartPropertyEditor: View {
 
     private var controlHasChanges: Bool {
         if collectionRecord != nil { return canResetControl }
-        let state = PartInspectorControlState(part: part, definition: definition, framework: framework)
+        let state = PartInspectorControlState(part: part, definition: definition, theme: theme)
         let targets = selectedParts.isEmpty ? [part] : selectedParts
         return targets.contains { target in
             state.hasChanges(
                 in: target,
                 at: effectiveBreakpoint,
-                screens: framework.screens
+                screens: theme.screens
             )
         }
     }
@@ -1348,7 +1273,7 @@ struct PartPropertyEditor: View {
                 if let token {
                     setProperty(.token(token))
                 } else {
-                    setProperty(.color(displayPart.colorProperty(definition.key, framework: framework)))
+                    setProperty(.color(displayPart.colorProperty(definition.key, theme: theme)))
                 }
             }
         )
@@ -1367,7 +1292,7 @@ struct PartPropertyEditor: View {
                     fieldID: key.rawValue,
                     in: collectionRecord.wrappedValue,
                     at: viewed,
-                    screens: framework.screens
+                    screens: theme.screens
                 )
             collectionRecord.wrappedValue = PartCollectionValue.setting(
                 value,
@@ -1382,7 +1307,7 @@ struct PartPropertyEditor: View {
         // so the change flows to every breakpoint inheriting that value.
         if selectedParts.count > 1, effectiveBreakpoint(for: key) != .mobile {
             let groups = Dictionary(grouping: selectedParts) {
-                $0.governingBreakpoint(for: key, at: breakpoint, screens: framework.screens)
+                $0.governingBreakpoint(for: key, at: breakpoint, screens: theme.screens)
             }
             for target in ResponsiveBreakpoint.allCases where groups[target] != nil {
                 write(value, key: key, at: target, ids: groups[target]!.map(\.id))
@@ -1391,7 +1316,7 @@ struct PartPropertyEditor: View {
         }
         let target = effectiveBreakpoint(for: key) == .mobile
             ? .mobile
-            : part.governingBreakpoint(for: key, at: breakpoint, screens: framework.screens)
+            : part.governingBreakpoint(for: key, at: breakpoint, screens: theme.screens)
         write(value, key: key, at: target)
     }
 
@@ -1474,7 +1399,7 @@ struct PartPropertyEditor: View {
                     fieldID: key.rawValue,
                     in: collectionRecord.wrappedValue,
                     at: breakpoint,
-                    screens: framework.screens
+                    screens: theme.screens
                 )
                 collectionRecord.wrappedValue = PartCollectionValue.setting(
                     value,
@@ -1490,7 +1415,7 @@ struct PartPropertyEditor: View {
         } else {
             // Pinning stores exactly at the viewed breakpoint, capturing the value
             // currently showing there — the one write that may create an override.
-            write(part.propertyValue(key, at: breakpoint, screens: framework.screens), key: key, at: breakpoint)
+            write(part.propertyValue(key, at: breakpoint, screens: theme.screens), key: key, at: breakpoint)
         }
     }
 
@@ -1501,9 +1426,9 @@ struct PartPropertyEditor: View {
     private var colourTokenSections: [String] {
         if isLinkColour { return ["links"] }
         guard let manifest = part.type.definition.package?.manifest,
-              let source = manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource else { return [] }
-        if source.type == .borders { return ["borders", "blackWhite"] }
-        return manifest.controlGroups.first(where: { $0.namespace == source.namespace })?.colourSections ?? []
+              let source = manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource else { return definition.colourSections }
+        if source.type == .borders { return ["borders", "blackWhite", "themes"] }
+        return manifest.controlGroups.first(where: { $0.namespace == source.namespace })?.colourSections ?? ["themes"]
     }
 
     private var isLinkColour: Bool {
@@ -1517,9 +1442,9 @@ struct PartPropertyEditor: View {
     }
 
     private var displayPart: PartNode {
-        var resolved = part.resolved(at: breakpoint, screens: framework.screens)
+        var resolved = part.resolved(at: breakpoint, screens: theme.screens)
         if part.type.definition.package?.manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource?.type.generatesBootstrapClasses == true {
-            resolved.setProperty(definition.key, value: part.propertyValue(definition.key, at: breakpoint, screens: framework.screens))
+            resolved.setProperty(definition.key, value: part.propertyValue(definition.key, at: breakpoint, screens: theme.screens))
         }
         guard let record = collectionRecord?.wrappedValue else { return resolved }
         for field in collectionDefinitions {
@@ -1529,7 +1454,7 @@ struct PartPropertyEditor: View {
                     fieldID: field.key.rawValue,
                     in: record,
                     at: field.isResponsive ? breakpoint : .mobile,
-                    screens: framework.screens
+                    screens: theme.screens
                 )
             )
         }

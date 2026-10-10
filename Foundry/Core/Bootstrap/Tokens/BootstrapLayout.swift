@@ -1,7 +1,7 @@
 import Foundation
 
 nonisolated enum BootstrapLayout {
-    static let ids: [FrameworkScreenID] = [.small, .medium, .large, .extraLarge, .doubleExtraLarge]
+    static let ids: [ThemeScreenID] = [.small, .medium, .large, .extraLarge, .doubleExtraLarge]
     static let classes = ["sm:container", "md:container", "lg:container", "xl:container", "2xl:container"]
 
     static func normalized(_ saved: ScreenTokens) -> ScreenTokens {

@@ -24,7 +24,7 @@ struct TransformsControlGroupTests {
             part.setProperty(.init(rawValue: "transforms.transformsHoverTranslateY"), value: .string("-40px"))
             part.setProperty(.init(rawValue: "transitions.transitionsEnabled"), value: .boolean(true))
             let site = Site(name: "Hover", pages: [Page(title: "Home", slug: "index", parts: [part])])
-            html = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+            html = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
             id = part.id.uuidString
         }
         let configuration = WKWebViewConfiguration()
@@ -141,7 +141,7 @@ struct TransformsControlGroupTests {
         part.setProperty(.init(rawValue: "transforms.transformsRotate"), value: .number(4))
         part.setProperty(.init(rawValue: "transforms.transformsHoverRotate"), value: .number(9))
         let site = Site(name: "Transform test", pages: [Page(title: "Home", slug: "index", parts: [part])])
-        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
         let export = StaticSiteRenderer().render(site: site, assets: [:])
         #expect(export.errors.isEmpty)
         let css = try #require(export.file(at: "files/page.css")?.contents)

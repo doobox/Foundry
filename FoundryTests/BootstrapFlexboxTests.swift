@@ -27,7 +27,7 @@ struct BootstrapFlexboxTests {
         #expect(group.properties.allSatisfy { $0.visibleWhen == nil })
     }
 
-    private func fixture(grid: Bool = false) -> (Page, Framework) {
+    private func fixture(grid: Bool = false) -> (Page, Theme) {
         var node = PartNode.make(grid ? .grid : .flex)
         node.anchor = "flex-test"
         node.children = [PartNode.make(.button), PartNode.make(.button)]
@@ -44,17 +44,17 @@ struct BootstrapFlexboxTests {
             node.setResponsiveProperty(key, value: .choice(medium), at: .medium)
         }
         let key = PartProperty.Key(rawValue: "gap.gap")
-        node.setProperty(key, value: .frameworkSpacing(.init(selection: .init(token: "5"))))
-        node.setResponsiveProperty(key, value: .frameworkSpacing(.init(selection: .init(token: "hero"))), at: .medium)
-        var framework = Framework.standard
-        framework.spacing.custom = [.init(name: "hero", value: 2)]
-        return (Page(title: "Flex", slug: "index", parts: [node]), framework)
+        node.setProperty(key, value: .themeSpacing(.init(selection: .init(token: "5"))))
+        node.setResponsiveProperty(key, value: .themeSpacing(.init(selection: .init(token: "hero"))), at: .medium)
+        var theme = Theme.standard
+        theme.spacing.custom = [.init(name: "hero", value: 2)]
+        return (Page(title: "Flex", slug: "index", parts: [node]), theme)
     }
 
     @Test(.timeLimit(.minutes(1)), arguments: ["canvas", "preview", "export"], [false, true])
     func nativeClassesAndComputedLayoutAgree(destination: String, grid: Bool) async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
-        var (page, framework) = fixture(grid: grid)
+        var (page, theme) = fixture(grid: grid)
         page.parts[0].setProperty(.init(rawValue: "display.visibility"), value: .choice("invisible"))
         if grid {
             page.parts[0].setProperty(.init(rawValue: "grid.columns"), value: .choice("grid-cols-1"))
@@ -68,14 +68,14 @@ struct BootstrapFlexboxTests {
         }
         let html: String
         if destination == "canvas" {
-            let rendered = try CanvasScene.render(renderer: HTMLPageRenderer(), page: page, language: "en", framework: framework,
+            let rendered = try CanvasScene.render(renderer: HTMLPageRenderer(), page: page, language: "en", theme: theme,
                 assets: [:], breakpoint: .medium, packageRevision: 0, previous: nil)
             #expect(rendered.scene.artifacts[page.parts[0].id]?.html.contains(grid ? "md:grid-cols-3" : "md:flex-row") == true)
             guard case .page(let document) = rendered.result else { Issue.record("Expected document"); return }
             html = document
         } else {
             var site = Site(name: "Flex", pages: [page])
-            site.framework = framework
+            site.theme = theme
             let bundle = StaticSiteRenderer(environment: destination == "preview" ? .preview : .published).render(site: site)
             #expect(bundle.errors.isEmpty)
             let document = try #require(bundle.file(at: "index.html"))
@@ -114,10 +114,10 @@ struct BootstrapFlexboxTests {
     @Test(.timeLimit(.minutes(1)), arguments: [false, true], [false, true])
     func liveSceneEditsKeepResponsiveGroups(localUpdate: Bool, grid: Bool) async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
-        var (page, framework) = fixture(grid: grid)
+        var (page, theme) = fixture(grid: grid)
         let id = page.parts[0].id
         func render(_ previous: CanvasScene?, key: PartProperty.Key? = nil) throws -> (scene: CanvasScene, result: CanvasRenderResult) {
-            try CanvasScene.render(renderer: HTMLPageRenderer(), page: page, language: "en", framework: framework,
+            try CanvasScene.render(renderer: HTMLPageRenderer(), page: page, language: "en", theme: theme,
                 assets: [:], breakpoint: .medium, packageRevision: 0, previous: previous,
                 consecutiveImpact: localUpdate ? key.map { .partProperty(partID: id, propertyKey: $0) } : nil)
         }
@@ -157,7 +157,7 @@ struct BootstrapFlexboxTests {
             ("display.display", .choice("d-none"), "md:d-none", "display", "none", "grid")
         ] : [
             ("flexbox.direction", PartProperty.Value.choice("flex-row-reverse"), "md:flex-row-reverse", "flexDirection", "row-reverse", "column"),
-            ("gap.gap", .frameworkSpacing(.init(selection: .init(token: "12"))), "md:gap-12", "gap", "48px", "16px"),
+            ("gap.gap", .themeSpacing(.init(selection: .init(token: "12"))), "md:gap-12", "gap", "48px", "16px"),
             ("alignment.alignItems", .choice("align-items-end"), "md:align-items-end", "alignItems", "flex-end", "flex-start"),
             ("display.display", .choice("d-none"), "md:d-none", "display", "none", "flex")
         ]
@@ -198,7 +198,7 @@ struct BootstrapFlexboxTests {
         let key = PartProperty.Key(rawValue: "display.visibility")
         node.setProperty(key, value: .choice("invisible"))
         node.setResponsiveProperty(key, value: .choice("visible"), at: .medium)
-        #expect(BootstrapControlGroupClasses.resolve(node: node, key: key, framework: .standard) == "invisible")
+        #expect(BootstrapControlGroupClasses.resolve(node: node, key: key, theme: .standard) == "invisible")
         let display = PartPackageControlGroup(type: .display, id: "presentation",
             allowedOptions: ["display": ["none", "d-flex", "d-grid"]])
         #expect(display.properties.first?.control.options?.map(\.value) == ["none", "d-flex", "d-grid"])

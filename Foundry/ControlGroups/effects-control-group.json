@@ -14,10 +14,10 @@
       "defaults": {
         "base": "none"
       },
-      "id": "frameworkShadow",
+      "id": "themeShadow",
       "label": "Shadow",
       "responsive": true,
-      "type": "frameworkShadow",
+      "type": "themeShadow",
       "visibleWhen": {
         "id": "effectsEnabled",
         "value": true

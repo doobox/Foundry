@@ -1,6 +1,6 @@
 import Foundation
 
-/// Single framework paint tokens, distinct from complete component themes.
+/// Single theme paint tokens, distinct from complete component themes.
 nonisolated struct PartColourToken: Identifiable {
     let id: String
     var selection: String { "token:" + id }
@@ -16,6 +16,7 @@ nonisolated struct PartColourToken: Identifiable {
     ]
     static var all: [Self] { groups.flatMap { $0.1 }.map { Self(id: $0) } }
     static let sectionIDs = ["blackWhite", "surfaces", "foregrounds", "borders", "links", "shadow"]
+    static let pickerSectionIDs = ["themes"] + sectionIDs
     static func groups(for sections: [String]) -> [(String, [String])] {
         var seen = Set<String>()
         return sections.compactMap { section in

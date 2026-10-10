@@ -4,15 +4,15 @@ import Foundation
 /// previews are used only for contrast selection, never as exported scale values.
 @MainActor
 enum BootstrapThemeGenerator {
-    static func generate(role: FrameworkColorRole, scale: BootstrapColourScale) async throws -> ColourPalette {
+    static func generate(role: ThemePaletteColorRole, scale: BootstrapColourScale) async throws -> ColourPalette {
         var palette = BootstrapColourCatalogue.palette(role: role)
         let shades = try await BootstrapScalePreviewResolver().resolve(scale)
         try palette.setBootstrapScale(scale, previews: shades)
         guard BootstrapColourCatalogue.themeRoles.contains(role.rawValue) else { return palette }
 
-        var framework = Framework.standard
-        framework.colourPalettes = [palette]
-        let css = BootstrapColourCatalogue.sourceCSS + BootstrapColorCSS.export(framework: framework, mode: .both)
+        var theme = Theme.standard
+        theme.colourPalettes = [palette]
+        let css = BootstrapColourCatalogue.sourceCSS + BootstrapColorCSS.export(theme: theme, mode: .both)
         let expressions = ["var(--bs-\(role.rawValue)-bg)"]
         let light = try await BootstrapScalePreviewResolver().resolve(expressions: expressions, css: css, mode: "light")
         let dark = try await BootstrapScalePreviewResolver().resolve(expressions: expressions, css: css, mode: "dark")

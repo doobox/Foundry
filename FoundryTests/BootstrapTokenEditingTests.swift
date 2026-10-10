@@ -20,9 +20,9 @@ struct BootstrapTokenEditingTests {
         #expect(generated.bootstrapScale == scale)
         let restored = try JSONDecoder().decode(ColourPalette.self, from: JSONEncoder().encode(generated))
         #expect(restored == generated)
-        var framework = Framework.standard
-        framework.colourPalettes[0] = restored
-        let css = BootstrapColourCatalogue.sourceCSS + BootstrapColorCSS.export(framework: framework, mode: .both)
+        var theme = Theme.standard
+        theme.colourPalettes[0] = restored
+        let css = BootstrapColourCatalogue.sourceCSS + BootstrapColorCSS.export(theme: theme, mode: .both)
         for mode in ["light", "dark"] {
             let colours = try await BootstrapScalePreviewResolver().resolve(
                 expressions: ["var(--bs-primary-bg)", "var(--bs-primary-contrast)"], css: css, mode: mode)
@@ -47,7 +47,7 @@ struct BootstrapTokenEditingTests {
         let original = BootstrapColourCatalogue.palette(role: .primary)
         var edited = original
         edited.bootstrapTokens["primary-contrast"] = BootstrapTokenColour(light: BootstrapColourScale.native("black"))
-        let model = FrameworkColourPreviewModel(storedPalettes: [original])
+        let model = ThemeColourPreviewModel(storedPalettes: [original])
         let undo = UndoManager()
         undo.groupsByEvent = false
         undo.beginUndoGrouping()
@@ -59,23 +59,23 @@ struct BootstrapTokenEditingTests {
         #expect(model.storedPalettes == [original])
         undo.redo()
         #expect(model.storedPalettes == [edited])
-        var framework = Framework.standard
-        framework.colourPalettes[0] = restored
-        let saved = try JSONDecoder().decode(Framework.self, from: JSONEncoder().encode(framework.savedSettings))
+        var theme = Theme.standard
+        theme.colourPalettes[0] = restored
+        let saved = try JSONDecoder().decode(Theme.self, from: JSONEncoder().encode(theme.savedSettings))
         #expect(saved.colourPalettes[0].bootstrapTokens == edited.bootstrapTokens)
-        framework.colourPalettes[0] = original
-        #expect(BootstrapColorCSS.export(framework: framework, mode: .both) == BootstrapColorCSS.export(framework: .standard, mode: .both))
+        theme.colourPalettes[0] = original
+        #expect(BootstrapColorCSS.export(theme: theme, mode: .both) == BootstrapColorCSS.export(theme: .standard, mode: .both))
     }
 
     @Test(.timeLimit(.minutes(1)))
     func tokenModesAndLayersResolveIndependently() async throws {
-        var framework = Framework.standard
-        let primary = try #require(framework.colourPalettes.firstIndex { $0.id == "framework.primary" })
-        let background = try #require(framework.colourPalettes.firstIndex { $0.id == "framework.background" })
-        framework.colourPalettes[primary].bootstrapTokens["primary-bg"] = BootstrapTokenColour(light: BootstrapColourScale.native("black"))
-        framework.colourPalettes[background].bootstrapTokens["bg-body"] = BootstrapTokenColour(
+        var theme = Theme.standard
+        let primary = try #require(theme.colourPalettes.firstIndex { $0.id == "framework.primary" })
+        let background = try #require(theme.colourPalettes.firstIndex { $0.id == "framework.background" })
+        theme.colourPalettes[primary].bootstrapTokens["primary-bg"] = BootstrapTokenColour(light: BootstrapColourScale.native("black"))
+        theme.colourPalettes[background].bootstrapTokens["bg-body"] = BootstrapTokenColour(
             light: BootstrapColourScale.native("black"), dark: BootstrapColourScale.native("white"))
-        let css = BootstrapColourCatalogue.sourceCSS + BootstrapColorCSS.export(framework: framework, mode: .both)
+        let css = BootstrapColourCatalogue.sourceCSS + BootstrapColorCSS.export(theme: theme, mode: .both)
         let tokens = ["primary-bg", "primary-contrast", "bg-body", "primary-bg-subtle"]
         let expressions = tokens.map { "var(--bs-\($0))" }
         let light = try await BootstrapScalePreviewResolver().resolve(expressions: expressions, css: css, mode: "light")

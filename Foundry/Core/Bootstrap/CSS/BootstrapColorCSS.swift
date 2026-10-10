@@ -1,22 +1,22 @@
 import Foundation
 
 /// Retains Bootstrap's theme formulas, including inverse/secondary and nested
-/// light-dark() behaviour. Framework edits remap the underlying hue references.
+/// light-dark() behaviour. Theme edits remap the underlying hue references.
 nonisolated enum BootstrapColorCSS {
-    static func canvas(framework: Framework, appearance: SiteAppearance) -> String {
-        build(framework: framework, colorScheme: appearance.rawValue)
+    static func canvas(theme: Theme, appearance: SiteAppearance) -> String {
+        build(theme: theme, colorScheme: appearance.rawValue)
     }
 
-    static func export(framework: Framework, mode: SiteAppearanceMode) -> String {
-        build(framework: framework, colorScheme: mode.cssColorScheme)
+    static func export(theme: Theme, mode: SiteAppearanceMode) -> String {
+        build(theme: theme, colorScheme: mode.cssColorScheme)
     }
 
-    private static func build(framework: Framework, colorScheme: String) -> String {
+    private static func build(theme: Theme, colorScheme: String) -> String {
         var declarations: [String] = []
-        let palettes = FrameworkColorRole.allCases.map { role in
-            framework.colourPalettes.resolvedPalette(id: "framework." + role.rawValue)
+        let palettes = ThemePaletteColorRole.allCases.map { role in
+            theme.colourPalettes.resolvedPalette(id: "framework." + role.rawValue)
                 ?? BootstrapColourCatalogue.palette(role: role)
-        } + framework.colourPalettes.filter { $0.origin == .custom && BootstrapPaletteTheme.validCustomRole($0.name) }
+        } + theme.colourPalettes.filter { $0.origin == .custom && BootstrapPaletteTheme.validCustomRole($0.name) }
         for palette in palettes {
             let definition = BootstrapPaletteTheme.definitionRole(palette)
             let role = BootstrapPaletteTheme.nativeRole(palette) ?? definition
@@ -50,7 +50,7 @@ nonisolated enum BootstrapColorCSS {
                 declarations.append("\(name):\(expression)")
             }
         }
-        return "/* Bootstrap 6 framework colours */\n:root,:host{\(declarations.joined(separator: ";"))}\n"
+        return "/* Bootstrap 6 theme colours */\n:root,:host{\(declarations.joined(separator: ";"))}\n"
             + ":root:not([data-bs-theme]),:host:not([data-bs-theme]){color-scheme:\(colorScheme); }"
             + palettes.filter { $0.origin == .custom }.map(customClasses).joined()
             + "@layer utilities{" + BootstrapColourCatalogue.themeRoles.map {

@@ -1,8 +1,0 @@
-{
-    "type" : "textArea",
-    "id" : "body",
-    "label" : "Body",
-    "defaults" : {
-        "base" : "First paragraph"
-    }
-}

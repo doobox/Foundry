@@ -157,7 +157,7 @@
       "id": "backgroundColor",
       "label": "Colour",
       "responsive": false,
-      "type": "themeColor",
+      "type": "themeColors",
       "visibleWhen": {
         "all": [
           {
@@ -567,7 +567,7 @@
       "id": "backgroundGradientFrom",
       "label": "From colour",
       "responsive": false,
-      "type": "themeColor",
+      "type": "themeColors",
       "visibleWhen": {
         "all": [
           {
@@ -685,7 +685,7 @@
       "id": "backgroundGradientTo",
       "label": "To colour",
       "responsive": false,
-      "type": "themeColor",
+      "type": "themeColors",
       "visibleWhen": {
         "all": [
           {
@@ -885,7 +885,7 @@
       "id": "backgroundHoverColor",
       "label": "Colour",
       "responsive": false,
-      "type": "themeColor",
+      "type": "themeColors",
       "visibleWhen": {
         "all": [
           {
@@ -1199,7 +1199,7 @@
       "id": "backgroundHoverGradientFrom",
       "label": "From colour",
       "responsive": false,
-      "type": "themeColor",
+      "type": "themeColors",
       "visibleWhen": {
         "all": [
           {
@@ -1281,7 +1281,7 @@
       "id": "backgroundHoverGradientTo",
       "label": "To colour",
       "responsive": false,
-      "type": "themeColor",
+      "type": "themeColors",
       "visibleWhen": {
         "all": [
           {
@@ -1411,7 +1411,7 @@
       }
     },
     {
-      "type": "themeColor",
+      "type": "themeColors",
       "id": "backgroundOverlayColor",
       "label": "Overlay colour",
       "responsive": false,

@@ -16,31 +16,54 @@
     "background"
   ],
   "assets": [],
-  "libraries": [{
-    "id": "bootstrap",
-    "majorVersion": 6
-  }],
+  "libraries": [
+    {
+      "id": "bootstrap",
+      "majorVersion": 6
+    }
+  ],
   "templates": {
     "html": "part.html"
   },
-  "inspector": [{
+  "inspector": [
+    {
+      "type": "themeColors",
+      "id": "theme",
+      "label": "Theme",
+      "defaults": {
+        "base": "framework.primary"
+      }
+    },
+    {
       "section": "Background",
       "systemImage": "paintpalette",
-      "controls": [{
-        "type": "background",
-        "id": "background",
-        "colourSections": [
-          "surfaces"
-        ],
-        "backgroundTypes": [
-          "colour",
-          "gradient",
-          "image",
-          "video"
-        ]
-      }]
+      "controls": [
+        {
+          "type": "background",
+          "id": "background",
+          "colourSections": [
+            "surfaces",
+            "themes"
+          ],
+          "backgroundTypes": [
+            "colour",
+            "gradient",
+            "image",
+            "video"
+          ]
+        }
+      ]
     },
-    { "section": "Spacing", "systemImage": "paintpalette", "controls": [{ "type": "spacing", "id": "space" }] },
+    {
+      "section": "Spacing",
+      "systemImage": "paintpalette",
+      "controls": [
+        {
+          "type": "spacing",
+          "id": "space"
+        }
+      ]
+    },
     {
       "type": "advanced"
     }

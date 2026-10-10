@@ -34,7 +34,7 @@ struct LayoutSizingTests {
         #expect(group.properties.contains { $0.id == "sizing.width" } == (layout != .container))
         #expect(group.properties.contains { $0.id == "sizing.maxWidth" } == (layout != .container))
         for property in group.properties {
-            #expect(BootstrapControlGroupClasses.resolve(node: part, key: .init(rawValue: property.id), framework: .standard) == "")
+            #expect(BootstrapControlGroupClasses.resolve(node: part, key: .init(rawValue: property.id), theme: .standard) == "")
         }
         var classes = ["vh-100", "min-h-0", "max-h-100", "ratio-16x9"]
         for (key, value) in [("height", "vh-100"), ("minHeight", "min-h-0"), ("maxHeight", "max-h-100"), ("aspectRatio", "ratio-16x9")] {
@@ -49,9 +49,9 @@ struct LayoutSizingTests {
         let page = Page(title: "Sizing", slug: "index", parts: [part])
         let html: String
         if environment == .canvas {
-            html = HTMLPageRenderer().render(page: page, framework: .standard)
+            html = HTMLPageRenderer().render(page: page, theme: .standard)
         } else {
-            let bundle = StaticSiteRenderer(environment: environment).render(site: Site(name: "Sizing", pages: [page], framework: .standard))
+            let bundle = StaticSiteRenderer(environment: environment).render(site: Site(name: "Sizing", pages: [page], theme: .standard))
             #expect(bundle.errors.isEmpty)
             let source = try #require(bundle.file(at: "index.html")?.contents)
             let css = try #require(bundle.file(at: "files/site.css")?.contents) + (try #require(bundle.file(at: "files/page.css")?.contents))

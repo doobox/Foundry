@@ -4,7 +4,7 @@ import Testing
 
 struct ColourPaletteTests {
     @Test func twoDefaultsSurviveDuplicationAndStorage() throws {
-        var palette = Framework.standard.colourPalettes[0]
+        var palette = Theme.standard.colourPalettes[0]
         palette.setLightDefault(.two)
         palette.setDarkDefault(.nine)
         let duplicate = try palette.duplicated()
@@ -15,7 +15,7 @@ struct ColourPaletteTests {
     }
 
     @Test func matchingNamesNeverOverrideOriginalReferences() throws {
-        for original in [Framework.standard.colourPalettes[0], ColourPaletteDefaults.standard[2]] {
+        for original in [Theme.standard.colourPalettes[0], ColourPaletteDefaults.standard[2]] {
             var custom = try original.duplicated()
             #expect(custom.name == original.name + " Copy")
             custom.name = original.name
@@ -33,18 +33,18 @@ struct ColourPaletteTests {
     }
 
     @Test func primaryIsTheFirstFixedRoleAndCustomColoursRemainIndependent() throws {
-        var framework = Framework.standard
-        #expect(FrameworkColorRole.allCases.first == .primary)
-        #expect(framework.colourPalettes.first?.id == "framework.primary")
-        let original = try #require(framework.colourPalettes.first)
+        var theme = Theme.standard
+        #expect(ThemePaletteColorRole.allCases.first == .primary)
+        #expect(theme.colourPalettes.first?.id == "framework.primary")
+        let original = try #require(theme.colourPalettes.first)
         var custom = try original.duplicated()
         try custom.replaceShades(Array(repeating: "#ABCDEF", count: ColourShade.allCases.count))
-        framework.colourPalettes.insert(custom, at: 0)
-        #expect(framework.color(for: .primary) == original.colour(at: .default))
-        #expect(framework.fixedFrameworkColourPalettes.first == original)
+        theme.colourPalettes.insert(custom, at: 0)
+        #expect(theme.color(for: .primary) == original.colour(at: .default))
+        #expect(theme.fixedThemeColourPalettes.first == original)
     }
     @Test func defaultReferencesFollowButExplicitShadesDoNot() throws {
-        var palette = try ColourPalette(id: "framework.accent", name: "Accent", origin: .framework,
+        var palette = try ColourPalette(id: "framework.accent", name: "Accent", origin: .theme,
             shades: (1...ColourShade.allCases.count).map { String(format: "#%06X", $0) }, lightDefaultShade: .six)
         let following = PaletteColourValue.palette(id: palette.id, selection: .default)
         let fixed = PaletteColourValue.palette(id: palette.id, selection: .shade(.six))
@@ -58,7 +58,7 @@ struct ColourPaletteTests {
     }
 
     @Test func storageAndDuplicationPreserveResolvedColours() throws {
-        let palette = try ColourPalette(id: "framework.accent", name: "Accent", origin: .framework,
+        let palette = try ColourPalette(id: "framework.accent", name: "Accent", origin: .theme,
             shades: Array(repeating: "#123456", count: ColourShade.allCases.count), lightDefaultShade: .six,
             generation: .init(algorithm: "foundry.rgb-soften.v1", anchor: .six,
                               anchorHex: "#123456", softening: 0.5, reversed: false))

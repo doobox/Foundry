@@ -24,18 +24,5 @@
   "templates": {
     "html": "part.html"
   },
-  "inspector": [
-    {
-      "section": "Content",
-      "controls": [
-        {
-          "type": "prose",
-          "id": "prose"
-        }
-      ]
-    },
-    {
-      "type": "advanced"
-    }
-  ]
+  "inspector": []
 }

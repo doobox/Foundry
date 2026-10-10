@@ -30,7 +30,7 @@ struct TemplateInspector: View {
     /// the definition, or the current page's background.
     private struct PreviewKey: Equatable {
         let definition: ReusablePartDefinition
-        let background: PartPackageColorValue?
+        let background: String?
     }
 
     private var previewKey: PreviewKey {

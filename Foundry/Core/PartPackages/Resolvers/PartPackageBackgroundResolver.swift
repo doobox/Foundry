@@ -22,7 +22,7 @@ nonisolated enum PartPackageBackgroundResolver {
             }
             let rawColour = string(local["backgroundColor"]) ?? ""
             let variant = string(local["backgroundColorVariant"]) ?? "bg"
-            for member in members where member.control.type == .themeColor {
+            for member in members where member.control.type == .themeColors {
                 guard let id = member.controlGroupSource?.localID,
                       let selected = string(local[id]), selected.hasPrefix("theme-") || PartColourToken.parse(selected) != nil else { continue }
                 let role = string(local[id + "Variant"]) ?? "bg"

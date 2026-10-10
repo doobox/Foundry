@@ -45,7 +45,7 @@ nonisolated enum SiteKitStore {
         }) else {
             throw CocoaError(.fileReadNoSuchFile)
         }
-        // Card artwork matches framework previews: PNG, JPEG, or WebP.
+        // Card artwork matches theme previews: PNG, JPEG, or WebP.
         let previewURL = ["png", "jpg", "jpeg", "webp"]
             .map { itemURL.appending(path: "preview.\($0)") }
             .first { FileManager.default.fileExists(atPath: $0.path) }

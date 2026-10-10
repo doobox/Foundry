@@ -15,11 +15,11 @@ struct BootstrapForegroundTests {
         await PartPackageCatalog.shared.waitUntilLoaded()
         var node = PartNode.make(.paragraph)
         node.setProperty(.init(rawValue: "foreground.theme"), value: .choice("palette:yellow:500"))
-        #expect(BootstrapPaletteTheme.resolve("palette:yellow:500", framework: .standard) == "theme-reset")
-        #expect(BootstrapControlGroupClasses.resolve(node: node, key: .init(rawValue: "foreground.theme"), framework: .standard) == "")
-        #expect(BootstrapPartUtilityCSS.render(node: node, framework: .standard).isEmpty)
+        #expect(BootstrapPaletteTheme.resolve("palette:yellow:500", theme: .standard) == "theme-reset")
+        #expect(BootstrapControlGroupClasses.resolve(node: node, key: .init(rawValue: "foreground.theme"), theme: .standard) == "")
+        #expect(BootstrapPartUtilityCSS.render(node: node, theme: .standard).isEmpty)
         let page = Page(title: "Removed colour", slug: "index", parts: [node])
-        #expect(HTMLPageRenderer().render(page: page, framework: .standard).contains("theme-palette--") == false)
+        #expect(HTMLPageRenderer().render(page: page, theme: .standard).contains("theme-palette--") == false)
     }
 
     @Test(.timeLimit(.minutes(1)), arguments: [PartTemplateEnvironment.canvas, .preview, .published])
@@ -36,7 +36,7 @@ struct BootstrapForegroundTests {
                     node.setProperty(.init(rawValue: "foreground.opacity"), value: .number(Double(opacity)))
                     let prefix = variant == "normal" ? "fg-" : "fg-\(variant)-"
                     let expected = colour == "theme-primary" ? prefix + "primary" : colour == "theme-warning" ? prefix + "warning" : colour == "token:fg-bg" ? "fg-bg" : "fg-token--link-color"
-                    let actual = BootstrapControlGroupClasses.resolve(node: node, key: .init(rawValue: "foreground.theme"), framework: .standard)
+                    let actual = BootstrapControlGroupClasses.resolve(node: node, key: .init(rawValue: "foreground.theme"), theme: .standard)
                     #expect(actual == expected)
                     parts.append(node)
                 }
@@ -45,7 +45,7 @@ struct BootstrapForegroundTests {
         let page = Page(title: "Variants", slug: "index", parts: parts)
         let html: String
         if environment == .canvas {
-            html = HTMLPageRenderer().render(page: page, framework: .standard)
+            html = HTMLPageRenderer().render(page: page, theme: .standard)
         } else {
             let bundle = StaticSiteRenderer(environment: environment).render(site: Site(name: "Variants", pages: [page]))
             #expect(bundle.errors.isEmpty)
@@ -85,24 +85,24 @@ struct BootstrapForegroundTests {
         #expect(inherited.property(colourKey) == "inherit")
         #expect(inherited.type.definition.package?.manifest.resolvedProperties.contains { $0.id == "foreground.enabled" } == false)
         inherited.setProperty(colourKey, value: .choice("theme-warning"))
-        #expect(BootstrapControlGroupClasses.resolve(node: inherited, key: colourKey, framework: .standard) == "fg-warning")
+        #expect(BootstrapControlGroupClasses.resolve(node: inherited, key: colourKey, theme: .standard) == "fg-warning")
         inherited.setProperty(colourKey, value: .choice("inherit"))
         inherited.setProperty(.init(rawValue: "foreground.opacity"), value: .number(55))
-        #expect(BootstrapPartUtilityCSS.render(node: inherited, framework: .standard).isEmpty)
-        #expect(BootstrapControlGroupClasses.resolve(node: inherited, key: .init(rawValue: "foreground.opacity"), framework: .standard) == "")
-        #expect(BootstrapControlGroupClasses.resolve(node: inherited, key: colourKey, framework: .standard) == "")
+        #expect(BootstrapPartUtilityCSS.render(node: inherited, theme: .standard).isEmpty)
+        #expect(BootstrapControlGroupClasses.resolve(node: inherited, key: .init(rawValue: "foreground.opacity"), theme: .standard) == "")
+        #expect(BootstrapControlGroupClasses.resolve(node: inherited, key: colourKey, theme: .standard) == "")
         var explicit = PartNode.make(.paragraph)
         explicit.anchor = "explicit"
         explicit.setProperty(.init(rawValue: "foreground.theme"), value: .choice("token:black"))
         container.children = [inherited, explicit]
         for type in [PartType.container, .paragraph] {
             let group = try #require(type.definition.package?.manifest.controlGroups.first { $0.type == .foreground })
-            #expect(group.colourSections == ["foregrounds", "blackWhite"])
+            #expect(group.colourSections == ["foregrounds", "blackWhite", "themes"])
         }
         let page = Page(title: "Foreground", slug: "index", parts: [container])
         let html: String
         if environment == .canvas {
-            html = HTMLPageRenderer().render(page: page, framework: .standard)
+            html = HTMLPageRenderer().render(page: page, theme: .standard)
         } else {
             let bundle = StaticSiteRenderer(environment: environment).render(site: Site(name: "Foreground", pages: [page]))
             #expect(bundle.errors.isEmpty)

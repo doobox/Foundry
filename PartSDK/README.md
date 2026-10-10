@@ -2,7 +2,7 @@
 
 The current distribution format is a macOS-style `.foundrypack` bundle
 (format version 2): a pack-level `manifest.json` at the root, plus typed
-`Parts/`, `Templates/`, and `Frameworks/` directories, each item a folder
+`Parts/`, `Templates/`, and `Themes/` directories, each item a folder
 containing its own `manifest.json` and `Resources/`. While developing, use the
 identical structure with a `.foundrydevpack` extension so Finder exposes it
 as an ordinary folder and Foundry can watch it in place.
@@ -38,7 +38,7 @@ Example.foundrydevpack/
 
 The root `manifest.json` identifies the pack itself. A pack may carry any number
 of parts under `Parts/`, template bundles under `Templates/`, framework
-bundles under `Frameworks/`, and importable asset collections under `Assets/`;
+bundles under `Themes/`, and importable asset collections under `Assets/`;
 other top-level items are rejected (hidden files such as `.git` are ignored,
 so a development pack can live in a checkout).
 

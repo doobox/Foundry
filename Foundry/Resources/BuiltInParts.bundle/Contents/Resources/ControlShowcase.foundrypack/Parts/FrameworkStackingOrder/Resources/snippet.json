@@ -1,8 +1,0 @@
-{
-    "type" : "frameworkStackingOrder",
-    "id" : "layer",
-    "label" : "Layer",
-    "defaults" : {
-        "base" : "base"
-    }
-}

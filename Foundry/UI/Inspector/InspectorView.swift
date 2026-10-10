@@ -26,7 +26,7 @@ struct InspectorView: View {
     let insertTemplate: (UUID) -> Void
     let globalDefinition: ReusablePartDefinition?
     let insertGlobalPart: (UUID) -> Void
-    let framework: Framework
+    let theme: Theme
     let assets: [ProjectAsset]
     let editor: ProjectEditor
     let reusableDefinition: ReusablePartDefinition?
@@ -92,7 +92,7 @@ struct InspectorView: View {
                     selectedPrimitive: selectedPrimitive,
                     selectPrimitive: selectPrimitive,
                     currentPage: currentPage,
-                    framework: framework,
+                    theme: theme,
                     assets: assets,
                     assetContents: assetContents,
                     pages: pages,
@@ -828,17 +828,13 @@ private struct PageInspector: View {
                             .font(.caption)
                             .foregroundStyle(.secondary)
                     }
-                    FrameworkColorControlContent(
-                        label: "Background",
-                        choices: framework.colorChoices,
-                        allowsCustom: true,
-                        framework: framework,
-                        source: backgroundSource,
-                        shade: backgroundShade,
-                        customColor: backgroundCustomColour,
-                        allowsOpacity: false,
-                        resetToFramework: { editor.setPageBackground(id: page.id, value: nil) },
-                        canResetToFramework: page.backgroundOverride != nil
+                    ThemeColorsPartControl(
+                        label: "Background", theme: theme,
+                        tokenSections: ["surfaces", "blackWhite"], allowsInherit: true,
+                        selection: Binding(
+                            get: { page.backgroundOverride ?? "inherit" },
+                            set: { editor.setPageBackground(id: page.id, value: $0 == "inherit" ? nil : $0) }
+                        )
                     )
                 }
             }
@@ -1022,38 +1018,7 @@ private struct PageInspector: View {
         }
     }
 
-    private var framework: Framework { editor.document.site.framework }
-    private var background: PartPackageColorValue { page.backgroundSelection(framework: framework) }
-
-    private var backgroundSource: Binding<String> {
-        Binding(get: { background.source }, set: { source in
-            var value = background
-            value.source = source
-            if let palette = framework.colourPalettes.resolvedPalette(id: value.paletteID) {
-                value.shade = palette.lightDefaultShade
-                value.darkShade = palette.darkDefaultShade
-            }
-            editor.setPageBackground(id: page.id, value: value)
-        })
-    }
-
-    private var backgroundShade: Binding<ColourShade> {
-        Binding(get: { appearance == .light ? background.shade : background.darkShade }, set: { shade in
-            var value = background
-            if appearance == .light { value.shade = shade } else { value.darkShade = shade }
-            editor.setPageBackground(id: page.id, value: value)
-        })
-    }
-
-    private var backgroundCustomColour: Binding<Color> {
-        Binding(get: { Color(hex: appearance == .light ? background.customColor : background.darkCustomColor) ?? .black }, set: { colour in
-            guard let hex = colour.hexString else { return }
-            var value = background
-            if appearance == .light { value.customColor = hex } else { value.darkCustomColor = hex }
-            editor.setPageBackground(id: page.id, value: value)
-        })
-    }
-
+    private var theme: Theme { editor.document.site.theme }
     private func metadataBinding(
         _ keyPath: WritableKeyPath<PageMetadata, String>
     ) -> Binding<String> {
@@ -1082,7 +1047,7 @@ private struct PartInspector: View {
     let selectedPrimitive: CanvasPrimitiveSelection?
     let selectPrimitive: (CanvasPrimitiveSelection?) -> Void
     let currentPage: Page?
-    let framework: Framework
+    let theme: Theme
     let assets: [ProjectAsset]
     let assetContents: ProjectAssetContents
     let pages: [Page]
@@ -1166,11 +1131,6 @@ private struct PartInspector: View {
                 partIdentityHeader
                     .padding(EdgeInsets(top: 16, leading: 16, bottom: 14, trailing: 16))
 
-                if selectedParts.count == 1, let snippets = part.type.definition.package?.showcaseSnippets, !snippets.isEmpty {
-                    Divider()
-                    PartShowcaseSnippetsSection(snippets: snippets)
-                }
-
                 ForEach(displayedSections, id: \.section.rawValue) { section in
                     let group = section.section
                     Divider()
@@ -1191,7 +1151,7 @@ private struct PartInspector: View {
                         selectedPrimitive: selectedPrimitive,
                         selectPrimitive: selectPrimitive,
                         currentPage: currentPage,
-                        framework: framework,
+                        theme: theme,
                         assets: assets,
                         assetContents: assetContents,
                         pages: pages,
@@ -1265,7 +1225,7 @@ private struct PartInspector: View {
                 part.type.definition.visibilityCondition(for: row.section),
                 for: part,
                 at: breakpoint,
-                screens: framework.screens
+                screens: theme.screens
             ) else { continue }
             guard let visible = row.filtered(
                 properties: { isVisible($0) },
@@ -1288,7 +1248,7 @@ private struct PartInspector: View {
     }
 
     private func isVisible(_ slot: PartPackageSlot) -> Bool {
-        PartPackageVisibilityEvaluator.isVisible(slot.visibleWhen, for: part, at: breakpoint, screens: framework.screens)
+        PartPackageVisibilityEvaluator.isVisible(slot.visibleWhen, for: part, at: breakpoint, screens: theme.screens)
     }
 
     private func isVisible(_ property: PartPropertyDefinition) -> Bool {
@@ -1296,7 +1256,7 @@ private struct PartInspector: View {
             property.visibleWhen,
             for: part,
             at: property.isResponsive ? breakpoint : .mobile,
-            screens: framework.screens
+            screens: theme.screens
         )
     }
 
@@ -1393,17 +1353,6 @@ private struct PartInspector: View {
 
             Spacer(minLength: 0)
 
-            // A showcase is a demo of one control; its reference page is the
-            // next thing a developer wants, so it sits right by the title.
-            if let package = part.type.definition.package, package.isControlShowcase,
-               let helpURL = package.manifest.helpURL {
-                Link(destination: helpURL) {
-                    Label("API Docs", systemImage: "book")
-                }
-                .buttonStyle(.bordered)
-                .controlSize(.small)
-                .help(helpURL.absoluteString)
-            }
         }
         .padding(.vertical, 2)
     }
@@ -1479,58 +1428,6 @@ private struct PartInspector: View {
     private func anchorCount(_ anchor: String, in node: PartNode) -> Int {
         let matches = node.anchor == anchor
         return (matches ? 1 : 0) + node.children.reduce(0) { $0 + anchorCount(anchor, in: $1) }
-    }
-}
-
-/// The copy-and-go code a Controls showcase part carries: the control's
-/// declaration, its template usage and any CSS, each with a Copy button.
-private struct PartShowcaseSnippetsSection: View {
-    let snippets: [PartShowcaseSnippet]
-    @State private var copiedID: String?
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack(spacing: 6) {
-                Image(systemName: "curlybraces")
-                    .foregroundStyle(.secondary)
-                Text("Snippets")
-                    .font(.headline)
-            }
-            Text("Paste these into your own part to start from a working declaration.")
-                .font(.callout)
-                .foregroundStyle(.secondary)
-            ForEach(snippets) { snippet in
-                VStack(alignment: .leading, spacing: 4) {
-                    HStack {
-                        Text(snippet.title)
-                            .font(.caption.weight(.semibold))
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Button(copiedID == snippet.id ? "Copied" : "Copy") {
-                            NSPasteboard.general.clearContents()
-                            NSPasteboard.general.setString(snippet.text, forType: .string)
-                            copiedID = snippet.id
-                            Task {
-                                try? await Task.sleep(for: .seconds(1.5))
-                                if copiedID == snippet.id { copiedID = nil }
-                            }
-                        }
-                        .buttonStyle(.bordered)
-                        .controlSize(.mini)
-                        .help("Copy \(snippet.title) to the clipboard")
-                    }
-                    ScrollView(.horizontal) {
-                        Text(snippet.text)
-                            .font(.system(.caption, design: .monospaced))
-                            .textSelection(.enabled)
-                            .padding(8)
-                    }
-                    .background(Color(nsColor: .textBackgroundColor).opacity(0.6), in: RoundedRectangle(cornerRadius: 6))
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color.secondary.opacity(0.25), lineWidth: 1))
-                }
-            }
-        }
-        .padding(EdgeInsets(top: 14, leading: 16, bottom: 14, trailing: 16))
     }
 }
 
@@ -1929,7 +1826,7 @@ private struct PartInspectorGroup: View {
     let selectedPrimitive: CanvasPrimitiveSelection?
     let selectPrimitive: (CanvasPrimitiveSelection?) -> Void
     let currentPage: Page?
-    let framework: Framework
+    let theme: Theme
     let assets: [ProjectAsset]
     let assetContents: ProjectAssetContents
     let pages: [Page]
@@ -1949,7 +1846,7 @@ private struct PartInspectorGroup: View {
         let targets = selectedParts.isEmpty ? [part] : selectedParts
         var result = (isModified: false, canReset: false)
         for target in targets {
-            let state = PartInspectorSectionState(part: target, section: group, framework: framework)
+            let state = PartInspectorSectionState(part: target, section: group, theme: theme)
             result.isModified = result.isModified || state.hasChanges(in: target)
             result.canReset = result.canReset || state.canReset(target)
         }
@@ -2018,7 +1915,8 @@ private struct PartInspectorGroup: View {
                     .foregroundStyle(status.isModified ? Color.accentColor : Color.primary)
                     .underline(status.isModified && differentiateWithoutColor)
             } icon: {
-                Image(systemName: part.type.definition.systemImage(for: group))
+                let symbol = part.type.definition.systemImage(for: group)
+                Image(systemName: symbol)
                     .foregroundStyle(.primary)
             }
         }
@@ -2038,7 +1936,7 @@ private struct PartInspectorGroup: View {
             part: part,
             selectedParts: selectedParts,
             currentPage: currentPage,
-            framework: framework,
+            theme: theme,
             assets: assets,
             assetContents: assetContents,
             pages: pages,
@@ -2154,7 +2052,7 @@ private struct PartInspectorPreviewHarness: View {
                     insertTemplate: { _ in },
                     globalDefinition: nil,
                     insertGlobalPart: { _ in },
-                    framework: document.site.framework,
+                    theme: document.site.theme,
                     assets: document.site.assets,
                     editor: ProjectEditor(document: document, undoManager: nil),
                     reusableDefinition: nil,

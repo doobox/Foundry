@@ -47,7 +47,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         )
         var sitePackages: [LoadedPartPackage] = []
         var sitePackageIdentifiers = Set<String>()
-        for page in site.pages where !page.isDeveloperPlayground {
+        for page in site.pages {
             try Task.checkCancellation()
             let isHome = page.slug == "index"
             let directory = isHome
@@ -88,7 +88,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 contents: render(
                     page: page,
                     language: site.language,
-                    framework: site.framework,
+                    theme: site.theme,
                     stylesheetPaths: [rootPrefix + "files/site.css", "files/page.css"],
                     scripts: scriptsBefore + (includesPageJavaScript ? [FoundryWebScript(path: "files/page.js")] : []) + scriptsAfter,
                     assetPrefix: rootPrefix + "assets",
@@ -112,7 +112,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     path: Self.joinedPath(pageFilesDirectory, "page.js"),
                     contents: pageScripts(
                         for: page,
-                        framework: site.framework,
+                        theme: site.theme,
                         assetPrefix: rootPrefix + "assets",
                         packageAssetPrefix: documentPackageAssetPrefix,
                         assets: assets,
@@ -237,9 +237,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         prefix.isEmpty ? suffix : prefix + "/" + suffix
     }
 
-    private func render(page: Page, language: String, framework: Framework, stylesheetPaths: [String], scripts: [FoundryWebScript], assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site, webIconPlan: WebIconExportPlan) -> String {
+    private func render(page: Page, language: String, theme: Theme, stylesheetPaths: [String], scripts: [FoundryWebScript], assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site, webIconPlan: WebIconExportPlan) -> String {
         let outputHooks = PublishedPartHooks(page: page, site: site)
-        let body = page.parts.map { render($0, page: page, framework: framework, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site, outputHooks: outputHooks) }.joined(separator: "\n")
+        let body = page.parts.map { render($0, page: page, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site, outputHooks: outputHooks) }.joined(separator: "\n")
         let pageTitle = page.metadata.browserTitle.isEmpty ? page.title : page.metadata.browserTitle
         let browserTitle = pageTitle + site.titleSuffix
         let metadata = metadataHTML(for: page, browserTitle: browserTitle, assetPrefix: assetPrefix, assets: assets, site: site, webIconPlan: webIconPlan)
@@ -248,7 +248,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let bodyStart = placedHTML(for: page, placement: .bodyStart, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, site: site)
         let bodyEnd = placedHTML(for: page, placement: .bodyEnd, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, site: site)
         let scriptTags = scripts.map(\.htmlTag).joined(separator: "\n")
-        let php = packagePHP(for: page, framework: framework, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site)
+        let php = packagePHP(for: page, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site)
         let customHeadCode = site.customCodeEnabled ? site.headCode : ""
         let customBodyStartCode = site.customCodeEnabled ? site.bodyStartCode : ""
         let customBodyEndCode = site.customCodeEnabled ? site.bodyEndCode : ""
@@ -283,7 +283,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         <head>
         \(joined(headLines))
         </head>
-        <body\(page.backgroundOverride == nil ? "" : " style=\"background-color: " + escapeAttribute(site.appearanceMode.colour(light: page.backgroundColour(framework: framework, appearance: .light), dark: page.backgroundColour(framework: framework, appearance: .dark))) + "\"")>
+        <body\(page.backgroundOverride == nil ? "" : " style=\"background-color: " + escapeAttribute(site.appearanceMode.colour(light: page.backgroundColour(theme: theme, appearance: .light), dark: page.backgroundColour(theme: theme, appearance: .dark))) + "\"")>
         \(joined(bodyLines))
         </body>
         </html>
@@ -291,7 +291,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return php.isEmpty ? document : php + "\n" + document
     }
 
-    private func packagePHP(for page: Page, framework: Framework, assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site) -> String {
+    private func packagePHP(for page: Page, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site) -> String {
         let nodes = page.parts.flatMap(\.flattened)
         let instancePHP = nodes.compactMap { node -> String? in
             guard !Task.isCancelled else { return nil }
@@ -303,7 +303,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 context: .init(
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
-                    properties: packageProperties(node, framework: framework, assetPrefix: assetPrefix, assets: assets, site: site),
+                    properties: packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site),
                     templateValues: navigationValues(for: page, in: site),
                     slots: [:],
                     assetBasePath: packageAssetPrefix,
@@ -343,7 +343,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return (instancePHP + sharedPHP).joined(separator: "\n")
     }
 
-    private func pageScripts(for page: Page, framework: Framework, assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site) -> String {
+    private func pageScripts(for page: Page, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site) -> String {
         let nodes = page.parts.flatMap(\.flattened)
         let instanceScripts = nodes.compactMap { node -> String? in
             guard !Task.isCancelled else { return nil }
@@ -357,7 +357,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             guard !source.isEmpty else { return nil }
             return PartTemplateRenderer.render(
                 source,
-                context: .init(instanceID: node.id, packageIdentifier: package.manifest.identifier, properties: packageProperties(node, framework: framework, assetPrefix: assetPrefix, assets: assets, site: site), templateValues: navigationValues(for: page, in: site), slots: [:], assetBasePath: packageAssetPrefix, assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix), siteBaseURL: siteBaseURL(for: site), pageURL: pageURL(for: page, in: site), siteRootPath: siteRootPath(for: assetPrefix), siteAssetsPath: assetPrefix, environment: environment)
+                context: .init(instanceID: node.id, packageIdentifier: package.manifest.identifier, properties: packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site), templateValues: navigationValues(for: page, in: site), slots: [:], assetBasePath: packageAssetPrefix, assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix), siteBaseURL: siteBaseURL(for: site), pageURL: pageURL(for: page, in: site), siteRootPath: siteRootPath(for: assetPrefix), siteAssetsPath: assetPrefix, environment: environment)
             )
         }
         var seenPackages: Set<String> = []
@@ -506,7 +506,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         return lines.joined(separator: "\n") + "\n"
     }
 
-    private func render(_ node: PartNode, page: Page, framework: Framework, assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site, outputHooks: PublishedPartHooks) -> String {
+    private func render(_ node: PartNode, page: Page, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site, outputHooks: PublishedPartHooks) -> String {
         guard !Task.isCancelled else { return "" }
         switch node.type.definition.renderKind {
         case .package:
@@ -514,7 +514,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 return missingPackageHTML(
                     node,
                     page: page,
-                    framework: framework,
+                    theme: theme,
                     assetPrefix: assetPrefix,
                     packageAssetPrefix: packageAssetPrefix,
                     assets: assets,
@@ -525,7 +525,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 return missingPackageHTML(
                     node,
                     page: page,
-                    framework: framework,
+                    theme: theme,
                     assetPrefix: assetPrefix,
                     packageAssetPrefix: packageAssetPrefix,
                     assets: assets,
@@ -536,13 +536,13 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 let children = node.children.filter {
                     ($0.slotID ?? (package.hasDropZone ? nil : package.renderDefinition.slots.first?.id)) == slot.id
                 }
-                return (slot.id, children.map { render($0, page: page, framework: framework, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site, outputHooks: outputHooks) }.joined())
+                return (slot.id, children.map { render($0, page: page, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site, outputHooks: outputHooks) }.joined())
             })
             let dropZones = Dictionary(uniqueKeysWithValues: package.dropZoneNames.enumerated().map { index, name in
                 let slotID = package.dropZoneSlotID(for: name)
                 let children = node.children.filter { $0.slotID == slotID || (index == 0 && $0.slotID == nil) }
                 return (name, children.map {
-                    render($0, page: page, framework: framework, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site, outputHooks: outputHooks)
+                    render($0, page: page, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site, outputHooks: outputHooks)
                 }.joined())
             })
             let anchor = PartAnchorValidator.validated(node.anchor)
@@ -557,7 +557,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             let outputClass = requiresIdentity
                 ? partClass(node) + " " + PartTemplateRenderer.packageClass(for: package.manifest.identifier)
                 : PartRootAttributeValidator.normalizedClasses(node.customClasses)
-            let properties = packageProperties(node, framework: framework, assetPrefix: assetPrefix, assets: assets, site: site)
+            let properties = packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site)
             let templateContext = PartTemplateContext(
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
@@ -583,7 +583,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                         absoluteURL: false
                     ),
                     richTextColourContext: .init(
-                        palettes: framework.colourPalettes,
+                        palettes: theme.colourPalettes,
                         mode: site.appearanceMode
                     )
                 )
@@ -602,7 +602,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             return missingPackageHTML(
                 node,
                 page: page,
-                framework: framework,
+                theme: theme,
                 assetPrefix: assetPrefix,
                 packageAssetPrefix: packageAssetPrefix,
                 assets: assets,
@@ -629,17 +629,17 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     }
 
     private func stylesheet(for site: Site, assets: ProjectAssetContents) -> String {
-        let framework = site.framework
+        let theme = site.theme
         let sitePackages = PartArtifactPlan.sitePackages(in: site)
         return """
-        \(framework.fontSourceCSS(
+        \(theme.fontSourceCSS(
             assets: assets,
             destination: .export,
             exportedSource: { "../" + site.publishedPath(for: $0) }
         ))
         \(FoundryWebLibraryRegistry.exportCSS(for: sitePackages))
-        \(BootstrapThemeCSS.render(framework: framework))
-        \(BootstrapColorCSS.export(framework: framework, mode: site.appearanceMode))
+        \(BootstrapThemeCSS.render(theme: theme))
+        \(BootstrapColorCSS.export(theme: theme, mode: site.appearanceMode))
         \(sitePackageStyles(for: site))
         """
     }
@@ -763,7 +763,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     ) -> String {
         let nodes = page.parts.flatMap(\.flattened)
         return ResponsiveBreakpoint.allCases.dropFirst().compactMap { breakpoint in
-            guard let minimumWidth = breakpoint.minimumWidth(in: site.framework.screens) else { return nil }
+            guard let minimumWidth = breakpoint.minimumWidth(in: site.theme.screens) else { return nil }
             let rules = nodes.compactMap { node -> String? in
                 guard !Task.isCancelled else { return nil }
                 let hasPartOverride = node.responsiveOverrides?.contains(where: { $0.breakpoint == breakpoint }) == true
@@ -773,7 +773,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     return PartCollectionValue.hasOverride(in: value, at: breakpoint)
                 }
                 guard hasPartOverride || hasCollectionOverride else { return nil }
-                let resolved = node.resolved(at: breakpoint, screens: site.framework.screens)
+                let resolved = node.resolved(at: breakpoint, screens: site.theme.screens)
                 if let package = resolved.type.definition.package {
                     let css = PartTemplateRenderer.render(
                         [package.css, package.renderDefinition.controlGroupCSS]
@@ -784,7 +784,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                             packageIdentifier: package.manifest.identifier,
                             properties: packageProperties(
                                 resolved,
-                                framework: site.framework,
+                                theme: site.theme,
                                 assetPrefix: assetPrefix,
                                 assets: assets,
                                 site: site,
@@ -807,7 +807,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                         packageIdentifier: package.manifest.identifier,
                         instanceID: resolved.id
                     )
-                    let background = PartPackageBackgroundResolver.stylesheet(packageProperties(resolved, framework: site.framework, assetPrefix: assetPrefix, assets: assets, site: site, breakpoint: breakpoint))
+                    let background = PartPackageBackgroundResolver.stylesheet(packageProperties(resolved, theme: site.theme, assetPrefix: assetPrefix, assets: assets, site: site, breakpoint: breakpoint))
                     return scopedCSS + background
                 }
                 return nil
@@ -842,7 +842,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     packageIdentifier: package.manifest.identifier,
                     properties: packageProperties(
                         node,
-                        framework: site.framework,
+                        theme: site.theme,
                         assetPrefix: assetPrefix,
                         assets: assets,
                         site: site
@@ -865,7 +865,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 instanceID: node.id
             )
             let custom = PartTemplateRenderer.scopedCustomCSS(node.customCSS, instanceID: node.id)
-            let background = PartPackageBackgroundResolver.stylesheet(packageProperties(node, framework: site.framework, assetPrefix: assetPrefix, assets: assets, site: site))
+            let background = PartPackageBackgroundResolver.stylesheet(packageProperties(node, theme: site.theme, assetPrefix: assetPrefix, assets: assets, site: site))
             return [scoped, custom, background].filter { !$0.isEmpty }.joined(separator: "\n")
         }.joined(separator: "\n")
         let pagePackageStyles = PartArtifactPlan(page: page).packages.compactMap { package -> String? in
@@ -897,7 +897,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         )
         // Derive and deduplicate only the current page's local themes. No registry
         // survives a render, so deleting the last user removes the rule.
-        let paletteStyles = Set(nodes.map { BootstrapPartUtilityCSS.render(node: $0, framework: site.framework) }).sorted().joined(separator: "\n")
+        let paletteStyles = Set(nodes.map { BootstrapPartUtilityCSS.render(node: $0, theme: site.theme) }).sorted().joined(separator: "\n")
         return CSSTidy.tidy(
             [instanceStyles, paletteStyles, pagePackageStyles, responsiveStyles]
                 .filter { !$0.isEmpty }
@@ -935,17 +935,16 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         case .array(let values): .array(values.map(packageValue))
         case .object(let values): .object(values.mapValues(packageValue))
         case .link: .string("")
-        case .packageColor(let value): .string(value.source)
         case .packageFontSize(let value): .string(value.source)
         case .packageShadow(let value): .string(value.source)
         case .packageStackingOrder(let value): .string(value.source)
-        case .frameworkSpacing, .frameworkPadding, .frameworkMargin, .frameworkBorderWidth, .frameworkRadius: .string("")
+        case .themeSpacing, .themePadding, .themeMargin, .themeBorderWidth, .themeRadius: .string("")
         }
     }
 
     private func packageProperties(
         _ node: PartNode,
-        framework: Framework,
+        theme: Theme,
         assetPrefix: String,
         assets: ProjectAssetContents,
         site: Site,
@@ -959,30 +958,30 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let manifestProperties = partDefinition.package?.renderDefinition.properties ?? []
         var values: [String: PartPackageValue] = Dictionary(uniqueKeysWithValues: definitions.map { definition in
             let value = node.storedPropertyValue(definition.key) ?? definition.defaultValue
-            if let classes = BootstrapControlGroupClasses.resolve(node: node, key: definition.key, framework: framework) {
+            if let classes = BootstrapControlGroupClasses.resolve(node: node, key: definition.key, theme: theme) {
                 return (definition.key.rawValue, .string(classes))
             }
-            if case .frameworkBorderWidth(let width) = value {
-                return (definition.key.rawValue, PartPackageFrameworkBorderWidthControl.resolved(width, framework: framework))
+            if case .themeBorderWidth(let width) = value {
+                return (definition.key.rawValue, PartPackageThemeBorderWidthControl.resolved(width, theme: theme))
             }
-            if case .frameworkRadius(let radius) = value {
-                return (definition.key.rawValue, PartPackageFrameworkRadiusControl.resolved(radius, framework: framework))
+            if case .themeRadius(let radius) = value {
+                return (definition.key.rawValue, PartPackageThemeRadiusControl.resolved(radius, theme: theme))
             }
-            if case .frameworkMargin(let margin) = value {
-                return (definition.key.rawValue, PartPackageFrameworkMarginControl.resolved(margin, framework: framework))
+            if case .themeMargin(let margin) = value {
+                return (definition.key.rawValue, PartPackageThemeMarginControl.resolved(margin, theme: theme))
             }
-            if case .frameworkSpacing(let spacing) = value {
+            if case .themeSpacing(let spacing) = value {
                 return (definition.key.rawValue, PartPackageSingleSpacingControl.resolved(
                     spacing,
-                    framework: framework,
+                    theme: theme,
                     noneValue: manifestProperties.first { $0.id == definition.key.rawValue }?.noneValue
                 ))
             }
-            if case .frameworkPadding(let padding) = value {
-                return (definition.key.rawValue, PartPackageFrameworkPaddingControl.resolved(padding, framework: framework))
+            if case .themePadding(let padding) = value {
+                return (definition.key.rawValue, PartPackageThemePaddingControl.resolved(padding, theme: theme))
             }
-            if case .frameworkFont = definition.control {
-                return (definition.key.rawValue, PartPackageFontControl.resolved(definition.key.rawValue, node: node, framework: framework))
+            if case .themeFont = definition.control {
+                return (definition.key.rawValue, PartPackageFontControl.resolved(definition.key.rawValue, node: node, theme: theme))
             }
             if case .collection(_, let fields) = definition.control {
                 let records = value.arrayValue ?? []
@@ -993,7 +992,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                             record,
                             fields: fields,
                             breakpoint: breakpoint,
-                            framework: framework,
+                            theme: theme,
                             source: { source, _ in
                                 exportSource(source, assetPrefix: assetPrefix, assets: assets, site: site)
                             },
@@ -1007,21 +1006,6 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                                     publicURL: site.publicURL,
                                     absoluteURL: absoluteURL
                                 )
-                            },
-                            packageColor: { color, opacity in
-                                site.appearanceMode.colour(
-                                    light: PartPackageColorResolver.resolve(
-                                        color,
-                                        framework: framework,
-                                        opacity: opacity
-                                    ),
-                                    dark: PartPackageColorResolver.resolve(
-                                        color,
-                                        framework: framework,
-                                        opacity: opacity,
-                                        appearance: .dark
-                                    )
-                                )
                             }
                         )
                     })
@@ -1034,51 +1018,41 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 )
             }
             if case .color = definition.control {
-                return (definition.key.rawValue, .string(node.colorProperty(definition.key, framework: framework)))
+                return (definition.key.rawValue, .string(node.colorProperty(definition.key, theme: theme)))
             }
-            if case .packageColor(_, let opacity, _, _) = definition.control,
-               case .packageColor(let colorValue) = value {
-                return (
-                    definition.key.rawValue,
-                    .string(site.appearanceMode.colour(
-                        light: PartPackageColorResolver.resolve(colorValue, framework: framework, opacity: opacity),
-                        dark: PartPackageColorResolver.resolve(colorValue, framework: framework, opacity: opacity, appearance: .dark)
-                    ))
-                )
-            }
-            if case .themeColor = definition.control {
-                return (definition.key.rawValue, .string(BootstrapPaletteTheme.resolve(node.property(definition.key), framework: framework)))
+            if case .themeColors = definition.control {
+                return (definition.key.rawValue, .string(BootstrapPaletteTheme.resolve(node.property(definition.key), theme: theme)))
             }
             if node.type == .container && definition.key.rawValue == "width" {
-                return (definition.key.rawValue, .string(BootstrapLayout.containerClass(node.property(definition.key), screens: framework.screens)))
+                return (definition.key.rawValue, .string(BootstrapLayout.containerClass(node.property(definition.key), screens: theme.screens)))
             }
-            if case .frameworkFontSize = definition.control {
+            if case .themeFontSize = definition.control {
 
-                return (definition.key.rawValue, .string(framework.fontSizeCSSVariable(for: node.property(definition.key))))
+                return (definition.key.rawValue, .string(theme.fontSizeCSSVariable(for: node.property(definition.key))))
             }
-            if case .frameworkStackingOrder = definition.control {
+            if case .themeStackingOrder = definition.control {
                 if case .packageStackingOrder(let selected) = value, selected.isCustom {
                     return (definition.key.rawValue, .string(String(Int(selected.customValue))))
                 }
-                return (definition.key.rawValue, .string(framework.zIndexCSSVariable(for: node.property(definition.key))))
+                return (definition.key.rawValue, .string(theme.zIndexCSSVariable(for: node.property(definition.key))))
             }
             if case .packageShadow = definition.control,
                case .packageShadow(let shadowValue) = value {
                 if manifestProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource?.type == .filters {
-                    return (definition.key.rawValue, .string(PartPackageShadowResolver.filter(shadowValue, framework: framework)))
+                    return (definition.key.rawValue, .string(PartPackageShadowResolver.filter(shadowValue, theme: theme)))
                 }
                 return (
                     definition.key.rawValue,
-                    .string(PartPackageShadowResolver.resolve(shadowValue, framework: framework))
+                    .string(PartPackageShadowResolver.resolve(shadowValue, theme: theme))
                 )
             }
             if case .number = definition.control {
-                return (definition.key.rawValue, .number(node.numberProperty(definition.key, framework: framework)))
+                return (definition.key.rawValue, .number(node.numberProperty(definition.key, theme: theme)))
             }
             return (definition.key.rawValue, packageValue(value))
         })
         for definition in definitions {
-            if definition.control.isFrameworkSpacing,
+            if definition.control.isThemeSpacing,
                case .object(let fields) = values[definition.key.rawValue] {
                 for (field, value) in fields {
                     let key = definition.key.rawValue + "." + field
@@ -1090,37 +1064,15 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 // Direct interpolation is the shorthand; qualified fields remain available above.
                 values[definition.key.rawValue] = fields["css"]
             }
-            if case .frameworkFont = definition.control,
+            if case .themeFont = definition.control,
                case .object(let fields) = values[definition.key.rawValue] {
                 for (field, value) in fields { values[definition.key.rawValue + "." + field] = value }
             }
-            if case .frameworkFontSize = definition.control {
-                // The size's paired leading travels with it in the framework.
+            if case .themeFontSize = definition.control {
+                // The size's paired leading travels with it in the theme.
                 values[definition.key.rawValue + ".lineHeight"] = .string(
-                    framework.lineHeightCSSVariable(for: node.property(definition.key))
+                    theme.lineHeightCSSVariable(for: node.property(definition.key))
                 )
-            }
-            if case .packageColor(_, let opacity, _, _) = definition.control,
-               case .packageColor(let colorValue) = node.propertyValue(definition.key) {
-                let light = PartPackageColorResolver.channels(colorValue, framework: framework, opacity: opacity, appearance: .light)
-                let dark = PartPackageColorResolver.channels(colorValue, framework: framework, opacity: opacity, appearance: .dark)
-                PartPackageDerivedValueResolver.addFrameworkColorValues(
-                    for: definition.key.rawValue,
-                    light: light,
-                    dark: dark,
-                    primary: site.appearanceMode == .dark ? .dark : .light,
-                    combinesAppearances: site.appearanceMode == .both,
-                    includesOpacity: opacity,
-                    to: &values
-                )
-                if let format = manifestProperties
-                    .first(where: { $0.id == definition.key.rawValue })?.control.outputFormat,
-                   let light, let dark {
-                    values[definition.key.rawValue] = .string(site.appearanceMode.colour(
-                        light: light.formatted(as: format, includesOpacity: opacity),
-                        dark: dark.formatted(as: format, includesOpacity: opacity)
-                    ))
-                }
             }
         }
         if let package = partDefinition.package {
@@ -1224,7 +1176,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             resolved,
             properties: manifestProperties,
             for: node,
-            screens: framework.screens
+            screens: theme.screens
         )
     }
 
@@ -1256,7 +1208,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         emit: (SiteExportFile) throws -> Void
     ) throws {
         var emitted = Set<UUID>()
-        for page in site.pages where !page.isDeveloperPlayground {
+        for page in site.pages {
             for node in page.parts.flatMap(\.flattened) {
                 guard let package = node.type.definition.package else { continue }
                 for property in package.renderDefinition.properties where property.usesAutomaticVideoPoster {
@@ -1278,7 +1230,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         emit: (SiteExportFile) throws -> Void
     ) throws {
         var requests = Set<ImageRenditionRequest>()
-        for page in site.pages where !page.isDeveloperPlayground {
+        for page in site.pages {
             for node in page.parts.flatMap(\.flattened) {
                 guard let package = node.type.definition.package else { continue }
                 for property in package.renderDefinition.properties where property.control.type == .image {
@@ -1359,15 +1311,13 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             raw = ""
         case .link:
             raw = ""
-        case .packageColor(let value):
-            raw = value.source
         case .packageFontSize(let value):
             raw = value.source
         case .packageShadow(let value):
             raw = value.source
         case .packageStackingOrder(let value):
             raw = value.isCustom ? String(Int(value.customValue)) : value.source
-        case .frameworkSpacing, .frameworkPadding, .frameworkMargin, .frameworkBorderWidth, .frameworkRadius:
+        case .themeSpacing, .themePadding, .themeMargin, .themeBorderWidth, .themeRadius:
             raw = ""
         }
         return raw.filter { !";{}<>".contains($0) }
@@ -1376,7 +1326,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     private func missingPackageHTML(
         _ node: PartNode,
         page: Page,
-        framework: Framework,
+        theme: Theme,
         assetPrefix: String,
         packageAssetPrefix: String,
         assets: ProjectAssetContents,
@@ -1387,7 +1337,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             render(
                 $0,
                 page: page,
-                framework: framework,
+                theme: theme,
                 assetPrefix: assetPrefix,
                 packageAssetPrefix: packageAssetPrefix,
                 assets: assets,

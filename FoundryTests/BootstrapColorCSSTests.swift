@@ -10,12 +10,12 @@ struct BootstrapColorCSSTests {
             "025", "050", "100", "200", "300", "400", "500",
             "600", "700", "800", "900", "950", "975"
         ])
-        #expect(Framework.standard.fixedFrameworkColourPalettes.count == FrameworkColorRole.allCases.count)
+        #expect(Theme.standard.fixedThemeColourPalettes.count == ThemePaletteColorRole.allCases.count)
     }
 
     @Test func exportOverridesEveryThemeRoleAndAdaptiveLayer() throws {
-        let framework = Framework.standard
-        let css = BootstrapColorCSS.export(framework: framework, mode: .both)
+        let theme = Theme.standard
+        let css = BootstrapColorCSS.export(theme: theme, mode: .both)
         for role in ["primary", "accent", "success", "danger", "warning", "info", "inverse", "secondary"] {
             #expect(css.contains("--bs-\(role)-base:"), "Missing Bootstrap base token for \(role)")
             #expect(css.contains("--bs-\(role)-fg:"), "Missing Bootstrap foreground token for \(role)")
@@ -28,8 +28,8 @@ struct BootstrapColorCSSTests {
     }
 
     @Test func canvasSelectsASchemeAndPreservesAdaptiveTokens() {
-        let light = BootstrapColorCSS.canvas(framework: .standard, appearance: .light)
-        let dark = BootstrapColorCSS.canvas(framework: .standard, appearance: .dark)
+        let light = BootstrapColorCSS.canvas(theme: .standard, appearance: .light)
+        let dark = BootstrapColorCSS.canvas(theme: .standard, appearance: .dark)
         #expect(light.contains("color-scheme:light;"))
         #expect(dark.contains("color-scheme:dark;"))
         #expect(light.contains("light-dark("))
@@ -37,7 +37,7 @@ struct BootstrapColorCSSTests {
         #expect(light != dark)
     }
 
-    @Test func bootstrapIsTheGlobalRenderedFramework() {
+    @Test func bootstrapIsTheGlobalRenderedTheme() {
         let requirements = FoundryWebLibraryRegistry.uniqueRequirements(in: [])
         #expect(requirements.first == FoundryWebLibraryRegistry.bootstrapRequirement)
         #expect(FoundryWebLibraryRegistry.canvasCSS(for: []).contains("--bs-primary-base"))

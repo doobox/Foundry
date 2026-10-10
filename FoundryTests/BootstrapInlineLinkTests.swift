@@ -7,13 +7,13 @@ struct BootstrapInlineLinkTests {
     @Test(.timeLimit(.minutes(1)), arguments: [PartTemplateEnvironment.canvas, .preview, .published])
     func inlineLinksAreScopedAndFollowThemeTokens(environment: PartTemplateEnvironment) async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
-        let model = FrameworkColourPreviewModel()
+        let model = ThemeColourPreviewModel()
         model.addTheme(named: "editorial", kind: .link)
         var palette = try #require(model.storedPalettes.first { $0.name == "editorial" })
         palette.bootstrapTokens[palette.colourTokens[0]] = .init(light: .native("red"), dark: .native("green"))
         palette.bootstrapTokens[palette.colourTokens[1]] = .init(light: .native("blue"), dark: .native("pink"))
-        var framework = Framework.standard
-        framework.colourPalettes.append(palette)
+        var theme = Theme.standard
+        theme.colourPalettes.append(palette)
         var paragraph = PartNode.make(.paragraph)
         paragraph.anchor = "styled"
         paragraph.setProperty(.init(rawValue: "content"), value: .string(FoundryRichTextCodec.storageValue(forHTMLFragment:
@@ -28,9 +28,9 @@ struct BootstrapInlineLinkTests {
         let page = Page(title: "Inline links", slug: "index", parts: [paragraph, untouched])
         let html: String
         if environment == .canvas {
-            html = HTMLPageRenderer().render(page: page, framework: framework)
+            html = HTMLPageRenderer().render(page: page, theme: theme)
         } else {
-            let bundle = StaticSiteRenderer(environment: environment).render(site: Site(name: "Links", pages: [page], framework: framework))
+            let bundle = StaticSiteRenderer(environment: environment).render(site: Site(name: "Links", pages: [page], theme: theme))
             #expect(bundle.errors.isEmpty)
             let document = try #require(bundle.file(at: "index.html")?.contents)
             // Match the document's actual stylesheet order: vendor/site before page.
@@ -54,7 +54,7 @@ struct BootstrapInlineLinkTests {
         """) as? [String]
         #expect(errors == [])
         let group = try #require(paragraph.type.definition.package?.manifest.controlGroups.first { $0.type == .linkStyling })
-        let css = BootstrapLinkStyling.css(node: paragraph, group: group, framework: framework)
+        let css = BootstrapLinkStyling.css(node: paragraph, group: group, theme: theme)
         #expect(css.contains("@media(hover:hover)"))
         // Exercise the same hover declarations deterministically without moving the user's pointer.
         let hoverCSS = css.replacingOccurrences(of: "@media(hover:hover)", with: "@media all").replacingOccurrences(of: ":hover{", with: ".test-hover{")
@@ -66,6 +66,6 @@ struct BootstrapInlineLinkTests {
             const result=[actual.color===getComputedStyle(ref).color,actual.textDecorationLine==='underline'];ref.remove();return result;
             """, arguments: ["css": hoverCSS], in: nil, contentWorld: .page) as? [Bool]
         #expect(hover == [true, true])
-        #expect(BootstrapLinkStyling.css(node: untouched, group: group, framework: framework).isEmpty)
+        #expect(BootstrapLinkStyling.css(node: untouched, group: group, theme: theme).isEmpty)
     }
 }

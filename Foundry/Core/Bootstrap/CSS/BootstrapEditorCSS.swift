@@ -6,14 +6,14 @@ import Foundation
 /// only tokens its components read are editable, so an edit is a variable override
 /// and an addition is a new class such as `text-hero` or `rounded-soft`.
 nonisolated enum BootstrapEditorCSS {
-    static func render(_ framework: Framework) -> String {
-        let settings = framework.bootstrapTokens
+    static func render(_ theme: Theme) -> String {
+        let settings = theme.bootstrapTokens
         var declarations: [String] = []
         var utilities: [String] = []
         for section in BootstrapEditorSection.allCases {
             let custom = settings.custom[section.rawValue] ?? []
             guard settings.isChanged(section) || !custom.isEmpty else { continue }
-            for token in settings.tokens(in: section) where !token.id.hasPrefix("shadow-strength-") {
+            for token in settings.tokens(in: section) {
                 declarations.append("--bs-\(token.id):\(settings.value(token))")
             }
             func value(_ id: String) -> String { "var(--bs-\(id))" }
@@ -47,26 +47,19 @@ nonisolated enum BootstrapEditorCSS {
             default: break
             }
         }
-        let fonts = framework.typography
-        let defaults = Framework.standard.typography
+        let fonts = theme.typography
+        let defaults = Theme.standard.typography
         if fonts.bodyFont != defaults.bodyFont { declarations.append("--bs-body-font-family:\(fonts.bodyFont.cssFamily)") }
         if fonts.monospacedFont != defaults.monospacedFont { declarations.append("--bs-font-mono:\(fonts.monospacedFont.cssFamily)") }
         var css = declarations.isEmpty ? "" : ":root,:host{\(declarations.joined(separator: ";"))}"
         css += ":root,:host{--bs-font-heading:\(fonts.headingFont.cssFamily)}"
         css += "@layer content{h1,h2,h3,h4,h5,h6,.h1,.h2,.h3,.h4,.h5,.h6{font-family:var(--bs-font-heading)}}"
         utilities.append(".font-heading{font-family:var(--bs-font-heading)}")
-        let fontClasses = BootstrapCustomTokenClasses.fontClasses(framework: framework)
+        let fontClasses = BootstrapCustomTokenClasses.fontClasses(theme: theme)
         for font in fonts.customFonts {
             guard let name = fontClasses["font-custom-" + font.id.uuidString.lowercased()] else { continue }
             css += ":root,:host{--bs-\(name):\(font.font.cssFamily)}"
             utilities.append(".\(name){font-family:var(--bs-\(name))}")
-        }
-        if let light = settings.values["shadow-strength-light"] {
-            css += ":root,:host,[data-bs-theme=light]{--bs-shadow-strength:\(light)}"
-        }
-        if settings.values["shadow-strength-light"] != nil || settings.values["shadow-strength-dark"] != nil {
-            let dark = settings.values["shadow-strength-dark"] ?? "2.4"
-            css += "@media(prefers-color-scheme:dark){:root:not([data-bs-theme]),:host:not([data-bs-theme]){--bs-shadow-strength:\(dark)}}[data-bs-theme=dark]{--bs-shadow-strength:\(dark)}"
         }
         return css + (utilities.isEmpty ? "" : "@layer utilities{\(utilities.joined())}")
     }

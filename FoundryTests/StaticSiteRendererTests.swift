@@ -33,7 +33,7 @@ struct StaticSiteRendererTests {
         )
         let canvasHTML = HTMLPageRenderer(site: site).render(
             page: try #require(site.pages.first),
-            framework: site.framework
+            theme: site.theme
         )
 
         #expect(exportedCSS.contains("html,body{min-height:100%}"))
@@ -48,7 +48,7 @@ struct StaticSiteRendererTests {
         #expect(exportedCSS.contains("--foundry-spacing-base:"))
         #expect(exportedCSS.contains(".fd-container{"))
         #expect(!exportedCSS.contains("--background:"))
-        #expect(!exportedCSS.contains("--framework-container-width:"))
+        #expect(!exportedCSS.contains("--theme-container-width:"))
         #expect(!exportedCSS.contains("padding:48px"))
         #expect(canvasHTML.contains("html,body{min-height:100%}"))
         #expect(canvasHTML.contains("display:flex;flex-direction:column;align-items:stretch"))
@@ -73,7 +73,7 @@ struct StaticSiteRendererTests {
             for (amount, breakpoint) in [(800.0, ResponsiveBreakpoint.mobile), (900, .medium), (1000, .large)] {
                 $0.setResponsiveProperty(
                     .init(rawValue: "sizing.maxWidth"),
-                    value: .frameworkSpacing(.init(
+                    value: .themeSpacing(.init(
                         selection: .init(token: "none", isCustom: true, amount: amount, unit: "px")
                     )),
                     at: breakpoint

@@ -6,12 +6,12 @@ import Foundation
 /// project-named spacers, edited Bootstrap variables, custom token utilities and
 /// Foundry's responsive extensions, in that order so later rules win as expected.
 nonisolated enum BootstrapThemeCSS {
-    static func render(framework: Framework) -> String {
-        let spacers = framework.spacing.custom.map { "--bs-spacer-\($0.name): \($0.value)rem;" }
+    static func render(theme: Theme) -> String {
+        let spacers = theme.spacing.custom.map { "--bs-spacer-\($0.name): \($0.value)rem;" }
         let root = spacers.isEmpty ? "" : ":root, :host {\n" + spacers.joined(separator: "\n") + "\n}"
         return root
-            + BootstrapSpacingCSS.render(framework.spacing)
-            + BootstrapEditorCSS.render(framework)
-            + BootstrapUtilityExtensionsCSS.render(framework: framework)
+            + BootstrapSpacingCSS.render(theme.spacing)
+            + BootstrapEditorCSS.render(theme)
+            + BootstrapUtilityExtensionsCSS.render(theme: theme)
     }
 }

@@ -1,6 +1,6 @@
 import Foundation
 
-/// One entry of a manifest's `inspector` array: a single Standard/Framework
+/// One entry of a manifest's `inspector` array: a single Standard/Theme
 /// property, a reference to a prebuilt Grouped control (`background`,
 /// `spacing`, `sizing`, `borders`, `effects`, `layout`, `reveal`) that
 /// expands into several properties at this exact position, or a named section
@@ -306,7 +306,7 @@ nonisolated struct PartPackageAsset: Codable, Equatable, Hashable, Sendable {
 }
 
 extension PartPackageManifest {
-    /// Standard/Framework properties in the exact order the manifest declared
+    /// Standard/Theme properties in the exact order the manifest declared
     /// them, with each Grouped-control reference and section expanded in place.
     nonisolated var resolvedProperties: [PartPackageProperty] {
         controlsEntries.flatMap { entry in
@@ -467,7 +467,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         target: String? = nil,
         backgroundTypes: [BackgroundStyle] = BackgroundStyle.defaultStyles,
         supportsHover: Bool = true,
-        colourSections: [String] = [],
+        colourSections: [String] = ["themes"],
         defaults: [String: PartPackageValue] = [:],
         visibleWhen: PartPackageVisibilityCondition? = nil,
         excludeControls: [String] = [],
@@ -509,7 +509,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         backgroundTypes = try container.decodeIfPresent([BackgroundStyle].self, forKey: .backgroundTypes)
             ?? BackgroundStyle.defaultStyles
         supportsHover = try container.decodeIfPresent(Bool.self, forKey: .supportsHover) ?? true
-        colourSections = try container.decodeIfPresent([String].self, forKey: .colourSections) ?? []
+        colourSections = try container.decodeIfPresent([String].self, forKey: .colourSections) ?? ["themes"]
         defaults = try container.decodeIfPresent([String: PartPackageValue].self, forKey: .defaults) ?? [:]
         visibleWhen = try container.decodeIfPresent(PartPackageVisibilityCondition.self, forKey: .visibleWhen)
         excludeControls = try container.decodeIfPresent([String].self, forKey: .excludeControls) ?? []
@@ -527,7 +527,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
             try container.encode(supportsHover, forKey: .supportsHover)
         }
         if !defaults.isEmpty { try container.encode(defaults, forKey: .defaults) }
-        if !colourSections.isEmpty { try container.encode(colourSections, forKey: .colourSections) }
+        if colourSections != ["themes"] { try container.encode(colourSections, forKey: .colourSections) }
         try container.encodeIfPresent(visibleWhen, forKey: .visibleWhen)
         if !excludeControls.isEmpty { try container.encode(excludeControls, forKey: .excludeControls) }
         if !allowedOptions.isEmpty { try container.encode(allowedOptions, forKey: .allowedOptions) }
@@ -969,11 +969,6 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
     var usesAutomaticVideoPoster: Bool {
         control.type == .video && controlGroupSource?.type == .background
     }
-    enum ValueAvailability: String, Codable, CaseIterable, Sendable {
-        case always
-        case whenVisible
-    }
-
     var id: String
     let label: String
     let noteTitle: String?
@@ -993,7 +988,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
     let activeButtonTexts: [String]
     let activeButtonIcons: [String]
     let units: [String]
-    /// The CSS a framework-spacing control emits for its `none` token. CSS
+    /// The CSS a theme-spacing control emits for its `none` token. CSS
     /// spells "no constraint" differently per property — `0` for a minimum,
     /// `none` for a maximum — so the control carries its own answer and
     /// templates can interpolate it unconditionally.
@@ -1002,7 +997,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
     /// `var`: a grouped-control reference's own `visibleWhen` folds into each
     /// expanded control during manifest expansion.
     var visibleWhen: PartPackageVisibilityCondition?
-    let valueAvailability: ValueAvailability
+    let outputWhenHidden: Bool
     let alt: String
     let focalPoint: Bool
     let renditions: [PartPackageImageRendition]
@@ -1032,7 +1027,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         case noneValue
         case tooltip
         case visibleWhen
-        case valueAvailability
+        case outputWhenHidden
         case alt
         case focalPoint
         case renditions
@@ -1052,7 +1047,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         defaultValue: PartPackageValue,
         responsive: Bool,
         visibleWhen: PartPackageVisibilityCondition? = nil,
-        valueAvailability: ValueAvailability = .always,
+        outputWhenHidden: Bool = true,
         tooltip: String? = nil,
         units: [String] = [""],
         noneValue: String? = nil
@@ -1076,7 +1071,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         self.noneValue = noneValue
         self.tooltip = tooltip
         self.visibleWhen = visibleWhen
-        self.valueAvailability = valueAvailability
+        self.outputWhenHidden = outputWhenHidden
         alt = ""
         focalPoint = false
         renditions = []
@@ -1119,7 +1114,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         tooltip = try container.decodeIfPresent(String.self, forKey: .tooltip)
         noneValue = try container.decodeIfPresent(String.self, forKey: .noneValue)
         visibleWhen = try container.decodeIfPresent(PartPackageVisibilityCondition.self, forKey: .visibleWhen)
-        valueAvailability = try container.decodeIfPresent(ValueAvailability.self, forKey: .valueAvailability) ?? .always
+        outputWhenHidden = try container.decodeIfPresent(Bool.self, forKey: .outputWhenHidden) ?? true
         alt = try container.decodeIfPresent(String.self, forKey: .alt) ?? ""
         focalPoint = try container.decodeIfPresent(Bool.self, forKey: .focalPoint) ?? false
         renditions = try container.decodeIfPresent([PartPackageImageRendition].self, forKey: .renditions) ?? []
@@ -1233,8 +1228,8 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         try container.encodeIfPresent(tooltip, forKey: .tooltip)
         try container.encodeIfPresent(noneValue, forKey: .noneValue)
         try container.encodeIfPresent(visibleWhen, forKey: .visibleWhen)
-        if valueAvailability != .always {
-            try container.encode(valueAvailability, forKey: .valueAvailability)
+        if !outputWhenHidden {
+            try container.encode(outputWhenHidden, forKey: .outputWhenHidden)
         }
         if (control.type == .image || control.type == .svg), !alt.isEmpty {
             try container.encode(alt, forKey: .alt)
@@ -1369,18 +1364,17 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         case textArea
         case number
         case color
-        case frameworkColor
-        case themeColor
-        case frameworkFont
-        case frameworkFontSize
-        case frameworkStackingOrder
+        case themeColors
+        case themeFont = "themeFont"
+        case themeFontSize = "themeFontSize"
+        case themeStackingOrder = "themeStackingOrder"
         case pageFolder
-        case frameworkBorder
+        case themeBorder = "themeBorder"
         case borderSides
-    case frameworkRadius
-    case frameworkMargin
-    case frameworkSpacing
-    case frameworkPadding
+    case themeRadius = "themeRadius"
+    case themeMargin = "themeMargin"
+    case themeSpacing = "themeSpacing"
+    case themePadding = "themePadding"
         case edges
         case corners
         case fontWeight
@@ -1399,10 +1393,27 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         case svg
         case video
         case math
-        case frameworkShadow
+        case themeShadow = "themeShadow"
         case childPicker
         case collection
         case spacer
+
+        init(from decoder: Decoder) throws {
+            let container = try decoder.singleValueContainer()
+            let savedName = try container.decode(String.self)
+            // Saved project package snapshots can predate the public API rename.
+            // New manifests and encoded snapshots use only the theme names.
+            let name: String
+            if savedName != "frameworkColor", savedName.hasPrefix("framework") {
+                name = "theme" + savedName.dropFirst("framework".count)
+            } else {
+                name = savedName
+            }
+            guard let kind = Self(rawValue: name) else {
+                throw DecodingError.dataCorruptedError(in: container, debugDescription: "Unknown control type: \(savedName)")
+            }
+            self = kind
+        }
 
         /// Controls that hold no value and that nothing can refer to. A
         /// developer may leave their id out; one is synthesised instead.
@@ -1423,11 +1434,12 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
     let maximumDate: String?
     let step: Double?
     var options: [PartPackageOption]?
-    let frameworkValues: PartPackageFrameworkValues?
+    let themeValues: PartPackageThemeValues?
     let allowsCustom: Bool?
     let opacity: Bool?
     let outputFormat: ColorOutputFormat?
-    let customColor: String?
+    /// Complete ordered picker sections; nil uses themes only.
+    let colourSections: [String]?
     let count: Int?
     let ticks: Int?
     let editableValue: Bool?
@@ -1460,9 +1472,10 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
     static let spacerHeightRange: ClosedRange<Double> = 1...30
 
     enum CodingKeys: String, CodingKey {
-        case type, font, minimum, maximum, step, options, frameworkValues, allowsCustom
+        case type, font, minimum, maximum, step, options, themeValues = "themeValues", allowsCustom
+        case legacyThemeValues = "frameworkValues"
         case showsFamily, showsWeight, showsStyle, showsSize
-        case opacity, outputFormat, customColor, count, ticks, editableValue
+        case opacity, outputFormat, colourSections, count, ticks, editableValue
         case trueValue, falseValue, selectionMode, argument1, argument2, operation, round, absoluteURL, presentation, linked
         case height
         case tickLabels, valueLabels, minimumLabel, maximumLabel, neutralValue
@@ -1493,11 +1506,11 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         maximumDate = nil
         self.step = step
         self.options = options
-        frameworkValues = nil
+        themeValues = nil
         self.allowsCustom = allowsCustom
         self.opacity = opacity
         outputFormat = nil
-        customColor = nil
+        colourSections = nil
         count = nil
         ticks = nil
         self.editableValue = editableValue
@@ -1544,11 +1557,12 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         }
         step = try container.decodeIfPresent(Double.self, forKey: .step)
         options = try container.decodeIfPresent([PartPackageOption].self, forKey: .options)
-        frameworkValues = try container.decodeIfPresent(PartPackageFrameworkValues.self, forKey: .frameworkValues)
+        themeValues = try container.decodeIfPresent(PartPackageThemeValues.self, forKey: .themeValues)
+            ?? container.decodeIfPresent(PartPackageThemeValues.self, forKey: .legacyThemeValues)
         allowsCustom = try container.decodeIfPresent(Bool.self, forKey: .allowsCustom)
         opacity = try container.decodeIfPresent(Bool.self, forKey: .opacity)
         outputFormat = try container.decodeIfPresent(ColorOutputFormat.self, forKey: .outputFormat)
-        customColor = try container.decodeIfPresent(String.self, forKey: .customColor)
+        colourSections = try container.decodeIfPresent([String].self, forKey: .colourSections)
         count = try container.decodeIfPresent(Int.self, forKey: .count)
         ticks = try container.decodeIfPresent(Int.self, forKey: .ticks)
         editableValue = try container.decodeIfPresent(Bool.self, forKey: .editableValue)
@@ -1587,11 +1601,11 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         }
         try container.encodeIfPresent(step, forKey: .step)
         try container.encodeIfPresent(options, forKey: .options)
-        try container.encodeIfPresent(frameworkValues, forKey: .frameworkValues)
+        try container.encodeIfPresent(themeValues, forKey: .themeValues)
         try container.encodeIfPresent(allowsCustom, forKey: .allowsCustom)
         try container.encodeIfPresent(opacity, forKey: .opacity)
         try container.encodeIfPresent(outputFormat, forKey: .outputFormat)
-        try container.encodeIfPresent(customColor, forKey: .customColor)
+        try container.encodeIfPresent(colourSections, forKey: .colourSections)
         try container.encodeIfPresent(count, forKey: .count)
         try container.encodeIfPresent(ticks, forKey: .ticks)
         try container.encodeIfPresent(editableValue, forKey: .editableValue)
@@ -1621,7 +1635,7 @@ nonisolated struct PartPackageSliderEndLabel: Codable, Equatable, Sendable {
     let systemImage: String?
 }
 
-nonisolated enum PartPackageFrameworkValueSource: String, Codable, CaseIterable, Sendable {
+nonisolated enum PartPackageThemeValueSource: String, Codable, CaseIterable, Sendable {
     case colors
     case fontFamilies
     case fontSizes
@@ -1629,14 +1643,14 @@ nonisolated enum PartPackageFrameworkValueSource: String, Codable, CaseIterable,
     case shadows
 }
 
-nonisolated enum PartPackageFrameworkValues: Codable, Equatable, Sendable {
-    case source(PartPackageFrameworkValueSource)
+nonisolated enum PartPackageThemeValues: Codable, Equatable, Sendable {
+    case source(PartPackageThemeValueSource)
     case defaultValue(String)
 
     init(from decoder: Decoder) throws {
         let container = try decoder.singleValueContainer()
         let value = try container.decode(String.self)
-        self = PartPackageFrameworkValueSource(rawValue: value).map(Self.source) ?? .defaultValue(value)
+        self = PartPackageThemeValueSource(rawValue: value).map(Self.source) ?? .defaultValue(value)
     }
 
     func encode(to encoder: Encoder) throws {
@@ -1649,14 +1663,13 @@ nonisolated enum PartPackageFrameworkValues: Codable, Equatable, Sendable {
 }
 
 nonisolated extension PartPackageControl {
-    var frameworkValueSource: PartPackageFrameworkValueSource? {
-        if type == .frameworkShadow { return .shadows }
-        if type == .frameworkColor { return .colors }
+    var themeValueSource: PartPackageThemeValueSource? {
+        if type == .themeShadow { return .shadows }
         return nil
     }
 
-    var frameworkValueDefault: String? {
-        guard case .defaultValue(let value) = frameworkValues else { return nil }
+    var themeValueDefault: String? {
+        guard case .defaultValue(let value) = themeValues else { return nil }
         return value
     }
 }

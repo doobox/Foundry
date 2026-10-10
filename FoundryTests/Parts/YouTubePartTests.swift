@@ -36,7 +36,7 @@ struct YouTubePartTests {
             part.setProperty(PartVideoTemplateValues.posterPropertyKey(for: "source"), value: .url("https://example.com/custom.jpg"))
         }
         let site = Site(name: "YouTube", pages: [Page(title: "Home", slug: "index", parts: [part])])
-        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
         #expect(canvas.contains(customPoster ? "https://example.com/custom.jpg" : "https://i.ytimg.com/vi/M7lc1UVf-VE/maxresdefault.jpg"))
         #expect(canvas.contains("data-foundry-youtube-thumbnail=\"M7lc1UVf-VE\"") == !customPoster)
         #expect(canvas.contains("object-fit:cover"))

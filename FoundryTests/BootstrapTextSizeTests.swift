@@ -9,15 +9,15 @@ struct BootstrapTextSizeTests {
 
     @Test func customSizesExposeOnlySizeAndIgnoreSavedLineHeight() {
         #expect(BootstrapEditorSection.fontSize.customTokens(named: "hero").map(\.id) == ["font-size-hero"])
-        var framework = Framework.standard
-        framework.bootstrapTokens.custom["fontSize"] = ["hero"]
-        framework.bootstrapTokens.values = ["font-size-hero": "3rem", "line-height-hero": "2.8", "font-size-md": "8rem"]
-        let css = BootstrapEditorCSS.render(framework)
+        var theme = Theme.standard
+        theme.bootstrapTokens.custom["fontSize"] = ["hero"]
+        theme.bootstrapTokens.values = ["font-size-hero": "3rem", "line-height-hero": "2.8", "font-size-md": "8rem"]
+        let css = BootstrapEditorCSS.render(theme)
         #expect(css.contains("--bs-line-height-hero:1.1"))
         #expect(css.contains("--bs-font-size-md:") == false)
-        framework.bootstrapTokens.values["font-size-hero"] = "5rem"
-        #expect(BootstrapEditorCSS.render(framework).contains("--bs-line-height-hero:1"))
-        framework.bootstrapTokens.custom["fontSize"] = []
-        #expect(BootstrapEditorCSS.render(framework).contains("hero") == false)
+        theme.bootstrapTokens.values["font-size-hero"] = "5rem"
+        #expect(BootstrapEditorCSS.render(theme).contains("--bs-line-height-hero:1"))
+        theme.bootstrapTokens.custom["fontSize"] = []
+        #expect(BootstrapEditorCSS.render(theme).contains("hero") == false)
     }
 }

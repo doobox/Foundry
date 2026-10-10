@@ -106,8 +106,8 @@ struct CanvasDragDropTests {
         )
         let renderer = HTMLPageRenderer()
 
-        let emptyHTML = renderer.render(page: emptyPage, framework: .standard)
-        let partHTML = renderer.render(page: partPage, framework: .standard)
+        let emptyHTML = renderer.render(page: emptyPage, theme: .standard)
+        let partHTML = renderer.render(page: partPage, theme: .standard)
 
         #expect(emptyHTML.contains("data-foundry-root-drop-zone"))
         #expect(partHTML.contains("data-foundry-empty-parent=\"\(container.id.uuidString)\""))

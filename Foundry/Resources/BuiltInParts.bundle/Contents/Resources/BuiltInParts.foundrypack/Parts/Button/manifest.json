@@ -82,7 +82,7 @@
     {
       "controls": [
         {
-          "type": "themeColor",
+          "type": "themeColors",
           "id": "theme",
           "label": "Theme",
           "defaults": {

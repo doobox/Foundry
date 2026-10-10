@@ -21,7 +21,7 @@ struct FiltersControlGroupTests {
             let state = PartInspectorSectionState(
                 part: part,
                 section: PartPropertySection(rawValue: name),
-                framework: .standard
+                theme: .standard
             )
             #expect(!state.hasChanges(in: part), "Fresh \(name) controls should match their defaults")
         }
@@ -31,12 +31,12 @@ struct FiltersControlGroupTests {
         let effects = PartInspectorSectionState(
             part: part,
             section: PartPropertySection(rawValue: "Shadow"),
-            framework: .standard
+            theme: .standard
         )
         let filters = PartInspectorSectionState(
             part: part,
             section: PartPropertySection(rawValue: "Filters"),
-            framework: .standard
+            theme: .standard
         )
         #expect(!effects.hasChanges(in: part))
         #expect(!filters.hasChanges(in: part))
@@ -141,16 +141,16 @@ struct FiltersControlGroupTests {
         #expect(disabled["visual.css"]?.stringValue.contains("filter: none;") == true)
     }
 
-    @Test func frameworkShadowsBecomeValidDropShadows() {
-        let value = PartPackageShadowValue(source: PartFrameworkValueSelection.manualCustom, customLayers: [
+    @Test func themeShadowsBecomeValidDropShadows() {
+        let value = PartPackageShadowValue(source: PartThemeValueSelection.manualCustom, customLayers: [
             .init(x: 2, y: 4, blur: 12, spread: 9, color: "#112233", opacity: 0.5),
             .init(x: 0, y: 1, blur: 4, opacity: 0.5, isInset: true)
         ])
-        let shadow = PartPackageShadowResolver.filter(value, framework: .standard)
+        let shadow = PartPackageShadowResolver.filter(value, theme: .standard)
         #expect(shadow == "drop-shadow(2px 4px 6px rgb(17 34 51 / 0.5))")
         let values = resolved(["filtersMode": .string("static"), "filtersShadow": .string(shadow)])
         #expect(values["visual.css"]?.stringValue.contains(shadow) == true)
-        #expect(PartPackageShadowResolver.filter(.init(source: "none", customLayers: []), framework: .standard) == "none")
+        #expect(PartPackageShadowResolver.filter(.init(source: "none", customLayers: []), theme: .standard) == "none")
     }
 
     @Test func unmigratedBuiltInPartsDeclareAndRenderBothFilterStates() throws {
@@ -186,11 +186,11 @@ struct FiltersControlGroupTests {
         part.setProperty(.init(rawValue: "filters.filtersBlur"), value: .number(4))
         part.setProperty(.init(rawValue: "filters.filtersHoverBlur"), value: .number(9))
         part.setProperty(.init(rawValue: "filters.filtersShadow"), value: .packageShadow(.init(
-            source: PartFrameworkValueSelection.manualCustom,
+            source: PartThemeValueSelection.manualCustom,
             customLayers: [.init(x: 2, y: 4, blur: 12, opacity: 0.5)]
         )))
         let site = Site(name: "Filter test", pages: [Page(title: "Home", slug: "index", parts: [part])])
-        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], framework: site.framework)
+        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], theme: site.theme)
         let export = StaticSiteRenderer().render(site: site, assets: [:])
         #expect(export.errors.isEmpty)
         let css = try #require(export.file(at: "files/page.css")?.contents)

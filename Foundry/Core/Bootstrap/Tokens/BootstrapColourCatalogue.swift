@@ -53,7 +53,7 @@ nonisolated enum BootstrapColourCatalogue {
         }
     }
 
-    static func palette(role: FrameworkColorRole, hue: String? = nil) -> ColourPalette {
+    static func palette(role: ThemePaletteColorRole, hue: String? = nil) -> ColourPalette {
         let hue = hue ?? defaultHue(for: role.rawValue)
         precondition(hues.contains(hue))
         let defaults: (ColourShade, ColourShade) = switch role {
@@ -63,7 +63,7 @@ nonisolated enum BootstrapColourCatalogue {
         case .border: (.five, .ten)
         default: (.seven, .seven)
         }
-        var palette = try! ColourPalette(id: "framework." + role.rawValue, name: role.title, origin: .framework,
+        var palette = try! ColourPalette(id: "framework." + role.rawValue, name: role.title, origin: .theme,
             shades: previews.palettes[hue]!, lightDefaultShade: defaults.0, darkDefaultShade: defaults.1)
         palette.bootstrapHue = hue
         return palette

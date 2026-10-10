@@ -7,7 +7,7 @@ nonisolated struct PartInspectorSectionState {
     let includesIdentity: Bool
     let neutralizingProperty: PartProperty?
 
-    init(part: PartNode, section: PartPropertySection, framework: Framework) {
+    init(part: PartNode, section: PartPropertySection, theme: Theme) {
         let definition = part.type.definition
         let members = definition.inspectorRows.flatMap { row -> [PartPropertyDefinition] in
             if case .controls(let group) = row { return group.properties }
@@ -20,7 +20,7 @@ nonisolated struct PartInspectorSectionState {
             }
         }
         var baseline = PartNode(type: part.type, properties: members.map { .init(key: $0.key, value: $0.defaultValue) })
-        baseline.selectInitialColourShades(from: framework)
+        baseline.applyInitialResponsiveDefaults()
         let keys = Set(members.map(\.key))
         defaults = baseline.properties
         responsiveDefaults = (baseline.responsiveOverrides ?? []).filter { keys.contains($0.key) }
@@ -107,13 +107,13 @@ nonisolated struct PartInspectorControlState {
     private let key: PartProperty.Key
     private let defaultPart: PartNode
 
-    init(part: PartNode, definition: PartPropertyDefinition, framework: Framework) {
+    init(part: PartNode, definition: PartPropertyDefinition, theme: Theme) {
         key = definition.key
         var baseline = PartNode(
             type: part.type,
             properties: [.init(key: definition.key, value: definition.defaultValue)]
         )
-        baseline.selectInitialColourShades(from: framework)
+        baseline.applyInitialResponsiveDefaults()
         defaultPart = baseline
     }
 

@@ -1,7 +1,7 @@
 import SwiftUI
 
-struct BootstrapSpacingTokenPicker<Policy: FrameworkSpacingPolicy>: View {
-    @Binding var binding: FrameworkSpacingValue<Policy>.EdgeValue
+struct BootstrapSpacingTokenPicker<Policy: ThemeSpacingPolicy>: View {
+    @Binding var binding: ThemeSpacingValue<Policy>.EdgeValue
     let title: String
     let classPrefix: String
     let spacing: SpacingTokens

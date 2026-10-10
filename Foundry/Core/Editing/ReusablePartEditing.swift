@@ -7,10 +7,10 @@ extension ProjectEditor {
         let ids = Array(Set(ids))
         guard !ids.isEmpty else { return }
         mutate(actionName: "Reset \(section.rawValue) Section") { site in
-            let framework = site.framework
+            let theme = site.theme
             for id in ids {
                 guard let part = site.part(withID: id) else { continue }
-                let state = PartInspectorSectionState(part: part, section: section, framework: framework)
+                let state = PartInspectorSectionState(part: part, section: section, theme: theme)
                 if let context = site.globalPartContext(containing: id), editsSharedDefinition || !context.isOverridden {
                     var updatedRoot: PartNode?
                     site.globalPartLibrary.mutateDefinition(id: context.definitionID) {

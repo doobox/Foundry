@@ -13,7 +13,7 @@ struct LayoutTypographyTests {
         let properties = manifest.resolvedProperties.filter { $0.controlGroupSource?.type == .typography }
         #expect(properties.map(\.id) == ["typography.fontFamily", "typography.textSize", "typography.fontWeight", "typography.textAlignment"])
         for property in properties {
-            #expect(BootstrapControlGroupClasses.resolve(node: parent, key: .init(rawValue: property.id), framework: .standard) == "")
+            #expect(BootstrapControlGroupClasses.resolve(node: parent, key: .init(rawValue: property.id), theme: .standard) == "")
         }
         parent.setProperty(.init(rawValue: "typography.fontFamily"), value: .choice("font-monospace"))
         for (key, base, medium) in [("textSize", "text-sm", "text-lg"), ("fontWeight", "fw-normal", "fw-bold"), ("textAlignment", "text-start", "text-center")] {
@@ -33,9 +33,9 @@ struct LayoutTypographyTests {
         let page = Page(title: "Typography", slug: "index", parts: [parent])
         let html: String
         if environment == .canvas {
-            html = HTMLPageRenderer().render(page: page, framework: .standard)
+            html = HTMLPageRenderer().render(page: page, theme: .standard)
         } else {
-            let bundle = StaticSiteRenderer(environment: environment).render(site: Site(name: "Typography", pages: [page], framework: .standard))
+            let bundle = StaticSiteRenderer(environment: environment).render(site: Site(name: "Typography", pages: [page], theme: .standard))
             #expect(bundle.errors.isEmpty)
             let source = try #require(bundle.file(at: "index.html")?.contents)
             let css = try #require(bundle.file(at: "files/site.css")?.contents) + (try #require(bundle.file(at: "files/page.css")?.contents))

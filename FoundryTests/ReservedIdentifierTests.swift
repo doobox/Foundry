@@ -19,7 +19,7 @@ struct ReservedIdentifierTests {
         return root
     }
 
-    @Test(arguments: ["foundry.showcase.toggle", "foundry.content.heading", "Foundry.anything.at-all"])
+    @Test(arguments: ["foundry.reserved.example", "foundry.content.heading", "Foundry.anything.at-all"])
     func partsOutsideTheAppCannotUseTheFoundryPrefix(_ identifier: String) throws {
         let url = try makePackage(identifier: identifier)
         defer { try? FileManager.default.removeItem(at: url) }

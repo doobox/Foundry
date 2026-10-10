@@ -26,7 +26,7 @@ nonisolated enum PartPackagePreparedIndex {
         var isDirty = false
     }
 
-    // 6: theme→framework rename of control kinds and manifest keys.
+    // 6: theme→theme rename of control kinds and manifest keys.
     private static let formatVersion = 26
     private static let state = Mutex(State())
 

@@ -42,7 +42,7 @@ struct CanvasPasteLatencyTests {
         func render(_ previous: CanvasScene?,
                     impact: ProjectMutationImpact? = nil) throws -> (scene: CanvasScene, result: CanvasRenderResult) {
             try CanvasScene.render(renderer: HTMLPageRenderer(artifactCache: cache), page: page,
-                language: "en", framework: .standard, assets: [:], breakpoint: .mobile,
+                language: "en", theme: .standard, assets: [:], breakpoint: .mobile,
                 packageRevision: 0, previous: previous, consecutiveImpact: impact)
         }
 

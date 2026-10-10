@@ -55,8 +55,8 @@ struct FoundryApp: App {
         .windowStyle(.hiddenTitleBar)
         .windowBackgroundDragBehavior(.enabled)
 
-        WindowGroup("Framework", id: "framework-editor", for: UUID.self) { $presentationID in
-            FrameworkWindowSceneContent(presentationID: presentationID)
+        WindowGroup("Theme Editor", id: "theme-editor", for: UUID.self) { $presentationID in
+            ThemeWindowSceneContent(presentationID: presentationID)
                 .frame(
                     minWidth: 962,
                     idealWidth: 1_204,

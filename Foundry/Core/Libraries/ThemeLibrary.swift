@@ -1,0 +1,418 @@
+import Foundation
+import ImageIO
+import UniformTypeIdentifiers
+import Observation
+
+nonisolated struct ThemeBundleMetadata: Codable, Equatable, Sendable {
+    let id: UUID
+    var name: String
+    let previewFilename: String
+    let createdAt: Date
+    var modifiedAt: Date
+    var resources: [ThemeBundleResource]
+}
+
+nonisolated struct ThemeBundleResource: Codable, Equatable, Sendable {
+    let asset: ProjectAsset
+    let storageFilename: String
+}
+
+nonisolated struct SavedTheme: Equatable, Identifiable, Sendable {
+    let metadata: ThemeBundleMetadata
+    let theme: Theme
+    let bundleURL: URL
+    let resources: [ProjectAssetContent]
+    let isBuiltIn: Bool
+
+    var id: UUID { metadata.id }
+    func hasModifiedSettings(in projectTheme: Theme) -> Bool {
+        projectTheme.savedSettings != theme.savedSettings
+    }
+
+    var previewURL: URL {
+        bundleURL.appending(path: "Resources/\(metadata.previewFilename)")
+    }
+}
+
+nonisolated struct ThemePreviewImage: Equatable, Sendable {
+    static let pixelWidth = 1200
+    static let pixelHeight = 600
+
+    let data: Data
+    let filename: String
+}
+
+nonisolated enum ThemeBundleError: Error, LocalizedError {
+    case missingContents
+    case invalidName
+    case missingPreview
+    case unsupportedPreviewType
+    case previewTypeMismatch
+    case invalidPreviewDimensions(width: Int, height: Int)
+
+    var errorDescription: String? {
+        switch self {
+        case .missingContents:
+            "The theme directory is missing its metadata or theme data."
+        case .invalidName:
+            "Enter a name for the theme."
+        case .missingPreview:
+            "Choose a preview image for the theme."
+        case .unsupportedPreviewType:
+            "Theme previews must be PNG, JPEG, or WebP images."
+        case .previewTypeMismatch:
+            "The preview image’s file extension does not match its contents."
+        case .invalidPreviewDimensions(let width, let height):
+            "The preview image has invalid dimensions (\(width) × \(height) px)."
+        }
+    }
+}
+
+nonisolated enum ThemeBundleStore {
+    static let systemThemeID = UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1))
+
+    static func isThemeURL(_ url: URL) -> Bool {
+        FileManager.default.fileExists(atPath: url.appending(path: "manifest.json").path)
+            && FileManager.default.fileExists(atPath: url.appending(path: "Resources/theme.json").path)
+    }
+
+    static func load(from bundleURL: URL, isBuiltIn: Bool = false) throws -> SavedTheme {
+        let metadataURL = bundleURL.appending(path: "manifest.json")
+        let themeURL = bundleURL.appending(path: "Resources/theme.json")
+        guard FileManager.default.fileExists(atPath: metadataURL.path),
+              FileManager.default.fileExists(atPath: themeURL.path) else {
+            throw ThemeBundleError.missingContents
+        }
+        let metadataDecoder = JSONDecoder()
+        metadataDecoder.dateDecodingStrategy = .iso8601
+        let metadata = try metadataDecoder.decode(
+            ThemeBundleMetadata.self,
+            from: Data(contentsOf: metadataURL)
+        )
+        let previewURL = bundleURL.appending(path: "Resources/\(metadata.previewFilename)")
+        guard FileManager.default.fileExists(atPath: previewURL.path) else { throw ThemeBundleError.missingPreview }
+        _ = try preview(from: previewURL)
+        var theme = try JSONDecoder().decode(ThemePreset.self, from: Data(contentsOf: themeURL)).theme
+        theme.colourPalettes = theme.fixedThemeColourPalettes + ColourPaletteDefaults.standard
+        let resourcesURL = bundleURL.appending(path: "Resources/Assets", directoryHint: .isDirectory)
+        let resources = metadata.resources.compactMap { resource -> ProjectAssetContent? in
+            guard let data = try? Data(contentsOf: resourcesURL.appending(path: resource.storageFilename)) else {
+                return nil
+            }
+            return ProjectAssetContent(asset: resource.asset, data: data)
+        }
+        return SavedTheme(
+            metadata: metadata,
+            theme: theme,
+            bundleURL: bundleURL,
+            resources: resources,
+            isBuiltIn: isBuiltIn || enclosingReleasePack(of: bundleURL) != nil
+        )
+    }
+
+    private static func enclosingReleasePack(of url: URL) -> URL? {
+        var candidate = url.standardizedFileURL
+        while candidate.path != "/" {
+            if candidate.pathExtension.caseInsensitiveCompare("foundrypack") == .orderedSame {
+                return candidate
+            }
+            candidate.deleteLastPathComponent()
+        }
+        return nil
+    }
+
+    static func write(
+        theme: Theme,
+        name: String,
+        preview: ThemePreviewImage,
+        id: UUID = UUID(),
+        createdAt: Date = Date(),
+        assetContents: ProjectAssetContents = [:],
+        to bundleURL: URL,
+        fileManager: FileManager = .default
+    ) throws -> SavedTheme {
+        let trimmedName = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmedName.isEmpty else { throw ThemeBundleError.invalidName }
+        var bundleTheme = theme.savedSettings
+        let resourcesURL = bundleURL.appending(path: "Resources", directoryHint: .isDirectory)
+        let assetsURL = resourcesURL.appending(path: "Assets", directoryHint: .isDirectory)
+        if fileManager.fileExists(atPath: bundleURL.path) {
+            try fileManager.removeItem(at: bundleURL)
+        }
+        try fileManager.createDirectory(at: resourcesURL, withIntermediateDirectories: true)
+        let referencedAssetIDs = bundleTheme.bundledFontAssetIDs
+        let bundledResources = referencedAssetIDs.compactMap { assetContents[$0] }
+        if !bundledResources.isEmpty {
+            try fileManager.createDirectory(at: assetsURL, withIntermediateDirectories: true)
+        }
+        let resources = bundledResources.map {
+            ThemeBundleResource(asset: $0.asset, storageFilename: $0.asset.storageFilename)
+        }
+        let metadata = ThemeBundleMetadata(
+            id: id,
+            name: trimmedName,
+            previewFilename: preview.filename,
+            createdAt: createdAt,
+            modifiedAt: Date(),
+            resources: resources
+        )
+        let metadataEncoder = JSONEncoder()
+        metadataEncoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        metadataEncoder.dateEncodingStrategy = .iso8601
+        try metadataEncoder.encode(metadata).write(to: bundleURL.appending(path: "manifest.json"), options: .atomic)
+        let themeEncoder = JSONEncoder()
+        themeEncoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        try themeEncoder.encode(ThemePreset(bundleTheme)).write(to: resourcesURL.appending(path: "theme.json"), options: .atomic)
+        try preview.data.write(to: resourcesURL.appending(path: preview.filename), options: .atomic)
+        for content in bundledResources {
+            try content.data.write(to: assetsURL.appending(path: content.asset.storageFilename), options: .atomic)
+        }
+        // Standard palettes are supplied by Foundry, never by the theme bundle.
+        bundleTheme.colourPalettes += ColourPaletteDefaults.standard
+        return SavedTheme(
+            metadata: metadata,
+            theme: bundleTheme,
+            bundleURL: bundleURL,
+            resources: bundledResources,
+            isBuiltIn: false
+        )
+    }
+
+    /// New themes always start from the bundled template, never project edits.
+    static func create(name: String, preview: ThemePreviewImage, id: UUID = UUID(), to destination: URL) throws -> SavedTheme {
+        guard let template = builtInThemes().first(where: { $0.id == systemThemeID }) else {
+            throw ThemeBundleError.missingContents
+        }
+        return try write(
+            theme: template.theme,
+            name: name,
+            preview: preview,
+            id: id,
+            assetContents: ProjectAssetContents(Dictionary(uniqueKeysWithValues: template.resources.map { ($0.asset.id, $0) })),
+            to: destination
+        )
+    }
+
+    static func libraryURL(fileManager: FileManager = .default) throws -> URL {
+        let url = try FoundryPackLoader.personalDevelopmentPackURL(fileManager: fileManager)
+            .appending(path: FoundryPackItemKind.theme.rawValue, directoryHint: .isDirectory)
+        try fileManager.createDirectory(at: url, withIntermediateDirectories: true)
+        return url
+    }
+
+    static func editArtwork(_ saved: SavedTheme, name: String, preview: ThemePreviewImage) throws -> SavedTheme {
+        guard !saved.isBuiltIn else { return saved }
+        let name = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { throw ThemeBundleError.invalidName }
+        let metadata = ThemeBundleMetadata(
+            id: saved.id, name: name, previewFilename: preview.filename,
+            createdAt: saved.metadata.createdAt,
+            modifiedAt: Date(), resources: saved.metadata.resources
+        )
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
+        encoder.dateEncodingStrategy = .iso8601
+        let data = try encoder.encode(metadata)
+        try preview.data.write(to: saved.bundleURL.appending(path: "Resources/\(preview.filename)"), options: .atomic)
+        try data.write(to: saved.bundleURL.appending(path: "manifest.json"), options: .atomic)
+        return try load(from: saved.bundleURL)
+    }
+
+    static func filename(for name: String, id: UUID) -> String {
+        let invalid = CharacterSet.alphanumerics.union(.whitespaces).inverted
+        let cleaned = name.components(separatedBy: invalid).joined()
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: " ", with: "-")
+        let stem = cleaned.isEmpty ? "Theme" : cleaned
+        return "\(stem)-\(id.uuidString.prefix(8))"
+    }
+
+    static func preview(from url: URL) throws -> ThemePreviewImage {
+        guard let declaredType = UTType(filenameExtension: url.pathExtension.lowercased()),
+              let data = try? Data(contentsOf: url),
+              let source = CGImageSourceCreateWithData(data as CFData, nil),
+              CGImageSourceCreateImageAtIndex(source, 0, nil) != nil,
+              let sourceTypeIdentifier = CGImageSourceGetType(source),
+              let detectedType = UTType(sourceTypeIdentifier as String) else {
+            throw ThemeBundleError.unsupportedPreviewType
+        }
+        let acceptedTypes: [UTType] = [.png, .jpeg, .webP]
+        guard acceptedTypes.contains(where: { detectedType.conforms(to: $0) }) else {
+            throw ThemeBundleError.unsupportedPreviewType
+        }
+        guard detectedType.conforms(to: declaredType) || declaredType.conforms(to: detectedType) else {
+            throw ThemeBundleError.previewTypeMismatch
+        }
+        guard let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let width = properties[kCGImagePropertyPixelWidth] as? Int,
+              let height = properties[kCGImagePropertyPixelHeight] as? Int else {
+            throw ThemeBundleError.unsupportedPreviewType
+        }
+        guard width > 0, height > 0 else {
+            throw ThemeBundleError.invalidPreviewDimensions(width: width, height: height)
+        }
+        let pathExtension = detectedType == .png ? "png" : detectedType == .webP ? "webp" : "jpg"
+        return ThemePreviewImage(data: data, filename: "preview.\(pathExtension)")
+    }
+
+    static func themeURLs(in rootURL: URL, fileManager: FileManager = .default) -> [URL] {
+        ((try? fileManager.contentsOfDirectory(
+            at: rootURL,
+            includingPropertiesForKeys: nil,
+            options: [.skipsHiddenFiles]
+        )) ?? []).filter(isThemeURL)
+    }
+
+    static func builtInThemes(bundle: Bundle = .main) -> [SavedTheme] {
+        guard let bundleURL = bundle.url(forResource: "BuiltInParts", withExtension: "bundle"),
+              let contentBundle = Bundle(url: bundleURL),
+              let packURL = contentBundle.url(forResource: "BuiltInParts", withExtension: "foundrypack")
+                ?? contentBundle.url(forResource: "BuiltInParts", withExtension: "foundrydevpack"),
+              let pack = try? FoundryPackLoader.load(from: packURL) else {
+            preconditionFailure("The built-in theme bundle is missing.")
+        }
+        return pack.themeURLs.map { url in
+            do {
+                return try load(from: url, isBuiltIn: true)
+            } catch {
+                preconditionFailure("Invalid built-in theme at \(url.path): \(error.localizedDescription)")
+            }
+        }
+    }
+
+    static var systemTheme: Theme {
+        guard let theme = builtInThemes().first(where: { $0.metadata.id == systemThemeID })?.theme else {
+            preconditionFailure("The System UI theme is missing.")
+        }
+        return theme
+    }
+}
+
+@MainActor
+@Observable
+final class ThemeLibrary {
+    static let shared = ThemeLibrary()
+
+    private(set) var themes: [SavedTheme] = []
+    private(set) var errorMessage: String?
+    private var externalDevelopmentPackURLs: Set<URL> = []
+
+    private init() {
+        reload()
+    }
+
+    func reload() {
+        do {
+            _ = try ThemeBundleStore.libraryURL()
+            let packsRoot = try FoundryPackLoader.installedPacksURL()
+            let urls = (FoundryPackLoader.packURLs(in: packsRoot) + externalDevelopmentPackURLs)
+                .compactMap { try? FoundryPackLoader.load(from: $0) }
+                .flatMap(\.themeURLs)
+            let builtInThemes = ThemeBundleStore.builtInThemes()
+            let builtInIDs = Set(builtInThemes.map(\.id))
+            var failures: [String] = []
+            let userThemes = urls.compactMap { url -> SavedTheme? in
+                do { return try ThemeBundleStore.load(from: url) }
+                catch {
+                    failures.append("\(url.lastPathComponent): \(error.localizedDescription)")
+                    return nil
+                }
+            }.filter { !builtInIDs.contains($0.id) }
+            themes = (builtInThemes + userThemes)
+                .sorted { $0.metadata.name.localizedStandardCompare($1.metadata.name) == .orderedAscending }
+            errorMessage = failures.isEmpty ? nil : failures.joined(separator: "\n")
+        } catch {
+            themes = []
+            errorMessage = error.localizedDescription
+        }
+    }
+
+    func openDevelopmentPack(at url: URL) {
+        externalDevelopmentPackURLs.insert(url.standardizedFileURL)
+        reload()
+    }
+
+    @discardableResult
+    func create(
+        name: String,
+        preview: ThemePreviewImage
+    ) throws -> SavedTheme {
+        let id = UUID()
+        let rootURL = try ThemeBundleStore.libraryURL()
+        let destination = rootURL.appending(
+            path: ThemeBundleStore.filename(for: name, id: id),
+            directoryHint: .isDirectory
+        )
+        let saved = try ThemeBundleStore.create(
+            name: name,
+            preview: preview,
+            id: id,
+            to: destination
+        )
+        reload()
+        return saved
+    }
+
+    @discardableResult
+    func update(
+        _ savedTheme: SavedTheme,
+        from theme: Theme,
+        assetContents: ProjectAssetContents = [:]
+    ) throws -> SavedTheme {
+        guard !savedTheme.isBuiltIn else { return savedTheme }
+        let preview = try ThemeBundleStore.preview(from: savedTheme.previewURL)
+        let updated = try ThemeBundleStore.write(
+            theme: theme,
+            name: savedTheme.metadata.name,
+            preview: preview,
+            id: savedTheme.id,
+            createdAt: savedTheme.metadata.createdAt,
+            assetContents: assetContents,
+            to: savedTheme.bundleURL
+        )
+        reload()
+        return updated
+    }
+
+    func remove(_ savedTheme: SavedTheme) throws {
+        guard !savedTheme.isBuiltIn else { return }
+        try FileManager.default.removeItem(at: savedTheme.bundleURL)
+        reload()
+    }
+
+    func edit(_ savedTheme: SavedTheme, name: String, preview: ThemePreviewImage) throws {
+        guard !savedTheme.isBuiltIn else { return }
+        _ = try ThemeBundleStore.editArtwork(savedTheme, name: name, preview: preview)
+        reload()
+    }
+}
+
+nonisolated extension Theme {
+    var bundledFontAssetIDs: [UUID] {
+        typography.allFonts.flatMap { font -> [UUID] in
+            guard case .bundled(let files) = font.source else { return [] }
+            return files.compactMap(\.foundryAssetID)
+        }
+    }
+
+    func remappingBundledFontAssets(_ mapping: [UUID: UUID]) -> Theme {
+        var copy = self
+        copy.typography.bodyFont.remapBundledFontAssets(mapping)
+        copy.typography.headingFont.remapBundledFontAssets(mapping)
+        copy.typography.monospacedFont.remapBundledFontAssets(mapping)
+        for index in copy.typography.customFonts.indices {
+            copy.typography.customFonts[index].font.remapBundledFontAssets(mapping)
+        }
+        return copy
+    }
+}
+
+nonisolated private extension ThemeFontDefinition {
+    mutating func remapBundledFontAssets(_ mapping: [UUID: UUID]) {
+        guard case .bundled(let files) = source else { return }
+        source = .bundled(files: files.map { reference in
+            guard let oldID = reference.foundryAssetID, let newID = mapping[oldID] else { return reference }
+            return "foundry-asset:\(newID.uuidString)"
+        })
+    }
+}

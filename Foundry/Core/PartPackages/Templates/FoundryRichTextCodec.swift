@@ -9,7 +9,7 @@ nonisolated struct RichTextColourReference: Codable, Hashable, Sendable {
     var darkShade: ColourShade
 
     var paletteID: String {
-        FrameworkColorRole(rawValue: source) != nil ? "framework." + source : source
+        ThemePaletteColorRole(rawValue: source) != nil ? "framework." + source : source
     }
 
     /// The stored `data-foundry-color` attribute value.

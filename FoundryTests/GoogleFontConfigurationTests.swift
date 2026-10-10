@@ -26,14 +26,14 @@ struct GoogleFontConfigurationTests {
     @Test @MainActor func directSelectionAppliesWithoutRetainingDraftAndSupportsUndo() throws {
         let document = FoundryDocument()
         let undo = UndoManager()
-        let session = FrameworkEditorSession(document: document, undoManager: undo)
-        let original = document.site.framework.typography.bodyFont
+        let session = ThemeEditorSession(document: document, undoManager: undo)
+        let original = document.site.theme.typography.bodyFont
         let family = try GoogleFontsService.decodeFamilies(from: metadata)[0]
-        session.editor.setFrameworkGoogleFont(family.family, reference: .role(.body), configuration: .init(available: family.faces, included: family.faces))
-        #expect(document.site.framework.typography.bodyFont.family == family.family)
+        session.editor.setThemeGoogleFont(family.family, reference: .role(.body), configuration: .init(available: family.faces, included: family.faces))
+        #expect(document.site.theme.typography.bodyFont.family == family.family)
         #expect(!session.hasUncommittedFontPreview)
         undo.undo()
-        #expect(document.site.framework.typography.bodyFont == original)
+        #expect(document.site.theme.typography.bodyFont == original)
     }
 
     private var metadata: Data {
@@ -66,20 +66,20 @@ struct GoogleFontConfigurationTests {
     @Test @MainActor func configurationPersistsCommitsAndUndoes() throws {
         let document = FoundryDocument()
         let undo = UndoManager()
-        let session = FrameworkEditorSession(document: document, undoManager: undo)
-        let original = document.site.framework.typography.bodyFont
+        let session = ThemeEditorSession(document: document, undoManager: undo)
+        let original = document.site.theme.typography.bodyFont
         let family = try GoogleFontsService.decodeFamilies(from: metadata)[1]
         var config = GoogleFontConfiguration(available: family.faces, included: family.faces)
         session.previewGoogleFont(family.family, for: .role(.body), configuration: config)
         config.included = [.init(italic: true, minimum: 300, maximum: 650)]
         session.previewGoogleConfiguration(config, for: .role(.body))
-        #expect(document.site.framework.typography.bodyFont == original)
+        #expect(document.site.theme.typography.bodyFont == original)
         session.commitFontPreview()
-        let framework = document.site.framework
-        #expect(framework.typography.bodyFont.googleConfiguration == config)
-        let restored = try JSONDecoder().decode(Framework.self, from: JSONEncoder().encode(framework))
+        let theme = document.site.theme
+        #expect(theme.typography.bodyFont.googleConfiguration == config)
+        let restored = try JSONDecoder().decode(Theme.self, from: JSONEncoder().encode(theme))
         #expect(restored.typography.bodyFont.googleConfiguration == config)
-        let options = FontFaceOptions(reference: "body", framework: restored, assets: [:])
+        let options = FontFaceOptions(reference: "body", theme: restored, assets: [:])
         #expect(options.verified)
         #expect(options.variableWeight)
         #expect(options.weights.first == 300)
@@ -87,12 +87,12 @@ struct GoogleFontConfigurationTests {
         #expect(options.styles == ["italic"])
         #expect(restored.fontSourceCSS(assets: [:], destination: .export).contains("1,300..650"))
         undo.undo()
-        #expect(document.site.framework.typography.bodyFont == original)
+        #expect(document.site.theme.typography.bodyFont == original)
     }
 
     @Test func oldDefinitionsStillDecodeWithoutConfiguration() throws {
-        let data = try JSONEncoder().encode(Framework.standard.typography.bodyFont)
-        let decoded = try JSONDecoder().decode(FrameworkFontDefinition.self, from: data)
+        let data = try JSONEncoder().encode(Theme.standard.typography.bodyFont)
+        let decoded = try JSONDecoder().decode(ThemeFontDefinition.self, from: data)
         #expect(decoded.googleConfiguration == nil)
     }
 }

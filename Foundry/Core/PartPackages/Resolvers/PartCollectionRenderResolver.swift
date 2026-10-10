@@ -1,6 +1,6 @@
 import Foundation
 
-/// Resolves one collection record with the same framework-aware semantics as
+/// Resolves one collection record with the same theme-aware semantics as
 /// ordinary part properties. Renderer-specific URL and colour work is supplied
 /// by closures so canvas and export keep their existing behaviour.
 nonisolated enum PartCollectionRenderResolver {
@@ -8,16 +8,15 @@ nonisolated enum PartCollectionRenderResolver {
         _ record: PartProperty.Value,
         fields: [PartPropertyDefinition],
         breakpoint: ResponsiveBreakpoint,
-        framework: Framework,
+        theme: Theme,
         source: (String, PartPropertyControl) -> String,
-        link: (PartLink, Bool) -> PartLinkResolver.Result?,
-        packageColor: (PartPackageColorValue, Bool) -> String
+        link: (PartLink, Bool) -> PartLinkResolver.Result?
     ) -> PartPackageValue {
         let resolvedRecord = PartCollectionValue.resolved(
             record,
             fields: fields,
             at: breakpoint,
-            screens: framework.screens
+            screens: theme.screens
         )
         let raw = resolvedRecord.objectValue ?? [:]
         var values = raw.mapValues(packageValue)
@@ -27,50 +26,48 @@ nonisolated enum PartCollectionRenderResolver {
             guard let value = raw[id] else { continue }
 
             switch (definition.control, value) {
-            case (_, .frameworkBorderWidth(let width)):
-                values[id] = PartPackageFrameworkBorderWidthControl.resolved(width, framework: framework)
-            case (_, .frameworkRadius(let radius)):
-                values[id] = PartPackageFrameworkRadiusControl.resolved(radius, framework: framework)
-            case (_, .frameworkMargin(let margin)):
-                values[id] = PartPackageFrameworkMarginControl.resolved(margin, framework: framework)
-            case (_, .frameworkSpacing(let spacing)):
-                values[id] = PartPackageSingleSpacingControl.resolved(spacing, framework: framework, noneValue: nil)
-            case (_, .frameworkPadding(let padding)):
-                values[id] = PartPackageFrameworkPaddingControl.resolved(padding, framework: framework)
-            case (.frameworkFont, _):
+            case (_, .themeBorderWidth(let width)):
+                values[id] = PartPackageThemeBorderWidthControl.resolved(width, theme: theme)
+            case (_, .themeRadius(let radius)):
+                values[id] = PartPackageThemeRadiusControl.resolved(radius, theme: theme)
+            case (_, .themeMargin(let margin)):
+                values[id] = PartPackageThemeMarginControl.resolved(margin, theme: theme)
+            case (_, .themeSpacing(let spacing)):
+                values[id] = PartPackageSingleSpacingControl.resolved(spacing, theme: theme, noneValue: nil)
+            case (_, .themePadding(let padding)):
+                values[id] = PartPackageThemePaddingControl.resolved(padding, theme: theme)
+            case (.themeFont, _):
                 var font: [String: PartPackageValue] = [
-                    "family": .string(PartPackageFrameworkValueResolver.resolve(
+                    "family": .string(PartPackageThemeValueResolver.resolve(
                         value.stringValue,
                         from: .fontFamilies,
-                        framework: framework
+                        theme: theme
                     ) ?? "inherit")
                 ]
                 if let weight = raw[id + ".weight"]?.numberValue { font["weight"] = .number(weight) }
                 if let style = raw[id + ".style"] { font["style"] = packageValue(style) }
                 if let size = raw[id + ".size"]?.stringValue.nilIfEmpty {
-                    font["size"] = .string(PartPackageFrameworkValueResolver.resolve(
+                    font["size"] = .string(PartPackageThemeValueResolver.resolve(
                         size,
                         from: .fontSizes,
-                        framework: framework
+                        theme: theme
                     ) ?? "inherit")
                 }
                 values[id] = .object(font)
                 for (field, fieldValue) in font { values[id + "." + field] = fieldValue }
-            case (.frameworkFontSize, _):
-                values[id] = .string(framework.fontSizeCSSVariable(for: value.stringValue))
-                values[id + ".lineHeight"] = .string(framework.lineHeightCSSVariable(for: value.stringValue))
-            case (.frameworkStackingOrder, .packageStackingOrder(let selected)):
+            case (.themeFontSize, _):
+                values[id] = .string(theme.fontSizeCSSVariable(for: value.stringValue))
+                values[id + ".lineHeight"] = .string(theme.lineHeightCSSVariable(for: value.stringValue))
+            case (.themeStackingOrder, .packageStackingOrder(let selected)):
                 values[id] = .string(selected.isCustom
                     ? String(Int(selected.customValue))
-                    : framework.zIndexCSSVariable(for: selected.source))
+                    : theme.zIndexCSSVariable(for: selected.source))
             case (.packageShadow, .packageShadow(let shadow)):
-                values[id] = .string(PartPackageShadowResolver.resolve(shadow, framework: framework))
-            case (.packageColor(_, let opacity, _, _), .packageColor(let color)):
-                values[id] = .string(packageColor(color, opacity))
+                values[id] = .string(PartPackageShadowResolver.resolve(shadow, theme: theme))
             case (.color, .token(let token)):
-                values[id] = .string(framework.color(for: token) ?? token.rawValue)
+                values[id] = .string(theme.color(for: token) ?? token.rawValue)
             case (.number, .token(let token)), (.slider, .token(let token)):
-                values[id] = .number(framework.number(for: token) ?? 0)
+                values[id] = .number(theme.number(for: token) ?? 0)
             case (.image, .url(let path)), (.svg, .url(let path)), (.video, .url(let path)):
                 values[id] = .string(source(path, definition.control))
             case (.link(let absoluteURL), .link(let destination)):
@@ -83,7 +80,7 @@ nonisolated enum PartCollectionRenderResolver {
                 break
             }
 
-            if definition.control.isFrameworkSpacing,
+            if definition.control.isThemeSpacing,
                case .object(let resolved) = values[id] {
                 for (field, fieldValue) in resolved {
                     values[id + "." + field] = fieldValue
@@ -109,11 +106,10 @@ nonisolated enum PartCollectionRenderResolver {
         case .array(let values): .array(values.map(packageValue))
         case .object(let values): .object(values.mapValues(packageValue))
         case .link: .string("")
-        case .packageColor(let value): .string(value.source)
         case .packageFontSize(let value): .string(value.source)
         case .packageShadow(let value): .string(value.source)
         case .packageStackingOrder(let value): .string(value.source)
-        case .frameworkSpacing, .frameworkPadding, .frameworkMargin, .frameworkBorderWidth, .frameworkRadius: .string("")
+        case .themeSpacing, .themePadding, .themeMargin, .themeBorderWidth, .themeRadius: .string("")
         }
     }
 }

@@ -1,8 +1,0 @@
-{
-    "type" : "frameworkShadow",
-    "id" : "cardShadow",
-    "label" : "Shadow",
-    "defaults" : {
-        "base" : "md"
-    }
-}

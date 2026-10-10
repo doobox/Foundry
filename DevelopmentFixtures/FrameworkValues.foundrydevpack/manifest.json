@@ -1,6 +1,6 @@
 {
-  "id" : "dev.foundry.fixtures.framework-values",
+  "id" : "dev.foundry.fixtures.theme-values",
   "minimumAPIVersion" : 1,
-  "title" : "FrameworkValues",
+  "title" : "ThemeValues",
   "version" : "1.0.0"
 }

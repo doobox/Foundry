@@ -121,7 +121,7 @@ struct SVGControlTests {
         var values: [String: PartPackageValue] = [:]
         PartSVGRenderer.insert(node: part, package: package, assets: assets, canvas: true, into: &values)
         #expect(values["source"]?.stringValue.contains("data-foundry-svg-drop-zone") == true)
-        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], language: "en", framework: site.framework, assets: assets, breakpoint: .mobile)
+        let canvas = HTMLPageRenderer(site: site).render(page: site.pages[0], language: "en", theme: site.theme, assets: assets, breakpoint: .mobile)
         #expect(canvas.contains("fill:rgb(254,91,0)"))
         #expect(canvas.contains("data-foundry-svg-drop-zone"))
         let output = StaticSiteRenderer().render(site: site, assets: assets)

@@ -17,14 +17,14 @@ nonisolated enum BootstrapSpacingClasses {
 
     static func utilities(_ value: PartProperty.Value, spacing: SpacingTokens = .standard) -> [String] {
         switch value {
-        case .frameworkPadding(let edges): edgeClasses(edges, prefix: "p", spacing: spacing)
-        case .frameworkMargin(let edges): edgeClasses(edges, prefix: "m", spacing: spacing)
+        case .themePadding(let edges): edgeClasses(edges, prefix: "p", spacing: spacing)
+        case .themeMargin(let edges): edgeClasses(edges, prefix: "m", spacing: spacing)
         default: []
         }
     }
 
-    private static func edgeClasses<P: FrameworkSpacingPolicy>(_ value: FrameworkSpacingValue<P>, prefix: String, spacing: SpacingTokens) -> [String] {
-        func token(_ edge: FrameworkSpacingValue<P>.Edge) -> String? {
+    private static func edgeClasses<P: ThemeSpacingPolicy>(_ value: ThemeSpacingValue<P>, prefix: String, spacing: SpacingTokens) -> [String] {
+        func token(_ edge: ThemeSpacingValue<P>.Edge) -> String? {
             let selected = value.value(for: edge)
             guard !selected.isCustom,
                   spacing.choices.contains(where: { $0.id == selected.token }) || (prefix == "m" && selected.token == "auto") else { return nil }
@@ -52,7 +52,7 @@ nonisolated enum BootstrapSpacingClasses {
     }
 
     /// Inspector edge labels; matching edges may use shorthand in generated output.
-    static func edgePrefix<P: FrameworkSpacingPolicy>(_ edge: FrameworkSpacingValue<P>.Edge, property: String) -> String {
+    static func edgePrefix<P: ThemeSpacingPolicy>(_ edge: ThemeSpacingValue<P>.Edge, property: String) -> String {
         let suffix = switch edge {
         case .top: "t"
         case .bottom: "b"

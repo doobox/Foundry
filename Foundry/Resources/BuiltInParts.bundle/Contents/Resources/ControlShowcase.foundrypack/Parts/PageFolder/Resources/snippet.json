@@ -1,8 +1,0 @@
-{
-    "type" : "pageFolder",
-    "id" : "sourceFolder",
-    "label" : "Folder",
-    "defaults" : {
-        "base" : ""
-    }
-}

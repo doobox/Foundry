@@ -1,8 +1,0 @@
-{
-    "type" : "frameworkFontSize",
-    "id" : "textSize",
-    "label" : "Size",
-    "defaults" : {
-        "base" : "base"
-    }
-}

@@ -5,76 +5,60 @@
     }
   ],
   "author": "Foundry Development",
-  "description": "Demonstrates basic select controls populated from named framework sources.",
+  "description": "Demonstrates basic select controls populated from named theme sources.",
   "group": "Other",
-  "id": "dev.foundry.framework-values",
+  "id": "dev.foundry.theme-values",
   "inspector": [
     {
       "controls": [
         {
-          "allowsCustom": true,
-          "customColor": "#D946EF",
           "defaults": {
-            "base": {
-              "palette": "custom"
-            }
+            "base": "#D946EF"
           },
           "id": "foreground",
           "label": "Foreground",
           "responsive": true,
-          "type": "frameworkColor"
+          "type": "color"
         },
         {
-          "allowsCustom": true,
-          "customColor": "#FFF1F2",
           "defaults": {
-            "base": {
-              "palette": "custom"
-            }
+            "base": "#FFF1F2"
           },
           "id": "background",
           "label": "Background",
           "responsive": true,
-          "type": "frameworkColor"
+          "type": "color"
         },
         {
-          "allowsCustom": true,
-          "customColor": "#5B5BD6",
           "defaults": {
-            "base": {
-              "palette": "custom"
-            }
+            "base": "#5B5BD6"
           },
           "id": "topBorder",
           "label": "Top border",
           "responsive": false,
-          "type": "frameworkColor"
+          "type": "color"
         },
         {
-          "allowsCustom": true,
-          "customColor": "#5B5BD6",
           "defaults": {
-            "base": {
-              "palette": "custom"
-            }
+            "base": "#5B5BD6"
           },
           "id": "bottomBorder",
           "label": "Bottom border",
           "responsive": false,
-          "type": "frameworkColor"
+          "type": "color"
         }
       ],
-      "section": "Framework Values"
+      "section": "Theme Values"
     }
   ],
   "minimumAPIVersion": 1,
   "tags": [
     "Development",
-    "Framework"
+    "Theme"
   ],
   "templates": {
     "html": "part.html"
   },
-  "title": "Framework Values Demo",
+  "title": "Theme Values Demo",
   "version": "1.0.0"
 }

@@ -33,23 +33,23 @@ struct BootstrapBundledLibraryTests {
     }
 
     @Test func foundryAdditionsAreEmittedSeparately() {
-        let theme = BootstrapThemeCSS.render(framework: .standard)
-        #expect(theme.contains(".md\\:fs-lg{font-size:var(--bs-font-size-lg)}"))
-        #expect(theme.contains(".md\\:text-lg{font-size:var(--bs-font-size-lg);line-height:var(--bs-line-height-lg)}"))
-        #expect(theme.contains(".\\32 xl\\:fw-bold{font-weight:var(--bs-font-weight-bold)}"))
-        #expect(theme.contains(".text-truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-wrap:nowrap}"))
-        #expect(theme.contains("@media (width >= 768px){") && theme.contains(".md\\:text-wrap{overflow:visible;text-overflow:clip;white-space:normal;text-wrap:wrap}"))
-        // The default framework stops at large, so containers hold at 960px above it.
-        #expect(theme.contains("@layer layout{@media (width >= 1280px){.container,.sm\\:container,.md\\:container,.lg\\:container,.xl\\:container{max-width:960px}}@media (width >= 1536px){.container,.sm\\:container,.md\\:container,.lg\\:container,.xl\\:container,.\\32 xl\\:container{max-width:960px}}}"))
+        let themeCSS = BootstrapThemeCSS.render(theme: .standard)
+        #expect(themeCSS.contains(".md\\:fs-lg{font-size:var(--bs-font-size-lg)}"))
+        #expect(themeCSS.contains(".md\\:text-lg{font-size:var(--bs-font-size-lg);line-height:var(--bs-line-height-lg)}"))
+        #expect(themeCSS.contains(".\\32 xl\\:fw-bold{font-weight:var(--bs-font-weight-bold)}"))
+        #expect(themeCSS.contains(".text-truncate{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-wrap:nowrap}"))
+        #expect(themeCSS.contains("@media (width >= 768px){") && themeCSS.contains(".md\\:text-wrap{overflow:visible;text-overflow:clip;white-space:normal;text-wrap:wrap}"))
+        // The default theme stops at large, so containers hold at 960px above it.
+        #expect(themeCSS.contains("@layer layout{@media (width >= 1280px){.container,.sm\\:container,.md\\:container,.lg\\:container,.xl\\:container{max-width:960px}}@media (width >= 1536px){.container,.sm\\:container,.md\\:container,.lg\\:container,.xl\\:container,.\\32 xl\\:container{max-width:960px}}}"))
         // Bootstrap's own spacing utilities are only re-emitted for sites with custom spacers.
         #expect(BootstrapSpacingCSS.render(.standard).isEmpty)
-        #expect(theme.contains("--bs-spacer-5") == false)
-        var framework = Framework.standard
-        framework.spacing.custom = [.init(name: "hero", value: 2)]
-        for id in BootstrapLayout.ids { framework.screens.update(id) { $0.isEnabled = true } }
-        let extended = BootstrapThemeCSS.render(framework: framework)
+        #expect(themeCSS.contains("--bs-spacer-5") == false)
+        var theme = Theme.standard
+        theme.spacing.custom = [.init(name: "hero", value: 2)]
+        for id in BootstrapLayout.ids { theme.screens.update(id) { $0.isEnabled = true } }
+        let extended = BootstrapThemeCSS.render(theme: theme)
         #expect(extended.contains("--bs-spacer-hero: 2.0rem"))
         #expect(extended.contains(".p-hero{padding:var(--bs-spacer-hero)}"))
-        #expect(BootstrapUtilityExtensionsCSS.containerCSS(framework.screens).isEmpty)
+        #expect(BootstrapUtilityExtensionsCSS.containerCSS(theme.screens).isEmpty)
     }
 }

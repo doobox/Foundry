@@ -53,50 +53,53 @@ nonisolated enum PageExtensionPreference: String, Codable, CaseIterable, Sendabl
     }
 }
 
-nonisolated struct ProjectFrameworkValues: Codable, Equatable, Sendable {
-    var fonts: [FrameworkCustomFont] = []
-    var fontSizes: [FrameworkFontSize] = []
-    var shadows: [FrameworkShadow] = []
+nonisolated struct ProjectThemeValues: Codable, Equatable, Sendable {
+    var fonts: [ThemeCustomFont] = []
+    var fontSizes: [ThemeFontSize] = []
+    var shadows: [ThemeShadow] = []
     var colours: [ColourPalette] = []
-    var borderWidths: [FrameworkCustomDimension] = []
-    var borderRadii: [FrameworkCustomDimension] = []
-    var zIndexes: [FrameworkCustomDimension] = []
+    var borderWidths: [ThemeCustomDimension] = []
+    var borderRadii: [ThemeCustomDimension] = []
+    var zIndexes: [ThemeCustomDimension] = []
     var spacing: [CustomSpacingToken] = []
     var bootstrapAdditions = BootstrapEditorTokens()
+    var screens: ScreenTokens?
 
     private enum CodingKeys: String, CodingKey {
-        case fonts, fontSizes, shadows, colours, borderWidths, borderRadii, zIndexes, spacing, bootstrapAdditions
+        case fonts, fontSizes, shadows, colours, borderWidths, borderRadii, zIndexes, spacing, bootstrapAdditions, screens
     }
 
     init() {}
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
-        fonts = try container.decodeIfPresent([FrameworkCustomFont].self, forKey: .fonts) ?? []
-        fontSizes = try container.decodeIfPresent([FrameworkFontSize].self, forKey: .fontSizes) ?? []
-        shadows = try container.decodeIfPresent([FrameworkShadow].self, forKey: .shadows) ?? []
+        fonts = try container.decodeIfPresent([ThemeCustomFont].self, forKey: .fonts) ?? []
+        fontSizes = try container.decodeIfPresent([ThemeFontSize].self, forKey: .fontSizes) ?? []
+        shadows = try container.decodeIfPresent([ThemeShadow].self, forKey: .shadows) ?? []
         colours = try container.decodeIfPresent([ColourPalette].self, forKey: .colours) ?? []
-        borderWidths = try container.decodeIfPresent([FrameworkCustomDimension].self, forKey: .borderWidths) ?? []
-        borderRadii = try container.decodeIfPresent([FrameworkCustomDimension].self, forKey: .borderRadii) ?? []
-        zIndexes = try container.decodeIfPresent([FrameworkCustomDimension].self, forKey: .zIndexes) ?? []
+        borderWidths = try container.decodeIfPresent([ThemeCustomDimension].self, forKey: .borderWidths) ?? []
+        borderRadii = try container.decodeIfPresent([ThemeCustomDimension].self, forKey: .borderRadii) ?? []
+        zIndexes = try container.decodeIfPresent([ThemeCustomDimension].self, forKey: .zIndexes) ?? []
         spacing = try container.decodeIfPresent([CustomSpacingToken].self, forKey: .spacing) ?? []
         bootstrapAdditions = try container.decodeIfPresent(BootstrapEditorTokens.self, forKey: .bootstrapAdditions) ?? .init()
+        screens = try container.decodeIfPresent(ScreenTokens.self, forKey: .screens)
     }
 
-    mutating func absorb(_ framework: Framework) {
-        fonts = framework.typography.customFonts
-        fontSizes = framework.typography.customFontSizes
-        shadows = framework.shadows.custom
-        colours = framework.colourPalettes.filter { $0.origin == .custom }
-        borderWidths = framework.borderWidths.custom
-        borderRadii = framework.borderRadii.custom
-        zIndexes = framework.zIndexes.custom
-        spacing = framework.spacing.custom
-        bootstrapAdditions = framework.bootstrapTokens.customAdditions
+    mutating func absorb(_ theme: Theme) {
+        screens = theme.screens
+        fonts = theme.typography.customFonts
+        fontSizes = theme.typography.customFontSizes
+        shadows = theme.shadows.custom
+        colours = theme.colourPalettes.filter { $0.origin == .custom }
+        borderWidths = theme.borderWidths.custom
+        borderRadii = theme.borderRadii.custom
+        zIndexes = theme.zIndexes.custom
+        spacing = theme.spacing.custom
+        bootstrapAdditions = theme.bootstrapTokens.customAdditions
     }
 
-    mutating func include(_ framework: Framework) {
-        let incoming = framework.bootstrapTokens.customAdditions
+    mutating func include(_ theme: Theme) {
+        let incoming = theme.bootstrapTokens.customAdditions
         for (section, names) in incoming.custom {
             for name in names where !(bootstrapAdditions.custom[section] ?? []).contains(name) {
                 bootstrapAdditions.custom[section, default: []].append(name)
@@ -107,17 +110,18 @@ nonisolated struct ProjectFrameworkValues: Codable, Equatable, Sendable {
             }
         }
         let names = Set(spacing.map(\.name))
-        Self.mergeKeepingExisting(framework.spacing.custom.filter { !names.contains($0.name) }, into: &spacing, id: \.id)
-        Self.mergeKeepingExisting(framework.typography.customFonts, into: &fonts, id: \.id)
-        Self.mergeKeepingExisting(framework.typography.customFontSizes, into: &fontSizes, id: \.id)
-        Self.mergeKeepingExisting(framework.shadows.custom, into: &shadows, id: \.id)
-        Self.mergeKeepingExisting(framework.borderWidths.custom, into: &borderWidths, id: \.id)
-        Self.mergeKeepingExisting(framework.borderRadii.custom, into: &borderRadii, id: \.id)
-        Self.mergeKeepingExisting(framework.zIndexes.custom, into: &zIndexes, id: \.id)
+        Self.mergeKeepingExisting(theme.spacing.custom.filter { !names.contains($0.name) }, into: &spacing, id: \.id)
+        Self.mergeKeepingExisting(theme.typography.customFonts, into: &fonts, id: \.id)
+        Self.mergeKeepingExisting(theme.typography.customFontSizes, into: &fontSizes, id: \.id)
+        Self.mergeKeepingExisting(theme.shadows.custom, into: &shadows, id: \.id)
+        Self.mergeKeepingExisting(theme.borderWidths.custom, into: &borderWidths, id: \.id)
+        Self.mergeKeepingExisting(theme.borderRadii.custom, into: &borderRadii, id: \.id)
+        Self.mergeKeepingExisting(theme.zIndexes.custom, into: &zIndexes, id: \.id)
     }
 
-    func applied(to framework: Framework) -> Framework {
-        var result = framework
+    func applied(to theme: Theme) -> Theme {
+        var result = theme
+        if let screens { result.screens = screens }
         // Replace the saved theme's additions, including removals, without touching its defaults.
         for key in result.bootstrapTokens.customAdditions.values.keys {
             result.bootstrapTokens.values[key] = nil
@@ -160,11 +164,17 @@ nonisolated struct ProjectFrameworkValues: Codable, Equatable, Sendable {
     }
 }
 
-nonisolated struct ProjectFrameworkState: Codable, Equatable, Identifiable, Sendable {
+nonisolated struct ProjectThemeState: Codable, Equatable, Identifiable, Sendable {
     let sourceID: UUID
-    var framework: Framework
+    var theme: Theme
 
     var id: UUID { sourceID }
+
+    // Keep the project file contract independent of internal terminology.
+    private enum CodingKeys: String, CodingKey {
+        case sourceID
+        case theme = "framework"
+    }
 }
 
 nonisolated enum PublishingDestinationKind: String, Codable, CaseIterable, Sendable {
@@ -281,11 +291,11 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     var defaultPublishingDestinationID: UUID?
     var pages: [Page]
     var pageFolders: [PageFolder]
-    var framework: Framework
-    var frameworkSourceID: UUID
+    var theme: Theme
+    var themeSourceID: UUID
     var appearanceMode: SiteAppearanceMode = .light
-    var projectFrameworkValues: ProjectFrameworkValues
-    var frameworkStates: [ProjectFrameworkState]
+    var projectThemeValues: ProjectThemeValues
+    var themeStates: [ProjectThemeState]
     /// The Global Parts panel's ordered tree: folders and live-linked
     /// definitions, organized exactly like the templates library.
     var globalPartLibrary: [ReusablePartNode]
@@ -317,12 +327,12 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         cleansObsoleteExportFiles = destination.cleansObsoleteFiles
     }
 
-    mutating func saveActiveFrameworkState() {
-        let state = ProjectFrameworkState(sourceID: frameworkSourceID, framework: framework)
-        if let index = frameworkStates.firstIndex(where: { $0.sourceID == frameworkSourceID }) {
-            frameworkStates[index] = state
+    mutating func saveActiveThemeState() {
+        let state = ProjectThemeState(sourceID: themeSourceID, theme: theme)
+        if let index = themeStates.firstIndex(where: { $0.sourceID == themeSourceID }) {
+            themeStates[index] = state
         } else {
-            frameworkStates.append(state)
+            themeStates.append(state)
         }
     }
 
@@ -336,43 +346,43 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         projectTemplateLibrary.updateAllDefinitions { $0.root.replaceSpacingReference(reference, with: replacement) }
     }
 
-    mutating func replacePartFrameworkReference(_ reference: String, with replacement: String) {
+    mutating func replacePartThemeReference(_ reference: String, with replacement: String) {
         for pageIndex in pages.indices {
-            if let background = pages[pageIndex].backgroundOverride,
-               case .packageColor(let updated) = PartProperty.Value.packageColor(background)
-                .replacingFrameworkReference(reference, with: replacement) {
-                pages[pageIndex].backgroundOverride = updated
+            if let background = pages[pageIndex].backgroundOverride {
+                let updated = PartProperty.Value.choice(background)
+                    .replacingThemeReference(reference, with: replacement).stringValue
+                pages[pageIndex].backgroundOverride = updated == "inherit" ? nil : updated
             }
             for partIndex in pages[pageIndex].parts.indices {
-                pages[pageIndex].parts[partIndex].replaceFrameworkReference(reference, with: replacement)
+                pages[pageIndex].parts[partIndex].replaceThemeReference(reference, with: replacement)
             }
         }
         globalPartLibrary.updateAllDefinitions {
-            $0.root.replaceFrameworkReference(reference, with: replacement)
+            $0.root.replaceThemeReference(reference, with: replacement)
         }
     }
 
-    mutating func bakePartFrameworkSpacingReference(_ reference: String, amountRem: Double, fallbackToken: String) {
+    mutating func bakePartThemeSpacingReference(_ reference: String, amountRem: Double, fallbackToken: String) {
         for pageIndex in pages.indices {
             for partIndex in pages[pageIndex].parts.indices {
                 pages[pageIndex].parts[partIndex]
-                    .bakeFrameworkSpacingReference(reference, amountRem: amountRem, fallbackToken: fallbackToken)
+                    .bakeThemeSpacingReference(reference, amountRem: amountRem, fallbackToken: fallbackToken)
             }
         }
         globalPartLibrary.updateAllDefinitions {
-            $0.root.bakeFrameworkSpacingReference(reference, amountRem: amountRem, fallbackToken: fallbackToken)
+            $0.root.bakeThemeSpacingReference(reference, amountRem: amountRem, fallbackToken: fallbackToken)
         }
     }
 
-    mutating func bakePartFrameworkDimensionReference(_ reference: String, amountPx: Double, fallbackToken: String, isRadius: Bool) {
+    mutating func bakePartThemeDimensionReference(_ reference: String, amountPx: Double, fallbackToken: String, isRadius: Bool) {
         for pageIndex in pages.indices {
             for partIndex in pages[pageIndex].parts.indices {
                 pages[pageIndex].parts[partIndex]
-                    .bakeFrameworkDimensionReference(reference, amountPx: amountPx, fallbackToken: fallbackToken, isRadius: isRadius)
+                    .bakeThemeDimensionReference(reference, amountPx: amountPx, fallbackToken: fallbackToken, isRadius: isRadius)
             }
         }
         globalPartLibrary.updateAllDefinitions {
-            $0.root.bakeFrameworkDimensionReference(reference, amountPx: amountPx, fallbackToken: fallbackToken, isRadius: isRadius)
+            $0.root.bakeThemeDimensionReference(reference, amountPx: amountPx, fallbackToken: fallbackToken, isRadius: isRadius)
         }
     }
 
@@ -437,10 +447,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         defaultPublishingDestinationID: UUID? = nil,
         pages: [Page],
         pageFolders: [PageFolder] = [],
-        framework: Framework = FrameworkBundleStore.systemFramework,
-        frameworkSourceID: UUID = FrameworkBundleStore.systemFrameworkID,
-        projectFrameworkValues: ProjectFrameworkValues = .init(),
-        frameworkStates: [ProjectFrameworkState] = [],
+        theme: Theme = ThemeBundleStore.systemTheme,
+        themeSourceID: UUID = ThemeBundleStore.systemThemeID,
+        projectThemeValues: ProjectThemeValues = .init(),
+        themeStates: [ProjectThemeState] = [],
         reusableParts: [ReusablePartDefinition] = [],
         globalParts: [ReusablePartDefinition] = [],
         assetLibrary: [ProjectAssetNode],
@@ -502,10 +512,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         }
         self.pages = pages
         self.pageFolders = pageFolders
-        self.framework = framework
-        self.frameworkSourceID = frameworkSourceID
-        self.projectFrameworkValues = projectFrameworkValues
-        self.frameworkStates = frameworkStates
+        self.theme = theme
+        self.themeSourceID = themeSourceID
+        self.projectThemeValues = projectThemeValues
+        self.themeStates = themeStates
         self.globalPartLibrary = globalParts.map(ReusablePartNode.part)
         self.assetLibrary = assetLibrary
         self.partPackages = partPackages
@@ -516,10 +526,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         schemaVersion: Int = currentSchemaVersion,
         name: String,
         pages: [Page],
-        framework: Framework = FrameworkBundleStore.systemFramework,
+        theme: Theme = ThemeBundleStore.systemTheme,
         reusableParts: [ReusablePartDefinition] = []
     ) {
-        self.init(id: id, schemaVersion: schemaVersion, name: name, pages: pages, framework: framework, reusableParts: reusableParts, globalParts: [], assetLibrary: [])
+        self.init(id: id, schemaVersion: schemaVersion, name: name, pages: pages, theme: theme, reusableParts: reusableParts, globalParts: [], assetLibrary: [])
     }
 
     init(
@@ -527,7 +537,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         schemaVersion: Int = currentSchemaVersion,
         name: String,
         pages: [Page],
-        framework: Framework = FrameworkBundleStore.systemFramework,
+        theme: Theme = ThemeBundleStore.systemTheme,
         reusableParts: [ReusablePartDefinition] = [],
         assets: [ProjectAsset]
     ) {
@@ -536,7 +546,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
             schemaVersion: schemaVersion,
             name: name,
             pages: pages,
-            framework: framework,
+            theme: theme,
             reusableParts: reusableParts,
             globalParts: [],
             assetLibrary: assets.map(ProjectAssetNode.asset)
@@ -545,7 +555,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case appearanceMode
-        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, webIconAssets, defaultSocialImage, socialImageAlt, socialAccount, logo, siteLogoAssets, logoAlt, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, generatesCacheBustingLinks, defaultPageExtension, previewServerPort, minifiesGeneratedOutput, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, publishingDestinations, defaultPublishingDestinationID, pages, pageFolders, framework, frameworkSourceID, projectFrameworkValues, frameworkStates, globalPartLibrary, projectTemplateLibrary, assetLibrary, partPackages
+        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, webIconAssets, defaultSocialImage, socialImageAlt, socialAccount, logo, siteLogoAssets, logoAlt, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, generatesCacheBustingLinks, defaultPageExtension, previewServerPort, minifiesGeneratedOutput, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, publishingDestinations, defaultPublishingDestinationID, pages, pageFolders, theme = "framework", themeSourceID = "frameworkSourceID", projectThemeValues = "projectFrameworkValues", themeStates = "frameworkStates", globalPartLibrary, projectTemplateLibrary, assetLibrary, partPackages
     }
 
     init(from decoder: Decoder) throws {
@@ -612,10 +622,10 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         }
         pages = try container.decode([Page].self, forKey: .pages)
         pageFolders = try container.decode([PageFolder].self, forKey: .pageFolders)
-        framework = try container.decode(Framework.self, forKey: .framework)
-        frameworkSourceID = try container.decode(UUID.self, forKey: .frameworkSourceID)
-        projectFrameworkValues = try container.decode(ProjectFrameworkValues.self, forKey: .projectFrameworkValues)
-        frameworkStates = try container.decode([ProjectFrameworkState].self, forKey: .frameworkStates)
+        theme = try container.decode(Theme.self, forKey: .theme)
+        themeSourceID = try container.decode(UUID.self, forKey: .themeSourceID)
+        projectThemeValues = try container.decode(ProjectThemeValues.self, forKey: .projectThemeValues)
+        themeStates = try container.decode([ProjectThemeState].self, forKey: .themeStates)
         globalPartLibrary = try container.decodeIfPresent([ReusablePartNode].self, forKey: .globalPartLibrary) ?? []
         projectTemplateLibrary = try container.decodeIfPresent([ReusablePartNode].self, forKey: .projectTemplateLibrary) ?? []
         assetLibrary = try container.decode([ProjectAssetNode].self, forKey: .assetLibrary)
@@ -694,22 +704,5 @@ nonisolated extension Site {
             currentID = folder.parentID
         }
         return slugs.joined(separator: "/")
-    }
-}
-
-nonisolated extension Site {
-    /// The pages the author made: everything except the developer's
-    /// in-memory Controls scratch page.
-    var authoredPages: [Page] {
-        pages.filter { !$0.isDeveloperPlayground }
-    }
-
-    /// The site as it is saved, undone and exported, with the Controls
-    /// scratch page left out.
-    func withoutDeveloperPlayground() -> Site {
-        guard pages.contains(where: \.isDeveloperPlayground) else { return self }
-        var copy = self
-        copy.pages = authoredPages
-        return copy
     }
 }
