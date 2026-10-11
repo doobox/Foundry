@@ -7210,10 +7210,11 @@ struct PartPackageTests {
     }
 
     @Test @MainActor
-    func iconColoursFollowAppearance() throws {
+    func iconColoursFollowAppearance() async throws {
         let url = FileManager.default.temporaryDirectory.appending(path: "adaptive-icon-\(UUID()).svg")
         defer { try? FileManager.default.removeItem(at: url) }
         try Data(#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" fill="red"/></svg>"#.utf8).write(to: url)
+        _ = await PartIconLoader.shared.icon(at: url)
         let specification = PartIconSpecification(
             glyph: .svg(url),
             background: .init(light: "#000000", dark: "#FFFFFF"),
@@ -7255,10 +7256,11 @@ struct PartPackageTests {
     }
 
     @Test @MainActor
-    func originalIconRetainsTileGeometryAndUsesStructureColour() throws {
+    func originalIconRetainsTileGeometryAndUsesStructureColour() async throws {
         let url = FileManager.default.temporaryDirectory.appending(path: "icon-\(UUID()).svg")
         defer { try? FileManager.default.removeItem(at: url) }
         try Data(#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" fill="red"/></svg>"#.utf8).write(to: url)
+        _ = await PartIconLoader.shared.icon(at: url)
         let original = PartIconSpecification(glyph: .svg(url), background: .init(light: "#007AFF"), structure: .init(light: "#FF9500"), rendering: .original)
         let mono = PartIconSpecification(glyph: .svg(url), background: .init(light: "#007AFF"), structure: .init(light: "#FF9500"))
         func pixel(_ icon: PartIconSpecification, x: Int) throws -> NSColor {
@@ -7290,7 +7292,7 @@ struct PartPackageTests {
         let rowColor = try #require(originalRowBitmap.colorAt(x: originalRowBitmap.pixelsWide / 2, y: originalRowBitmap.pixelsHigh / 2)?.usingColorSpace(.sRGB))
         #expect(abs(rowColor.redComponent - sourceColor.redComponent) < 0.02)
         #expect(abs(rowColor.greenComponent - sourceColor.greenComponent) < 0.02)
-        #expect(PartIconLoader.loadNow(at: url)?.image.isTemplate == true)
+        #expect(PartIconLoader.cachedIcon(at: url)?.image.isTemplate == true)
         let defaultMono = PartIconSpecification(glyph: .svg(url), background: .init(light: "#FF0000"))
         #expect(defaultMono.rowImage().image?.isTemplate == true)
         #expect(defaultMono.rowImage().tint?.usingColorSpace(.sRGB)?.redComponent == 1)
@@ -7322,7 +7324,7 @@ struct PartPackageTests {
         #expect(original.cacheKey != PartIconSpecification(glyph: .svg(url), background: .init(light: "#007AFF"), structure: .init(light: "#00FF00"), rendering: .original).cacheKey)
     }
 
-    @Test
+    @Test @MainActor
     func decodedPartIconIsSynchronouslyReusable() async throws {
         let iconURL = FileManager.default.temporaryDirectory
             .appending(path: "Foundry-Icon-Cache-\(UUID().uuidString).svg")
@@ -7332,12 +7334,29 @@ struct PartPackageTests {
         ).write(to: iconURL)
 
         #expect(PartIconLoader.cachedIcon(at: iconURL) == nil)
+        // A draw-time cache miss schedules work but never loads synchronously.
+        #expect(PartIconLoader.shared.requestIcon(at: iconURL) == nil)
+        #expect(PartIconLoader.cachedIcon(at: iconURL) == nil)
         let loaded = await PartIconLoader.shared.icon(at: iconURL)
         #expect(loaded != nil)
         #expect(PartIconLoader.cachedIcon(at: iconURL) != nil)
 
-        await PartIconLoader.shared.removeIcon(at: iconURL)
+        try FileManager.default.removeItem(at: iconURL)
+        #expect(PartIconLoader.shared.requestIcon(at: iconURL)?.image === loaded?.image)
+
+        PartIconLoader.shared.removeIcon(at: iconURL)
         #expect(PartIconLoader.cachedIcon(at: iconURL) == nil)
+        #expect(await PartIconLoader.shared.icon(at: iconURL) == nil)
+
+        // A repaired/replaced file becomes available after development reload.
+        try Data(
+            "<svg xmlns=\"http://www.w3.org/2000/svg\" viewBox=\"0 0 48 24\"><rect width=\"48\" height=\"24\"/></svg>".utf8
+        ).write(to: iconURL)
+        PartIconLoader.shared.removeIcon(at: iconURL)
+        let replacement = try #require(await PartIconLoader.shared.icon(at: iconURL))
+        #expect(replacement.image.size.width == replacement.image.size.height * 2)
+        #expect(replacement.image !== loaded?.image)
+        PartIconLoader.shared.removeIcon(at: iconURL)
     }
 
     private func makePackage(

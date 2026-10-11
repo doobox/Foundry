@@ -12,6 +12,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     let openThemeEditor: () -> Void
     let openSiteCode: () -> Void
     let previewSite: () -> Void
+    let isGeneratingPreview: Bool
     let publishSite: () -> Void
     let publishingDestinations: [PublishingDestination]
     let defaultPublishingDestinationID: UUID?
@@ -21,6 +22,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     let showPartUpdates: () -> Void
     @ViewBuilder let panelContent: (WorkspacePanel) -> PanelContent
     @Environment(WorkspacePresetLibrary.self) private var workspaceLibrary
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @SceneStorage("foundry.workspace.selectedPresetID") private var selectedWorkspaceIDValue = ""
     @AppStorage(AppPreferenceKey.showsDeveloperPanel) private var showsDeveloperPanel = false
     @State private var isNamingPreset = false
@@ -222,9 +224,19 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     }
 
     private var previewSiteButton: some View {
-        Button("Preview Site", systemImage: "safari", action: previewSite)
-            .labelStyle(.iconOnly)
-            .help("Generate and open a production preview")
+        Button(action: previewSite) {
+            Group {
+                if isGeneratingPreview {
+                    Image(systemName: "arrow.trianglehead.2.clockwise.rotate.90")
+                        .symbolEffect(.rotate, isActive: !reduceMotion)
+                } else {
+                    Image(systemName: "safari")
+                }
+            }
+            .frame(width: 18, height: 18)
+        }
+        .accessibilityLabel(isGeneratingPreview ? "Generating Preview" : "Preview Site")
+        .help(isGeneratingPreview ? "Generating preview…" : "Generate and open a production preview")
     }
 
     private var themeEditorButton: some View {

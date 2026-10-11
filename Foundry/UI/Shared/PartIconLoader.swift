@@ -1,8 +1,8 @@
 import AppKit
 import Foundation
-import Synchronization
+import Observation
 
-nonisolated struct LoadedPartIcon: @unchecked Sendable {
+struct LoadedPartIcon {
     let image: NSImage
 }
 
@@ -31,13 +31,12 @@ extension PartType {
 }
 
 extension PartIconSpecification {
-    /// The glyph as a template image, synchronously: SVG stencils come from
-    /// the icon cache — loaded and seeded on first use — and symbols come
-    /// from the system, with unknown names falling back to the generic mark.
+    /// SVGs are cache-only here; a miss schedules background preparation.
+    /// Observing views refresh when the prepared bitmap becomes available.
     func resolvedGlyphImage() -> NSImage? {
         switch glyph {
         case .svg(let url):
-            return PartIconLoader.loadNow(at: url)?.image
+            return PartIconLoader.shared.requestIcon(at: url)?.image
         case .symbol(let name):
             return NSImage(systemSymbolName: name, accessibilityDescription: nil)
                 ?? NSImage(systemSymbolName: PartDefinition.genericSystemImage, accessibilityDescription: nil)
@@ -134,55 +133,92 @@ extension PartIconSpecification {
     }
 }
 
-actor PartIconLoader {
+@MainActor
+@Observable
+final class PartIconLoader {
     static let shared = PartIconLoader()
 
-    private nonisolated static let cache = Mutex<[URL: LoadedPartIcon]>([:])
+    private var cache: [URL: LoadedPartIcon] = [:]
+    @ObservationIgnored private var pending: [URL: (id: UUID, task: Task<Void, Never>)] = [:]
+    @ObservationIgnored private var failed: Set<URL> = []
 
-    nonisolated static func cachedIcon(at sourceURL: URL) -> LoadedPartIcon? {
-        let url = sourceURL.standardizedFileURL
-        return cache.withLock { $0[url] }
+    static func cachedIcon(at sourceURL: URL) -> LoadedPartIcon? {
+        shared.cache[sourceURL.standardizedFileURL]
     }
 
-    /// Loads a glyph synchronously, seeding the shared cache. Glyph files
-    /// are capped at 64 KiB so the one-time read is negligible.
-    nonisolated static func loadNow(at sourceURL: URL) -> LoadedPartIcon? {
+    func requestIcon(at sourceURL: URL) -> LoadedPartIcon? {
         let url = sourceURL.standardizedFileURL
-        if let cached = cachedIcon(at: url) { return cached }
-        guard let byteCount = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
-              byteCount <= PartPackageValidator.maximumIconByteCount,
-              let image = NSImage(contentsOf: url) else { return nil }
-        // Glyphs are stencils: only the artwork's alpha matters, and the
-        // template flag lets every surface tint the shape as it draws.
-        image.isTemplate = true
-        let loaded = LoadedPartIcon(image: image)
-        return cache.withLock { cache in
-            if let cached = cache[url] { return cached }
-            cache[url] = loaded
-            return loaded
+        if let cached = cache[url] { return cached }
+        guard pending[url] == nil, !failed.contains(url) else { return nil }
+        let id = UUID()
+        let task = Task {
+            let bitmap = await Self.prepareBitmap(at: url)
+            // A development reload can invalidate this URL while decoding.
+            guard !Task.isCancelled, pending[url]?.id == id else { return }
+            pending[url] = nil
+            if let bitmap, let image = NSImage(data: bitmap) {
+                image.isTemplate = true
+                cache[url] = LoadedPartIcon(image: image)
+            } else {
+                failed.insert(url)
+            }
         }
+        pending[url] = (id, task)
+        return nil
     }
 
-    func icon(at sourceURL: URL) -> LoadedPartIcon? {
-        Self.loadNow(at: sourceURL)
+    func icon(at sourceURL: URL) async -> LoadedPartIcon? {
+        let url = sourceURL.standardizedFileURL
+        if let icon = requestIcon(at: url) { return icon }
+        await pending[url]?.task.value
+        return cache[url]
     }
 
     func removeIcon(at sourceURL: URL) {
-        _ = Self.cache.withLock { cache in
-            cache.removeValue(forKey: sourceURL.standardizedFileURL)
-        }
+        let url = sourceURL.standardizedFileURL
+        pending.removeValue(forKey: url)?.task.cancel()
+        failed.remove(url)
+        cache.removeValue(forKey: url)
     }
 
     /// Drops every cached glyph inside a package root — used when a pack
     /// reloads and its icon file may have changed or moved.
     func removeIcons(underRoot rootURL: URL) {
         let prefix = rootURL.standardizedFileURL.path + "/"
-        Self.cache.withLock { cache in
-            cache = cache.filter { !$0.key.path.hasPrefix(prefix) }
+        for url in Set(cache.keys).union(pending.keys).union(failed) where url.path.hasPrefix(prefix) {
+            removeIcon(at: url)
         }
     }
 
     func removeAll() {
-        Self.cache.withLock { $0.removeAll() }
+        for entry in pending.values { entry.task.cancel() }
+        pending.removeAll()
+        failed.removeAll()
+        cache.removeAll()
+    }
+
+    /// Rasterize SVGs off the main actor so AppKit's SVG decoder is never
+    /// entered by row drawing. Only immutable PNG bytes cross back to the UI.
+    @concurrent
+    private static func prepareBitmap(at url: URL) async -> Data? {
+        guard !Task.isCancelled,
+              let byteCount = try? url.resourceValues(forKeys: [.fileSizeKey]).fileSize,
+              byteCount <= PartPackageValidator.maximumIconByteCount,
+              let source = NSImage(contentsOf: url),
+              source.size.width > 0, source.size.height > 0 else { return nil }
+        let scale = 256 / max(source.size.width, source.size.height)
+        let width = max(1, Int((source.size.width * scale).rounded()))
+        let height = max(1, Int((source.size.height * scale).rounded()))
+        guard let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: width, pixelsHigh: height,
+            bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false,
+            colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0),
+              let context = NSGraphicsContext(bitmapImageRep: bitmap) else { return nil }
+        NSGraphicsContext.saveGraphicsState()
+        defer { NSGraphicsContext.restoreGraphicsState() }
+        NSGraphicsContext.current = context
+        source.draw(in: NSRect(x: 0, y: 0, width: width, height: height),
+                    from: .zero, operation: .copy, fraction: 1)
+        guard !Task.isCancelled else { return nil }
+        return bitmap.representation(using: .png, properties: [:])
     }
 }

@@ -254,6 +254,7 @@ final class FoundryDocument: ReferenceFileDocument {
     nonisolated let objectWillChange = ObservableObjectPublisher()
     private let storage: Mutex<FoundryDocumentSnapshot>
     @MainActor private(set) var mutationEvent = ProjectMutationEvent(revision: 0, impact: .page)
+    @MainActor private(set) var previewInvalidation = PreviewInvalidation()
     @MainActor private var cachedAssetContentsRevision: UInt64?
     @MainActor private var cachedAssetContents: ProjectAssetContents = [:]
     @MainActor private(set) var assetContentsBuildCount = 0
@@ -603,7 +604,7 @@ final class FoundryDocument: ReferenceFileDocument {
 
     @MainActor
     private func applySite(_ newSite: Site, impact: ProjectMutationImpact) {
-        advanceMutationEvent(impact)
+        advanceMutationEvent(impact, updatedSite: newSite)
         objectWillChange.send()
         storage.withLock {
             if $0.site.assets != newSite.assets {
@@ -614,7 +615,8 @@ final class FoundryDocument: ReferenceFileDocument {
     }
 
     @MainActor
-    private func advanceMutationEvent(_ impact: ProjectMutationImpact) {
+    private func advanceMutationEvent(_ impact: ProjectMutationImpact, updatedSite: Site? = nil) {
+        previewInvalidation.record(impact, in: updatedSite ?? site, revision: mutationEvent.revision &+ 1)
         mutationEvent = ProjectMutationEvent(
             revision: mutationEvent.revision &+ 1,
             impact: impact

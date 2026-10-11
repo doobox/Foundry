@@ -2210,7 +2210,8 @@ struct WebCanvasView: NSViewRepresentable {
             let typeID = request["partTypeID"] as? String
             let iconSpecification = typeID.map(PartType.init(rawValue:))?.iconSpecification
                 ?? .init(glyph: .symbol(PartDefinition.genericSystemImage))
-            let icon = NSImageView(image: iconSpecification.tileImage(size: NSSize(width: 36, height: 36)))
+            let icon = PartIconImageView()
+            icon.configure(iconSpecification, tileSize: NSSize(width: 36, height: 36))
             icon.imageScaling = .scaleProportionallyUpOrDown
             icon.setAccessibilityLabel(title)
             icon.translatesAutoresizingMaskIntoConstraints = false

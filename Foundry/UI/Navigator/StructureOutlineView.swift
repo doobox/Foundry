@@ -154,6 +154,8 @@ struct StructureOutlineView: NSViewRepresentable {
             let cell = outlineView.makeView(withIdentifier: identifier, owner: nil) as? StructureOutlineCell
                 ?? makeCell(identifier: identifier)
             if let pageRoot = item as? PageRootItem {
+                (cell.imageView as? PartIconImageView)?.configure(nil)
+                cell.imageView?.contentTintColor = nil
                 cell.textField?.stringValue = pageRoot.title
                 cell.textField?.identifier = nil
                 cell.textField?.isEditable = false
@@ -174,9 +176,7 @@ struct StructureOutlineView: NSViewRepresentable {
             cell.textField?.isEditable = true
             cell.textField?.delegate = self
             // Tree glyphs have no backing; original artwork has no tint.
-            let rowIcon = item.part.type.iconSpecification.rowImage()
-            cell.imageView?.image = rowIcon.image
-            cell.imageView?.contentTintColor = rowIcon.tint
+            (cell.imageView as? PartIconImageView)?.configure(item.part.type.iconSpecification)
             (cell.imageView as? PartIconImageView)?.tileBackground = nil
             cell.imageView?.setAccessibilityLabel(name)
             let isLinkedToGlobal = globalContext(for: item)?.isLinked == true
@@ -357,7 +357,8 @@ struct StructureOutlineView: NSViewRepresentable {
             let version = package?.manifest.version ?? ""
             let subtitle = version.isEmpty ? author : "\(author)  v\(version)"
             let iconSpecification = item.part.type.iconSpecification
-            let icon = NSImageView(image: iconSpecification.tileImage(size: NSSize(width: 36, height: 36)))
+            let icon = PartIconImageView()
+            icon.configure(iconSpecification, tileSize: NSSize(width: 36, height: 36))
             icon.imageScaling = .scaleProportionallyUpOrDown
             icon.setAccessibilityLabel(title)
             icon.translatesAutoresizingMaskIntoConstraints = false
@@ -898,6 +899,10 @@ struct StructureOutlineView: NSViewRepresentable {
             imageView.layer?.cornerRadius = 18 * 0.16
             imageView.layer?.masksToBounds = true
             let textField = NSTextField(labelWithString: "")
+            textField.cell = StructureNameCell(textCell: "")
+            textField.isBordered = false
+            textField.drawsBackground = false
+            textField.font = .systemFont(ofSize: NSFont.systemFontSize)
             textField.isEditable = true
             textField.isSelectable = true
             textField.lineBreakMode = .byTruncatingTail

@@ -15,10 +15,67 @@ actor PreviewServer {
     private var revision: UInt64 = 0
     private var documentRoot: URL?
     private var diskSnapshot: PreviewDiskSnapshot?
+    private var onDemandSession: OnDemandPreviewSession?
+    private var pageVisitContinuation: AsyncStream<(UUID, String)>.Continuation?
+    private var pageVisitSubscription: UUID?
+
+    func pageVisits() -> AsyncStream<(UUID, String)> {
+        pageVisitContinuation?.finish()
+        let id = UUID()
+        let (stream, continuation) = AsyncStream<(UUID, String)>.makeStream(bufferingPolicy: .bufferingNewest(1))
+        pageVisitSubscription = id
+        pageVisitContinuation = continuation
+        continuation.onTermination = { [weak self] _ in
+            Task { await self?.endPageVisits(id) }
+        }
+        return stream
+    }
+
+    private func endPageVisits(_ id: UUID) {
+        guard pageVisitSubscription == id else { return }
+        pageVisitContinuation = nil
+        pageVisitSubscription = nil
+    }
+
+    private func receivePageVisit(_ request: PreviewHTTPRequest) {
+        guard request.method == "GET",
+              let session = request.queryValue(named: "session").flatMap(UUID.init(uuidString:)),
+              let path = request.queryValue(named: "path"), path.hasPrefix("/"), !path.hasPrefix("//"),
+              PreviewHTTPRouter.safeBundlePath(path) != nil else { return }
+        pageVisitContinuation?.yield((session, path))
+    }
+
+    #if DEBUG
+    private var manualTiming: (session: UUID, start: ContinuousClock.Instant, revision: UInt64)?
+    func beginManualTiming(session: UUID, start: ContinuousClock.Instant) {
+        manualTiming = (session, start, revision &+ 1)
+        print("[Preview timing] Click — starting manual preview")
+    }
+    func markManualTiming(_ stage: String) {
+        guard let timing = manualTiming else { return }
+        print("[Preview timing] \(stage): \(timing.start.duration(to: .now)) since click")
+    }
+    private func recordBrowserTiming(_ request: PreviewHTTPRequest) {
+        guard let timing = manualTiming,
+              request.queryValue(named: "session") == timing.session.uuidString,
+              request.queryValue(named: "revision") == String(timing.revision) else { return }
+        let stage = request.queryValue(named: "stage") ?? "unknown"
+        let elapsed = request.queryValue(named: "elapsed") ?? "unknown"
+        markManualTiming("Browser \(stage) (\(elapsed) ms since navigation started)")
+    }
+    #endif
+
+    func hasPreviewConnection(sessionID: UUID) -> Bool {
+        eventStreams.values.contains { $0.sessionID == sessionID }
+    }
 
     func currentSnapshot() -> PreviewDiskSnapshot? { diskSnapshot }
+    func currentOnDemandSession() -> OnDemandPreviewSession? { onDemandSession }
 
     func stop() {
+        pageVisitContinuation?.finish()
+        pageVisitContinuation = nil
+        pageVisitSubscription = nil
         for stream in eventStreams.values { stream.connection.cancel() }
         eventStreams.removeAll()
         listener?.cancel()
@@ -28,6 +85,7 @@ actor PreviewServer {
         startContinuation?.resume(throwing: PreviewServerError.cancelled)
         startContinuation = nil
         diskSnapshot = nil
+        onDemandSession = nil
         documentRoot = nil
         bundle = SiteExportBundle(files: [])
     }
@@ -49,9 +107,28 @@ actor PreviewServer {
 
     func publish(_ snapshot: PreviewDiskSnapshot, notifyingClients: Bool = true, preferredPort: UInt16? = nil) async throws -> URL {
         try Task.checkCancellation()
+        onDemandSession = nil
         diskSnapshot = snapshot
         documentRoot = snapshot.root
         self.bundle = snapshot.index
+        return try await startServing(notifyingClients: notifyingClients, preferredPort: preferredPort)
+    }
+
+    func publish(_ output: PreviewOutput, notifyingClients: Bool = true, preferredPort: UInt16? = nil) async throws -> URL {
+        switch output {
+        case .disk(let snapshot):
+            return try await publish(snapshot, notifyingClients: notifyingClients, preferredPort: preferredPort)
+        case .onDemand(let session):
+            try Task.checkCancellation()
+            onDemandSession = session
+            diskSnapshot = nil
+            documentRoot = nil
+            bundle = SiteExportBundle(files: [])
+            return try await startServing(notifyingClients: notifyingClients, preferredPort: preferredPort)
+        }
+    }
+
+    private func startServing(notifyingClients: Bool, preferredPort: UInt16?) async throws -> URL {
         revision &+= 1
         if notifyingClients {
             publishReloadEvent()
@@ -134,7 +211,8 @@ actor PreviewServer {
             bundle: currentBundle,
             documentRoot: currentDocumentRoot,
             revision: currentRevision,
-            snapshot: diskSnapshot
+            snapshot: diskSnapshot,
+            onDemand: onDemandSession
         )
     }
 
@@ -144,13 +222,28 @@ actor PreviewServer {
         bundle: SiteExportBundle,
         documentRoot: URL?,
         revision: UInt64,
-        snapshot: PreviewDiskSnapshot? = nil
+        snapshot: PreviewDiskSnapshot? = nil,
+        onDemand: OnDemandPreviewSession? = nil
     ) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 16_384) { data, _, isComplete, error in
             var request = accumulated
             if let data { request.append(data) }
             if PreviewHTTPRequest.isComplete(request) || isComplete || error != nil || request.count >= 65_536 {
                 Task {
+                    if let parsed = PreviewHTTPRequest(data: request), parsed.target == "/__foundry/page-visit" {
+                        await self.receivePageVisit(parsed)
+                        connection.send(content: Data("HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".utf8),
+                            completion: .contentProcessed { _ in connection.cancel() })
+                        return
+                    }
+                    #if DEBUG
+                    if let parsed = PreviewHTTPRequest(data: request), parsed.target == "/__foundry/preview-timing" {
+                        await self.recordBrowserTiming(parsed)
+                        connection.send(content: Data("HTTP/1.1 204 No Content\r\nContent-Length: 0\r\nConnection: close\r\n\r\n".utf8),
+                            completion: .contentProcessed { _ in connection.cancel() })
+                        return
+                    }
+                    #endif
                     if let parsedRequest = PreviewHTTPRequest(data: request),
                        parsedRequest.target == "/__foundry/events" {
                         await self.openEventStream(connection, request: parsedRequest)
@@ -160,6 +253,21 @@ actor PreviewServer {
                        parsedRequest.target == "/__foundry/navigation-ack" {
                         await self.acknowledgeNavigation(connection, request: parsedRequest)
                         return
+                    }
+                    if let onDemand, let parsed = PreviewHTTPRequest(data: request),
+                       parsed.method == "GET" || parsed.method == "HEAD" {
+                        do {
+                            if let resolved = try await onDemand.resolve(parsed.target) {
+                                await Self.sendFile(on: connection, request: parsed, path: resolved.path, snapshot: resolved.snapshot, revision: revision)
+                                return
+                            }
+                        } catch {
+                            let body = Data("Preview generation failed: \(error.localizedDescription)".utf8)
+                            var response = Data("HTTP/1.1 500 Internal Server Error\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: \(body.count)\r\nConnection: close\r\n\r\n".utf8)
+                            if parsed.method != "HEAD" { response.append(body) }
+                            connection.send(content: response, completion: .contentProcessed { _ in connection.cancel() })
+                            return
+                        }
                     }
                     if let snapshot, let parsed = PreviewHTTPRequest(data: request),
                        let path = PreviewHTTPRouter.resolvedBundlePath(parsed.target, bundle: bundle),
@@ -184,7 +292,8 @@ actor PreviewServer {
                     bundle: bundle,
                     documentRoot: documentRoot,
                     revision: revision,
-                    snapshot: snapshot
+                    snapshot: snapshot,
+                    onDemand: onDemand
                 )
             }
         }
@@ -297,6 +406,10 @@ actor PreviewServer {
     }
 
     func navigatePreview(sessionID: UUID, to target: String) async -> Bool {
+        #if DEBUG
+        let navigationStart = ContinuousClock.now
+        defer { print("[Preview timing] Navigation handoff returned after \(navigationStart.duration(to: .now))") }
+        #endif
         let matchingStreams = eventStreams.filter { $0.value.sessionID == sessionID }
         let navigationID = UUID()
         let navigation = PreviewNavigation(id: navigationID, target: target)
@@ -569,6 +682,21 @@ nonisolated enum PreviewHTTPRouter {
     ) -> Data {
         guard path.hasSuffix(".html") || path.hasSuffix(".php"),
               var html = String(data: data, encoding: .utf8) else { return data }
+        #if DEBUG
+        let timingScript = """
+          const reportTiming = stage => {
+            fetch('/__foundry/preview-timing?session=' + encodeURIComponent(session) +
+              '&revision=' + encodeURIComponent(revision) + '&stage=' + stage +
+              '&elapsed=' + performance.now().toFixed(1), {cache: 'no-store'}).catch(() => {});
+          };
+          window.addEventListener('load', () => {
+            reportTiming('load');
+            requestAnimationFrame(() => requestAnimationFrame(() => reportTiming('frame')));
+          }, {once: true});
+        """
+        #else
+        let timingScript = ""
+        #endif
         let script = """
         <script>
         (() => {
@@ -576,6 +704,24 @@ nonisolated enum PreviewHTTPRouter {
           const requestedSession = '\(sessionID?.uuidString ?? "")';
           if (requestedSession) sessionStorage.setItem('\(foundryPreviewSessionQueryName)', requestedSession);
           const session = requestedSession || sessionStorage.getItem('\(foundryPreviewSessionQueryName)') || '';
+          const navigationKey = '__foundry_app_navigation';
+          let reportedPath = null;
+          const reportPage = () => {
+            if (!session || document.visibilityState !== 'visible') return;
+            const path = location.pathname;
+            const fromApp = sessionStorage.getItem(navigationKey);
+            sessionStorage.removeItem(navigationKey);
+            if (fromApp === path) { reportedPath = path; return; }
+            if (reportedPath === path) return;
+            reportedPath = path;
+            fetch('/__foundry/page-visit?session=' + encodeURIComponent(session) +
+              '&path=' + encodeURIComponent(path), {cache: 'no-store'}).catch(() => { reportedPath = null; });
+          };
+          window.addEventListener('pageshow', () => { reportedPath = null; reportPage(); });
+          document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible') { reportedPath = null; reportPage(); }
+          });
+          \(timingScript)
           const events = new EventSource('/__foundry/events?revision=' + encodeURIComponent(revision) + (session ? '&\(foundryPreviewSessionQueryName)=' + encodeURIComponent(session) : ''));
           events.addEventListener('reload', () => location.reload());
           events.addEventListener('navigate', async event => {
@@ -585,6 +731,7 @@ nonisolated enum PreviewHTTPRouter {
                 cache: 'no-store'
               });
             } finally {
+              sessionStorage.setItem(navigationKey, new URL(navigation.target, location.href).pathname);
               const current = location.pathname + location.search;
               if (current === navigation.target) {
                 location.reload();

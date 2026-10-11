@@ -7,7 +7,7 @@
   "description": "Your HTML, rendered directly with the site's Bootstrap stylesheet.",
   "group": "Content",
   "icon": {
-    "file": "htmlicon.svg",
+    "file": "icon.svg",
     "background": { "light": "#44475a", "dark": "#282a36" },
     "rendering" : "original"
   },

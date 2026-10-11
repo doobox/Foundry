@@ -122,7 +122,7 @@ final class PartPackageCatalog {
         packages = snapshot.packages
         diagnostics = snapshot.diagnostics
         PartRegistry.replaceDefinitions(snapshot.definitions)
-        Task { await PartIconLoader.shared.removeAll() }
+        PartIconLoader.shared.removeAll()
         configureDevelopmentWatchers(snapshot.developmentRoots, installedRoot: snapshot.installedRoot)
         loadingStage = .ready
         phase = .ready
@@ -164,9 +164,7 @@ final class PartPackageCatalog {
 
     private func apply(_ outcome: PartPackageLoadOutcome, allowsReplacement: Bool) {
         let url = outcome.url
-        Task {
-            await PartIconLoader.shared.removeIcons(underRoot: url)
-        }
+        PartIconLoader.shared.removeIcons(underRoot: url)
         if let package = outcome.package {
             if !allowsReplacement,
                let previous = packages[package.manifest.identifier],

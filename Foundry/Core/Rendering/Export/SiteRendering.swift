@@ -1,30 +1,53 @@
 import Foundation
 import CryptoKit
 import Darwin
+import OSLog
 
 /// An immutable preview generation. In-flight requests retain it while a newer
 /// generation is published, so PHP and static files never see a partial refresh.
 nonisolated final class PreviewDiskSnapshot: @unchecked Sendable {
     let root: URL
     let fingerprints: [String: String]
+    let buildIdentity: PreviewBuildIdentity?
+    let pagePaths: [UUID: [String]]
+    let reusedPageIDs: Set<UUID>
+    private let containsPHP: Bool
+    private static let logger = Logger(subsystem: "uk.co.garysimpson.Foundry", category: "PreviewPerformance")
     var index: SiteExportBundle {
         SiteExportBundle(files: fingerprints.keys.map { SiteExportFile(path: $0, data: Data()) })
     }
 
-    private init(root: URL, fingerprints: [String: String]) {
+    private init(root: URL, fingerprints: [String: String], buildIdentity: PreviewBuildIdentity?, pagePaths: [UUID: [String]], reusedPageIDs: Set<UUID>) {
         self.root = root
         self.fingerprints = fingerprints
+        self.buildIdentity = buildIdentity
+        self.pagePaths = pagePaths
+        self.reusedPageIDs = reusedPageIDs
+        containsPHP = fingerprints.keys.contains { $0.lowercased().hasSuffix(".php") }
     }
 
     deinit { try? FileManager.default.removeItem(at: root) }
 
-    static func build(previous: PreviewDiskSnapshot? = nil, generate: ((SiteExportFile) throws -> Void) throws -> Void) throws -> PreviewDiskSnapshot {
+    static func build(previous: PreviewDiskSnapshot? = nil, identity: PreviewBuildIdentity? = nil,
+                      pagePaths: () -> [UUID: [String]] = { [:] }, reusedPageIDs: Set<UUID> = [],
+                      generate: ((SiteExportFile) throws -> Void) throws -> Void) throws -> PreviewDiskSnapshot {
+        try Task.checkCancellation()
+        // PHP may modify its document root, so it must always get a fresh
+        // generation. Callers without a complete identity also always build.
+        if let identity, let previous, previous.buildIdentity == identity, !previous.containsPHP {
+            logger.debug("Reusing unchanged preview; no rendering or file generation")
+            return previous
+        }
+        let started = ContinuousClock.now
+        var outputDuration = Duration.zero
         let root = FileManager.default.temporaryDirectory.appending(path: "FoundryPreview-\(UUID().uuidString)", directoryHint: .isDirectory)
         try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
         var fingerprints: [String: String] = [:]
-        let canReusePrevious = previous?.fingerprints.keys.contains(where: { $0.lowercased().hasSuffix(".php") }) == false
+        let canReusePrevious = previous?.containsPHP == false
         do {
             try generate { file in
+                let outputStarted = ContinuousClock.now
+                defer { outputDuration += outputStarted.duration(to: .now) }
                 try Task.checkCancellation()
                 guard !file.path.hasPrefix("/"), !file.path.contains("\\"),
                       !file.path.contains("\0"), !file.path.split(separator: "/").contains(".."),
@@ -53,10 +76,30 @@ nonisolated final class PreviewDiskSnapshot: @unchecked Sendable {
                 fingerprints[file.path] = fingerprint
             }
             try Task.checkCancellation()
-            return PreviewDiskSnapshot(root: root, fingerprints: fingerprints)
+            let elapsed = started.duration(to: .now)
+            logger.debug("Preview generation: \(String(describing: elapsed), privacy: .public); output/hash/assets: \(String(describing: outputDuration), privacy: .public); files: \(fingerprints.count); reused pages: \(reusedPageIDs.count)")
+            return PreviewDiskSnapshot(root: root, fingerprints: fingerprints, buildIdentity: identity,
+                                       pagePaths: pagePaths(), reusedPageIDs: reusedPageIDs)
         } catch {
             try? FileManager.default.removeItem(at: root)
             throw error
+        }
+    }
+
+    /// Preserve only page-owned output; shared CSS/assets are always re-planned.
+    /// Lazy payloads keep the source generation alive until cloning completes.
+    func reusablePages(for identity: PreviewBuildIdentity, invalidation: PreviewInvalidation) -> [UUID: [SiteExportFile]] {
+        guard !containsPHP, let old = buildIdentity,
+              old.siteID == identity.siteID, old.packageRevision == identity.packageRevision,
+              old.documentRevision <= identity.documentRevision,
+              old.assetRevision == identity.assetRevision,
+              let dirty = invalidation.dirtyPages(since: old.documentRevision) else { return [:] }
+        return pagePaths.filter { !dirty.contains($0.key) }.mapValues { paths in
+            paths.map { path in
+                SiteExportFile(path: path, fingerprint: fingerprints[path]) {
+                    try? Data(contentsOf: self.root.appending(path: path))
+                }
+            }
         }
     }
 }

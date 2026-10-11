@@ -64,7 +64,9 @@ struct ContentView: View {
     @State private var previewSessionApplicationIdentifier: String?
     @State private var isPreviewSessionOpen = false
     @State private var previewRefreshTask: Task<Void, Never>?
+    @State private var previewGenerationID: UUID?
     @State private var browserPreviewServer = PreviewServer()
+    @State private var browserSelectedPageID: UUID?
     @State private var browserPreviewURL: URL?
     @State private var browserPreviewRevision: UInt64?
     @State private var browserPreviewPackageRevision: Int?
@@ -128,6 +130,7 @@ struct ContentView: View {
             },
             openSiteCode: { showsSiteCodeEditor = true },
             previewSite: previewSite,
+            isGeneratingPreview: previewGenerationID != nil,
             publishSite: { publishSite() },
             publishingDestinations: validPublishingDestinations,
             defaultPublishingDestinationID: document.site.defaultPublishingDestinationID,
@@ -186,7 +189,22 @@ struct ContentView: View {
                 schedulePreviewRefresh()
             }
         }
-        .onChange(of: selectedPageID) { _, _ in
+        .task {
+            for await (session, path) in await browserPreviewServer.pageVisits() {
+                guard session == previewSessionID, isPreviewSessionOpen,
+                      htmlSourceEditRequest == nil, pageTextEditRequest == nil,
+                      let pageID = PreviewPageNavigation.pageID(for: path, in: document.site),
+                      pageID != selectedPageID else { continue }
+                browserSelectedPageID = pageID
+                inspectablePageSelection.wrappedValue = pageID
+            }
+        }
+        .onChange(of: selectedPageID) { _, pageID in
+            if browserSelectedPageID == pageID {
+                browserSelectedPageID = nil
+                return
+            }
+            browserSelectedPageID = nil
             schedulePreviewRefresh(selectionOnly: true)
         }
 
@@ -622,40 +640,10 @@ struct ContentView: View {
             }
         }
 
-        func markAllPages() {
-            document.site.pages.forEach { markModified($0.id) }
-        }
-
-        switch impact {
-        case .partProperty(let partID, _):
-            if let page = document.site.pages.first(where: { $0.parts.node(withID: partID) != nil }) {
-                markModified(page.id)
-            } else {
-                markAllPages()
-            }
-        case .partProperties(let partIDs, _):
-            let affectedPageIDs = Set(document.site.pages.compactMap { page in
-                partIDs.contains { page.parts.node(withID: $0) != nil } ? page.id : nil
-            })
-            if affectedPageIDs.isEmpty {
-                markAllPages()
-            } else {
-                affectedPageIDs.forEach(markModified)
-            }
-        case .partStructure(let ownerID):
-            if let ownerID,
-               let page = document.site.pages.first(where: { $0.parts.node(withID: ownerID) != nil }) {
-                markModified(page.id)
-            } else {
-                markAllPages()
-            }
-        case .assets:
-            markAllPages()
+        let pages = impact.affectedPageIDs(in: document.site) ?? Set(document.site.pages.map(\.id))
+        pages.forEach(markModified)
+        if impact == .assets {
             document.site.assets.forEach { markModified($0.id) }
-        case .page, .theme, .package:
-            markAllPages()
-        case .publishingOnly:
-            break
         }
     }
 
@@ -2263,9 +2251,16 @@ struct ContentView: View {
     }
 
     private func previewSite() {
+        guard previewGenerationID == nil else { return }
+        #if DEBUG
+        let clickTime = ContinuousClock.now
+        #endif
         previewRefreshTask?.cancel()
         let site = document.site
         let assets = document.assetContents
+        let assetRevision = document.assetRevision
+        let invalidation = document.previewInvalidation
+        let previewPageID = selectedPage?.id
         let revision = document.mutationEvent.revision
         let packageRevision = partCatalog.revision
         let selectedPageOutputPath = selectedPage.map {
@@ -2283,14 +2278,27 @@ struct ContentView: View {
         }
         previewRefreshTask = Task { @MainActor in
             do {
-                let snapshot = try await buildBrowserPreview(site: site, assets: assets)
+                #if DEBUG
+                await browserPreviewServer.beginManualTiming(session: sessionID, start: clickTime)
+                #endif
+                let snapshot = try await buildBrowserPreview(site: site, assets: assets,
+                    selectedPageID: previewPageID,
+                    invalidation: invalidation,
+                    identity: .init(siteID: site.id, documentRevision: revision, packageRevision: packageRevision, assetRevision: assetRevision),
+                    priority: .userInitiated)
                 guard !Task.isCancelled else { return }
+                #if DEBUG
+                await browserPreviewServer.markManualTiming("Generation finished")
+                #endif
                 let serverURL = try await browserPreviewServer.publish(
                     snapshot,
                     notifyingClients: false,
                     preferredPort: site.previewServerPort.flatMap(UInt16.init(exactly:))
                 )
                 browserPreviewURL = serverURL
+                #if DEBUG
+                await browserPreviewServer.markManualTiming("Server published")
+                #endif
                 browserPreviewRevision = revision
                 browserPreviewPackageRevision = packageRevision
                 guard !Task.isCancelled else { return }
@@ -2304,6 +2312,9 @@ struct ContentView: View {
                     sessionID: sessionID,
                     applicationIdentifier: applicationIdentifier
                 )
+                #if DEBUG
+                await browserPreviewServer.markManualTiming("Browser activation/open requested")
+                #endif
             } catch {
                 guard !Task.isCancelled else { return }
                 exportErrorMessage = error.localizedDescription
@@ -2312,18 +2323,22 @@ struct ContentView: View {
     }
 
     private func schedulePreviewRefresh(selectionOnly: Bool = false) {
-        guard externalPreviewAutoReload, isPreviewSessionOpen else { return }
+        guard externalPreviewAutoReload || selectionOnly, isPreviewSessionOpen else { return }
         previewRefreshTask?.cancel()
         previewRefreshTask = Task { @MainActor in
-            try? await Task.sleep(for: .milliseconds(250))
+            if !selectionOnly { try? await Task.sleep(for: .milliseconds(250)) }
             guard !Task.isCancelled else { return }
             let site = document.site
             let assets = document.assetContents
             do {
                 let revision = document.mutationEvent.revision
                 let packageRevision = partCatalog.revision
-                if !selectionOnly || browserPreviewRevision != revision || browserPreviewPackageRevision != packageRevision {
-                    let snapshot = try await buildBrowserPreview(site: site, assets: assets)
+                let assetRevision = document.assetRevision
+                if externalPreviewAutoReload && (!selectionOnly || browserPreviewRevision != revision || browserPreviewPackageRevision != packageRevision) {
+                    let snapshot = try await buildBrowserPreview(site: site, assets: assets,
+                        selectedPageID: selectedPage?.id,
+                        invalidation: document.previewInvalidation,
+                        identity: .init(siteID: site.id, documentRevision: revision, packageRevision: packageRevision, assetRevision: assetRevision))
                     try Task.checkCancellation()
                     // Navigation below also reloads an unchanged target. Avoid a
                     // competing reload event disconnecting the stream first.
@@ -2351,12 +2366,26 @@ struct ContentView: View {
         }
     }
 
-    private func buildBrowserPreview(site: Site, assets: ProjectAssetContents) async throws -> PreviewDiskSnapshot {
+    private func buildBrowserPreview(site: Site, assets: ProjectAssetContents, selectedPageID: UUID?, invalidation: PreviewInvalidation, identity: PreviewBuildIdentity, priority: TaskPriority = .utility) async throws -> PreviewOutput {
+        let generationID = UUID()
+        previewGenerationID = generationID
+        defer {
+            // A cancelled build must not clear a newer build's indicator.
+            if previewGenerationID == generationID { previewGenerationID = nil }
+        }
         let previous = await browserPreviewServer.currentSnapshot()
-        let task = Task.detached(priority: .utility) {
-            try PreviewDiskSnapshot.build(previous: previous) { emit in
-                try StaticSiteRenderer(environment: .preview).generate(site: site, assets: assets, emit: emit)
+        let previousSession = await browserPreviewServer.currentOnDemandSession()
+        let task = Task.detached(priority: priority) { () throws -> PreviewOutput in
+            if !site.pages.contains(where: StaticSiteRenderer.requiresPHP) {
+                do {
+                    return .onDemand(try await OnDemandPreviewSession.prepare(site: site, assets: assets,
+                        identity: identity, invalidation: invalidation, selectedPageID: selectedPageID, previous: previousSession))
+                } catch OnDemandPreviewSession.PreparationError.requiresFullSnapshot {
+                    // PHP can include/read other files: preserve its full document root.
+                }
             }
+            return .disk(try StaticSiteRenderer(environment: .preview).previewSnapshot(
+                site: site, assets: assets, identity: identity, invalidation: invalidation, previous: previous))
         }
         return try await withTaskCancellationHandler {
             try await task.value

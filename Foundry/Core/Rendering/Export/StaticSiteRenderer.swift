@@ -40,12 +40,18 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         )
     }
 
-    func generate(site: Site, assets: ProjectAssetContents, emit: (SiteExportFile) throws -> Void) throws {
+    func generate(site: Site, assets: ProjectAssetContents,
+                  reusingPages: [UUID: [SiteExportFile]] = [:],
+                  pageIDs: Set<UUID>? = nil, includeSharedFiles: Bool = true,
+                  stageTiming: (String, Duration) -> Void = { _, _ in },
+                  pageOutput: (UUID, [String]) -> Void = { _, _ in },
+                  emit: (SiteExportFile) throws -> Void) throws {
+        var stageStart = ContinuousClock.now
         let webIconPlan = WebIconGenerator.exportPlan(
             storedAssets: site.webIconAssets,
             contents: assets
         )
-        if site.customCodeEnabled {
+        if includeSharedFiles && site.customCodeEnabled {
             if !site.cssCode.isEmpty {
                 try emit(SiteExportFile(path: "files/custom-site.css", contents: site.cssCode))
             }
@@ -55,8 +61,21 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         }
         var sitePackages: [LoadedPartPackage] = []
         var sitePackageIdentifiers = Set<String>()
+        stageTiming("setup", stageStart.duration(to: .now))
+        stageStart = .now
         for page in site.pages {
             try Task.checkCancellation()
+            if !includeSharedFiles, let pageIDs, !pageIDs.contains(page.id) { continue }
+            let pagePackages = PartArtifactPlan(page: page).packages
+            for package in pagePackages where sitePackageIdentifiers.insert(package.manifest.identifier).inserted {
+                sitePackages.append(package)
+            }
+            if let pageIDs, !pageIDs.contains(page.id) { continue }
+            if let files = reusingPages[page.id] {
+                for file in files { try emit(file) }
+                pageOutput(page.id, files.map(\.path))
+                continue
+            }
             let isHome = page.slug == "index"
             let directory = isHome
                 ? ""
@@ -69,10 +88,6 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 ? ""
                 : String(repeating: "../", count: directory.split(separator: "/").count)
             let includesPageJavaScript = pageRequiresJavaScript(page)
-            let pagePackages = PartArtifactPlan(page: page).packages
-            for package in pagePackages where sitePackageIdentifiers.insert(package.manifest.identifier).inserted {
-                sitePackages.append(package)
-            }
             let libraryPrefix = rootPrefix + "files/libraries"
             let scriptsBefore = FoundryWebLibraryRegistry.exportScripts(
                 for: pagePackages,
@@ -134,14 +149,22 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 destinationDirectory: pageFilesDirectory
             ))
             for file in pageFiles { try emit(file) }
+            pageOutput(page.id, pageFiles.map(\.path))
         }
+        stageTiming("pagesAndDependencies", stageStart.duration(to: .now))
+        guard includeSharedFiles else { return }
+        stageStart = .now
         try emit(.init(path: "files/site.css", contents: stylesheet(for: site, assets: assets)))
+        stageTiming("sharedCSS", stageStart.duration(to: .now))
+        stageStart = .now
         for file in FoundryWebLibraryRegistry.exportFiles(for: sitePackages) { try emit(file) }
         for file in partAssetFiles(
             for: sitePackages,
             scope: .site,
             destinationDirectory: "assets"
         ) { try emit(file) }
+        stageTiming("bundledAndPackageResources", stageStart.duration(to: .now))
+        stageStart = .now
         let managedAssetPaths = site.assetLibrary.managedExportPaths()
         for asset in site.assets {
             try Task.checkCancellation()
@@ -161,8 +184,12 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 resolve: { assets[asset.id]?.data }
             ))
         }
+        stageTiming("projectAssets", stageStart.duration(to: .now))
+        stageStart = .now
         try imageRenditionFiles(site: site, assets: assets, emit: emit)
         try backgroundVideoPosterFiles(site: site, assets: assets, emit: emit)
+        stageTiming("renditionsAndPosters", stageStart.duration(to: .now))
+        stageStart = .now
         for file in webIconPlan.files { try emit(file) }
         if site.generatesSitemap, let baseURL = validPublicURL(site.publicURL) {
             try emit(.init(path: "sitemap.xml", contents: sitemap(for: site, baseURL: baseURL)))
@@ -170,6 +197,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         if site.generatesRobotsTXT {
             try emit(.init(path: "robots.txt", contents: robotsTXT(for: site)))
         }
+        stageTiming("iconsAndMetadata", stageStart.duration(to: .now))
     }
 
     private func pageRequiresJavaScript(_ page: Page) -> Bool {
@@ -851,20 +879,18 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let instanceStyles = nodes.compactMap { node in
             guard !Task.isCancelled else { return nil as String? }
             guard let package = node.definition.package else { return nil }
-            let css = PartTemplateRenderer.render(
-                [package.css, PartArtifactPlan.htmlArtifact(for: node, suffix: "CSS"), package.renderDefinition.controlGroupCSS]
-                    .filter { !$0.isEmpty }
-                    .joined(separator: "\n"),
+            let properties = packageProperties(node, theme: site.theme, assetPrefix: assetPrefix, assets: assets, site: site)
+            let cssTemplate = [package.css, PartArtifactPlan.htmlArtifact(for: node, suffix: "CSS"), package.renderDefinition.controlGroupCSS]
+                .filter { !$0.isEmpty }
+                .joined(separator: "\n")
+            // Empty templates need no navigation/asset context. Background
+            // styles still use the same resolved values below.
+            let css = cssTemplate.isEmpty ? "" : PartTemplateRenderer.render(
+                cssTemplate,
                 context: .init(
                     instanceID: node.id,
                     packageIdentifier: package.manifest.identifier,
-                    properties: packageProperties(
-                        node,
-                        theme: site.theme,
-                        assetPrefix: assetPrefix,
-                        assets: assets,
-                        site: site
-                    ),
+                    properties: properties,
                     templateValues: navigationValues(for: page, in: site),
                     slots: [:],
                     partClass: partClass(node),
@@ -884,7 +910,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 instanceID: node.id
             )
             let custom = PartTemplateRenderer.scopedCustomCSS(node.customCSS, instanceID: node.id)
-            let background = PartPackageBackgroundResolver.stylesheet(packageProperties(node, theme: site.theme, assetPrefix: assetPrefix, assets: assets, site: site))
+            let background = PartPackageBackgroundResolver.stylesheet(properties)
             return [scoped, custom, background].filter { !$0.isEmpty }.joined(separator: "\n")
         }.joined(separator: "\n")
         let pagePackageStyles = PartArtifactPlan(page: page).packages.compactMap { package -> String? in
