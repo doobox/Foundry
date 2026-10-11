@@ -57,16 +57,16 @@ struct ThemeColorsPartControl: View {
                     selection = id
                     showsColours = false
                 }
-                .padding(12).frame(width: 320)
+                .padding(12).frame(width: tokenSections.contains("palettes") ? 400 : 320)
             }
         }
-        .task(id: previewCSS) {
+        .task(id: previewCSS + tokenSections.joined(separator: ",")) {
             await resolvePreviews()
         }
     }
 
     private func resolvePreviews() async {
-        let values = BootstrapPaletteTheme.selectablePalettes(in: theme)
+        let values = tokenSections.contains("themes") ? BootstrapPaletteTheme.selectablePalettes(in: theme) : []
         let css = BootstrapColourCatalogue.sourceCSS + previewCSS
         let scaleTokens = PartColourToken.groups(for: tokenSections, palettes: palettes, linksOnly: linksOnly).flatMap { $0.1 }
         do {

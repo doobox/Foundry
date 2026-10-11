@@ -70,7 +70,8 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         let customHeadCode = site?.customCodeEnabled == true ? site?.headCode ?? "" : ""
         let customBodyStartCode = site?.customCodeEnabled == true ? site?.bodyStartCode ?? "" : ""
         let customBodyEndCode = site?.customCodeEnabled == true ? site?.bodyEndCode ?? "" : ""
-        let analyticsCode = site?.customCodeEnabled == true ? site?.analyticsCode ?? "" : ""
+        let customCSS = site?.customCodeEnabled == true ? site?.cssCode ?? "" : ""
+        let customStyle = customCSS.isEmpty ? "" : "<style>\(customCSS.replacingOccurrences(of: "</style", with: "<\\/style", options: .caseInsensitive))</style>"
         let documentLanguage = (page.language ?? language).trimmingCharacters(in: .whitespacesAndNewlines)
         return """
         <!doctype html>
@@ -173,8 +174,8 @@ nonisolated struct HTMLPageRenderer: PageRendering {
           <style data-foundry-shared-styles>
             \(packageStyles(for: page, theme: theme, assets: assets, breakpoint: breakpoint))
           </style>
-        \(analyticsCode)
         \(headEnd)
+        \(customStyle)
         </head>
         <body>\(customBodyStartCode)\(bodyStart)<!--foundry-roots-start-->\(body)<!--foundry-roots-end-->\(bodyEnd)\(customBodyEndCode)</body>
         </html>
@@ -223,7 +224,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     private func placedHTML(for page: Page, theme: Theme, placement: PartPackageTemplateFile.Placement) -> String {
         var seenPackages: Set<String> = []
         return page.parts.flatMap(flattened).compactMap { node -> String? in
-            guard let package = node.type.definition.package,
+            guard let package = node.definition.package,
                   seenPackages.insert(package.manifest.identifier).inserted else { return nil }
             let templates = package.placedHTML.filter { $0.placement == placement }
             guard !templates.isEmpty else { return nil }
@@ -361,9 +362,9 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     private func renderUncached(_ sourceNode: PartNode, page: Page, theme: Theme, assets: ProjectAssetContents, globalDefinitionID: UUID?, breakpoint: ResponsiveBreakpoint, parentPartID: UUID?, parentSlot: PartPackageSlot?, parentDropZoneSlotID: String?) -> String {
         let node = sourceNode.resolved(at: breakpoint, screens: theme.screens)
         let globalDefinitionID = node.reusableDefinitionID ?? globalDefinitionID
-        switch node.type.definition.renderKind {
+        switch node.definition.renderKind {
         case .package:
-            guard let package = node.type.definition.package else {
+            guard let package = node.definition.package else {
                 return unavailablePart(node, page: page, theme: theme, assets: assets, globalDefinitionID: globalDefinitionID, breakpoint: breakpoint, parentPartID: parentPartID)
             }
             do {
@@ -456,7 +457,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     ) -> String {
         var seenPackages: Set<String> = []
         let pageStyles = page.parts.flatMap(flattened).compactMap { node -> String? in
-            guard let package = node.type.definition.package,
+            guard let package = node.definition.package,
                   (!package.pageCSS.isEmpty || !package.siteCSS.isEmpty),
                   seenPackages.insert(package.manifest.identifier).inserted else { return nil }
             return PartTemplateRenderer.render(
@@ -521,7 +522,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             let node = sourceNode.resolved(at: breakpoint, screens: theme.screens)
             let text = cachedText(.css, key: .init(node: ownValues(node))) {
             var pieces: [String] = [BootstrapPartUtilityCSS.render(node: node, theme: theme)]
-            if sourceNode.type.definition.package?.manifest.controlGroups.contains(where: { $0.type == .background }) == true {
+            if sourceNode.definition.package?.manifest.controlGroups.contains(where: { $0.type == .background }) == true {
                 pieces.append(PartPackageBackgroundResolver.stylesheet(packageProperties(sourceNode, theme: theme, assets: assets, breakpoint: .mobile)))
                 for level in ResponsiveBreakpoint.allCases.dropFirst() {
                     guard let width = level.minimumWidth(in: theme.screens),
@@ -531,7 +532,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     if !css.isEmpty { pieces.append("@media(min-width:\(width)px){\(css)}") }
                 }
             }
-            if let package = node.type.definition.package {
+            if let package = node.definition.package {
                 let css = PartTemplateRenderer.render(
                     [package.css, package.editorCSS, package.renderDefinition.controlGroupCSS]
                         .filter { !$0.isEmpty }
@@ -590,7 +591,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                 )
             }
             let globalDefinitionID = node.reusableDefinitionID ?? inheritedGlobalDefinitionID
-            let package = node.type.definition.package
+            let package = node.definition.package
             for child in node.children {
                 let slot = package.flatMap { package in
                     if let slotID = child.slotID {
@@ -632,7 +633,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     }
 
     private func packageProperties(_ node: PartNode, theme: Theme, assets: ProjectAssetContents, breakpoint: ResponsiveBreakpoint) -> [String: PartPackageValue] {
-        if node.type.definition.properties.contains(where: { $0.control.isCollection }) {
+        if node.definition.properties.contains(where: { $0.control.isCollection }) {
             return uncachedPackageProperties(node, theme: theme, assets: assets, breakpoint: breakpoint)
         }
         guard let cacheSession else { return uncachedPackageProperties(node, theme: theme, assets: assets) }
@@ -646,7 +647,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         // One definition fetch, one stored-value index and one manifest
         // property expansion for the whole pass; repeating any of them per
         // key dominates page-render profiles.
-        let partDefinition = node.type.definition
+        let partDefinition = node.definition
         let definitions = partDefinition.properties
         let manifestProperties = partDefinition.package?.renderDefinition.properties ?? []
         let manifestPropertiesByID = partDefinition.package?.renderDefinition.propertiesByID ?? [:]
@@ -864,6 +865,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             instanceID: node.id
         )
         PartPackageControlGroupCSSResolver.resolve(&values, properties: manifestProperties)
+        PartColourPurpose.insert(node: node, theme: theme, into: &values)
         let resolved = PartPackageDerivedValueResolver.resolve(
             values,
             properties: manifestProperties
@@ -924,7 +926,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
     }
 
     private func attributes(for node: PartNode, globalDefinitionID: UUID?, parentPartID: UUID?, parentSlot: PartPackageSlot? = nil, parentDropZoneSlotID: String? = nil) -> String {
-        let definition = node.type.definition
+        let definition = node.definition
         let acceptsChildren = definition.allowsChildren ? "true" : "false"
         let manifest = definition.package?.manifest
         let author = manifest?.author?.trimmingCharacters(in: .whitespacesAndNewlines)

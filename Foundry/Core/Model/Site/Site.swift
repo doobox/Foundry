@@ -274,7 +274,8 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     var headCode: String
     var bodyStartCode: String
     var bodyEndCode: String
-    var analyticsCode: String
+    var cssCode: String
+    var javaScriptCode: String
     var generatesCacheBustingLinks: Bool
     var defaultPageExtension: PageExtensionPreference
     var previewServerPort: Int?
@@ -430,7 +431,8 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         headCode: String = "",
         bodyStartCode: String = "",
         bodyEndCode: String = "",
-        analyticsCode: String = "",
+        cssCode: String = "",
+        javaScriptCode: String = "",
         generatesCacheBustingLinks: Bool = true,
         defaultPageExtension: PageExtensionPreference = .html,
         previewServerPort: Int? = nil,
@@ -479,7 +481,8 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         self.headCode = headCode
         self.bodyStartCode = bodyStartCode
         self.bodyEndCode = bodyEndCode
-        self.analyticsCode = analyticsCode
+        self.cssCode = cssCode
+        self.javaScriptCode = javaScriptCode
         self.generatesCacheBustingLinks = generatesCacheBustingLinks
         self.defaultPageExtension = defaultPageExtension
         self.previewServerPort = previewServerPort
@@ -555,7 +558,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
 
     private enum CodingKeys: String, CodingKey {
         case appearanceMode
-        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, webIconAssets, defaultSocialImage, socialImageAlt, socialAccount, logo, siteLogoAssets, logoAlt, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, analyticsCode, generatesCacheBustingLinks, defaultPageExtension, previewServerPort, minifiesGeneratedOutput, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, publishingDestinations, defaultPublishingDestinationID, pages, pageFolders, theme = "framework", themeSourceID = "frameworkSourceID", projectThemeValues = "projectFrameworkValues", themeStates = "frameworkStates", globalPartLibrary, projectTemplateLibrary, assetLibrary, partPackages
+        case id, schemaVersion, name, language, publicURL, titleSuffix, defaultDescription, favicon, webIconAssets, defaultSocialImage, socialImageAlt, socialAccount, logo, siteLogoAssets, logoAlt, generatesCanonicalURLs, generatesSitemap, generatesRobotsTXT, allowsSearchIndexing, customCodeEnabled, headCode, bodyStartCode, bodyEndCode, cssCode, javaScriptCode, generatesCacheBustingLinks, defaultPageExtension, previewServerPort, minifiesGeneratedOutput, cleansObsoleteExportFiles, publishingDestination, publishingHost, publishingPort, publishingUsername, publishingRemotePath, publishingS3Bucket, publishingS3Region, publishingDestinations, defaultPublishingDestinationID, pages, pageFolders, theme = "framework", themeSourceID = "frameworkSourceID", projectThemeValues = "projectFrameworkValues", themeStates = "frameworkStates", globalPartLibrary, projectTemplateLibrary, assetLibrary, partPackages
     }
 
     init(from decoder: Decoder) throws {
@@ -584,7 +587,8 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
         headCode = try container.decode(String.self, forKey: .headCode)
         bodyStartCode = try container.decode(String.self, forKey: .bodyStartCode)
         bodyEndCode = try container.decode(String.self, forKey: .bodyEndCode)
-        analyticsCode = try container.decode(String.self, forKey: .analyticsCode)
+        cssCode = try container.decodeIfPresent(String.self, forKey: .cssCode) ?? ""
+        javaScriptCode = try container.decodeIfPresent(String.self, forKey: .javaScriptCode) ?? ""
         generatesCacheBustingLinks = try container.decodeIfPresent(Bool.self, forKey: .generatesCacheBustingLinks) ?? true
         defaultPageExtension = try container.decodeIfPresent(PageExtensionPreference.self, forKey: .defaultPageExtension) ?? .html
         if defaultPageExtension == .automatic { defaultPageExtension = .html }

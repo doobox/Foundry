@@ -1077,7 +1077,7 @@ private struct PartInspector: View {
     /// Whether the part's manifest opts into the Advanced section — the HTML
     /// ID, classes, and custom-attribute fields.
     private var declaresAdvanced: Bool {
-        part.type.definition.package?.manifest.controlGroups.contains { $0.type == .advanced } == true
+        part.definition.package?.manifest.controlGroups.contains { $0.type == .advanced } == true
     }
 
     private var advancedSection: PartPropertySection {
@@ -1111,7 +1111,7 @@ private struct PartInspector: View {
         // the geometry stable.
         let visibleIDs = visibleInspectorIDs
         let displayedIDs = displayedInspectorIDs ?? visibleIDs
-        let rows = part.type.definition.inspectorRows
+        let rows = part.definition.inspectorRows
         let displayedSections = displayedIDs.compactMap { ids -> (section: PartPropertySection, rows: [PartInspectorRow])? in
             guard let name = ids.first else { return nil }
             let membership = Set(ids.dropFirst())
@@ -1220,9 +1220,9 @@ private struct PartInspector: View {
     private var visibleInspectorIDs: [[String]] {
         var sections: [[String]] = []
         var indices: [PartPropertySection: Int] = [:]
-        for row in part.type.definition.inspectorRows {
+        for row in part.definition.inspectorRows {
             guard PartPackageVisibilityEvaluator.isVisible(
-                part.type.definition.visibilityCondition(for: row.section),
+                part.definition.visibilityCondition(for: row.section),
                 for: part,
                 at: breakpoint,
                 screens: theme.screens
@@ -1268,7 +1268,7 @@ private struct PartInspector: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 6) {
-                    if part.type.definition.package?.isDevelopmentPack == true {
+                    if part.definition.package?.isDevelopmentPack == true {
                         Circle()
                             .fill(.red)
                             .frame(width: 7, height: 7)
@@ -1359,12 +1359,12 @@ private struct PartInspector: View {
 
     private var partTypeAndVersion: String {
         let name = part.type.displayName
-        guard let version = part.type.definition.package?.manifest.version else { return name }
+        guard let version = part.definition.package?.manifest.version else { return name }
         return "\(name) v\(version)"
     }
 
     private var partDeveloper: String {
-        part.type.definition.package?.manifest.author.flatMap { author in
+        part.definition.package?.manifest.author.flatMap { author in
             author.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty ? nil : author
         } ?? "Unknown Developer"
     }
@@ -1450,7 +1450,7 @@ private struct PartSlotInspectorCard: View {
     }
 
     private var children: [PartNode] {
-        let definition = part.type.definition
+        let definition = part.definition
         let package = definition.package
         let defaultSlotID = package?.dropZoneNames.first.map { package?.dropZoneSlotID(for: $0) ?? "" }
             ?? definition.inspectorRows.lazy.compactMap { row -> String? in
@@ -1915,7 +1915,7 @@ private struct PartInspectorGroup: View {
                     .foregroundStyle(status.isModified ? Color.accentColor : Color.primary)
                     .underline(status.isModified && differentiateWithoutColor)
             } icon: {
-                let symbol = part.type.definition.systemImage(for: group)
+                let symbol = part.definition.systemImage(for: group)
                 Image(systemName: symbol)
                     .foregroundStyle(.primary)
             }

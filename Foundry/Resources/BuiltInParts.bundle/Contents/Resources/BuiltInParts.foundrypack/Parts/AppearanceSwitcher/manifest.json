@@ -1,0 +1,65 @@
+{
+  "id": "foundry.utility.appearance-switcher",
+  "title": "Appearance Switcher",
+  "author": "Foundry",
+  "version": "1.0.0",
+  "minimumAPIVersion": 1,
+  "description": "A Light, Dark and Auto menu that remembers the visitor’s choice. Enable Allow dark mode in Site Settings.",
+  "group": "Utility",
+  "icon": { "symbol": "circle.lefthalf.filled", "background": { "light": "#AF52DE", "dark": "#BF5AF2" } },
+  "assets": [],
+  "templates": {
+    "html": "part.html",
+    "files": [{ "path": "part.js", "scope": "instance" }]
+  },
+  "inspector": [
+    {
+      "section": "Content",
+      "systemImage": "circle.lefthalf.filled",
+      "controls": [{
+        "type": "select",
+        "id": "defaultAppearance",
+        "label": "Default mode",
+        "tooltip": "Used until the visitor chooses a mode. If a page contains several switchers, the first sets its default. Requires Allow dark mode in Site Settings.",
+        "options": [
+          { "title": "Auto", "value": "system" },
+          { "title": "Light", "value": "light" },
+          { "title": "Dark", "value": "dark" }
+        ],
+        "defaults": { "base": "system" }
+      }]
+    },
+    {
+      "section": "Appearance",
+      "systemImage": "paintpalette",
+      "controls": [
+        { "type": "themeColors", "id": "theme", "label": "Theme", "colourSections": ["themes"] },
+        {
+          "type": "select", "id": "variant", "label": "Variant",
+          "options": [
+            { "title": "Text", "value": "btn-text" },
+            { "title": "Solid", "value": "btn-solid" },
+            { "title": "Subtle", "value": "btn-subtle" },
+            { "title": "Outline", "value": "btn-outline" }
+          ],
+          "defaults": { "base": "btn-text" }
+        },
+        {
+          "type": "select", "id": "size", "label": "Size",
+          "options": [
+            { "title": "Small", "value": "btn-sm" },
+            { "title": "Default", "value": "" },
+            { "title": "Large", "value": "btn-lg" }
+          ],
+          "defaults": { "base": "" }
+        }
+      ]
+    },
+    {
+      "section": "Spacing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [{ "type": "spacing", "id": "spacing" }]
+    },
+    { "type": "advanced" }
+  ]
+}

@@ -2209,7 +2209,7 @@ struct WebCanvasView: NSViewRepresentable {
             let subtitle = version.isEmpty ? author : "\(author)  v\(version)"
             let typeID = request["partTypeID"] as? String
             let iconSpecification = typeID.map(PartType.init(rawValue:))?.iconSpecification
-                ?? .init(glyph: .symbol(PartDefinition.genericSystemImage), tint: .gray)
+                ?? .init(glyph: .symbol(PartDefinition.genericSystemImage))
             let icon = NSImageView(image: iconSpecification.tileImage(size: NSSize(width: 36, height: 36)))
             icon.imageScaling = .scaleProportionallyUpOrDown
             icon.setAccessibilityLabel(title)

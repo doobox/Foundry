@@ -7,7 +7,7 @@ nonisolated enum BootstrapLinkStyling {
     }
 
     static func css(node: PartNode, group: PartPackageControlGroup, theme: Theme) -> String {
-        let properties = node.type.definition.package?.manifest.resolvedProperties.filter { $0.controlGroupSource?.namespace == group.namespace } ?? []
+        let properties = node.definition.package?.manifest.resolvedProperties.filter { $0.controlGroupSource?.namespace == group.namespace } ?? []
         func selected(_ id: String) -> String? {
             guard let property = properties.first(where: { $0.controlGroupSource?.localID == id }) else { return nil }
             let value = node.propertyValue(.init(rawValue: property.id)).stringValue

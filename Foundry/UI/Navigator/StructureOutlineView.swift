@@ -173,12 +173,11 @@ struct StructureOutlineView: NSViewRepresentable {
             cell.textField?.identifier = NSUserInterfaceItemIdentifier(item.id.uuidString)
             cell.textField?.isEditable = true
             cell.textField?.delegate = self
-            // Tree rows paint the glyph in the part's tint with no backing;
-            // the tint-filled tile treatment is reserved for larger surfaces.
+            // Tree glyphs have no backing; original artwork has no tint.
             let rowIcon = item.part.type.iconSpecification.rowImage()
             cell.imageView?.image = rowIcon.image
             cell.imageView?.contentTintColor = rowIcon.tint
-            (cell.imageView as? PartIconImageView)?.tileTint = nil
+            (cell.imageView as? PartIconImageView)?.tileBackground = nil
             cell.imageView?.setAccessibilityLabel(name)
             let isLinkedToGlobal = globalContext(for: item)?.isLinked == true
             let isGlobalRoot = item.part.reusableDefinitionID != nil
@@ -353,7 +352,7 @@ struct StructureOutlineView: NSViewRepresentable {
 
         private func contextMenuHeader(for item: Item, selectionCount: Int) -> NSMenuItem {
             let title = selectionCount > 1 ? "\(selectionCount) Parts" : item.part.type.displayName
-            let package = item.part.type.definition.package
+            let package = item.part.definition.package
             let author = package?.manifest.author ?? "Foundry"
             let version = package?.manifest.version ?? ""
             let subtitle = version.isEmpty ? author : "\(author)  v\(version)"
@@ -559,7 +558,7 @@ struct StructureOutlineView: NSViewRepresentable {
         private func unavailableChildAreaRecoveryMenu(for item: Item) -> NSMenuItem? {
             guard unavailableChildArea(for: item) != nil,
                   let parentItem = item.parent,
-                  let package = parentItem.part.type.definition.package else { return nil }
+                  let package = parentItem.part.definition.package else { return nil }
             let submenu = NSMenu(title: "Move to Child Area")
             for name in package.dropZoneNames {
                 let slotID = package.dropZoneSlotID(for: name)
@@ -777,7 +776,7 @@ struct StructureOutlineView: NSViewRepresentable {
             let location = outlineView.convert(info.draggingLocation, from: nil)
             let position = rowFrame.height > 0 ? (location.y - rowFrame.minY) / rowFrame.height : 0.5
 
-            if item.part.type.definition.allowsChildren {
+            if item.part.definition.allowsChildren {
                 return DropProposal(
                     parentItem: item,
                     childIndex: NSOutlineViewDropOnItemIndex,
@@ -797,7 +796,7 @@ struct StructureOutlineView: NSViewRepresentable {
             if !item.children.isEmpty {
                 return item.children.map(\.part).endPlacement(in: item.id)
             }
-            if let package = item.part.type.definition.package,
+            if let package = item.part.definition.package,
                let slotID = package.dropZoneNames.first.map(package.dropZoneSlotID(for:))
                     ?? package.manifest.slots.first?.id {
                 return .insideSlot(item.id, slotID)
@@ -862,7 +861,7 @@ struct StructureOutlineView: NSViewRepresentable {
             guard let item = item as? Item else { return nil }
             let siblings = item.children
             if index == NSOutlineViewDropOnItemIndex {
-                guard item.part.type.definition.allowsChildren else { return nil }
+                guard item.part.definition.allowsChildren else { return nil }
                 return .inside(item.id)
             }
             if siblings.indices.contains(index) {
@@ -1028,7 +1027,7 @@ struct StructureOutlineView: NSViewRepresentable {
 
         private func unavailableChildArea(for item: Item) -> UnavailableChildArea? {
             guard let slotID = item.part.slotID,
-                  let parentPackage = item.parent?.part.type.definition.package else { return nil }
+                  let parentPackage = item.parent?.part.definition.package else { return nil }
             if let name = LoadedPartPackage.dropZoneName(forSlotID: slotID) {
                 return parentPackage.isDropZoneSlotID(slotID)
                     ? nil
@@ -1042,7 +1041,7 @@ struct StructureOutlineView: NSViewRepresentable {
         private func flattenedSignature(_ parts: [PartNode], parentID: UUID?) -> [String] {
             parts.flatMap {
                 [
-                    "\($0.id.uuidString):\(parentID?.uuidString ?? "root"):\($0.slotID ?? "default"):\(displayName(for: $0)):\($0.type.rawValue):\($0.type.systemImage):\($0.type.iconSpecification.cacheKey):\($0.type.definition.package?.dropZoneNames.joined(separator: ",") ?? "none"):\($0.reusableDefinitionID?.uuidString ?? "local"):\($0.overridesGlobalDefinition == true)"
+                    "\($0.id.uuidString):\(parentID?.uuidString ?? "root"):\($0.slotID ?? "default"):\(displayName(for: $0)):\($0.type.rawValue):\($0.type.systemImage):\($0.type.iconSpecification.cacheKey):\($0.definition.package?.dropZoneNames.joined(separator: ",") ?? "none"):\($0.reusableDefinitionID?.uuidString ?? "local"):\($0.overridesGlobalDefinition == true)"
                 ] + flattenedSignature($0.children, parentID: $0.id)
             }
         }

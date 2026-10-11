@@ -8,7 +8,7 @@
   "group": "Layout",
   "icon": {
     "symbol": "rectangle",
-    "tint": "blue"
+    "background": { "light": "#007AFF", "dark": "#0A84FF" }
   },
   "tags": [
     "Bootstrap",
@@ -26,6 +26,20 @@
     "html": "part.html"
   },
   "inspector": [
+    {
+      "section": "Appearance",
+      "systemImage": "paintpalette",
+      "controls": [
+        {
+          "type": "themeColors",
+          "id": "theme",
+          "label": "Theme",
+          "colourSections": ["themes"],
+          "defaults": { "base": "inherit" },
+          "tooltip": "Supplies a theme to child components that inherit it. Does not paint the container's background or ordinary text."
+        }
+      ]
+    },
     {
       "section": "Container",
       "systemImage": "rectangle",

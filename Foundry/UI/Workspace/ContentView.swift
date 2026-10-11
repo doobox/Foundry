@@ -52,6 +52,7 @@ struct ContentView: View {
     @State private var detachedPanelWindows = DetachedPanelWindowCoordinator()
     @State private var themeWindowID = UUID()
     @State private var siteSettingsWindowID = UUID()
+    @State private var showsSiteCodeEditor = false
     @State private var exportErrorMessage: String?
     @State private var publishingCommandDispatcher = PublishingCommandDispatcher()
     @State private var showsPublishingProgress = false
@@ -125,6 +126,7 @@ struct ContentView: View {
                 )
                 openWindow(id: "theme-editor", value: themeWindowID)
             },
+            openSiteCode: { showsSiteCodeEditor = true },
             previewSite: previewSite,
             publishSite: { publishSite() },
             publishingDestinations: validPublishingDestinations,
@@ -257,6 +259,16 @@ struct ContentView: View {
                 save: { source in
                     saveHTMLSource(source, request: request)
                     htmlSourceEditRequest = nil
+                }
+            )
+        }
+        .sheet(isPresented: $showsSiteCodeEditor) {
+            SiteCodeEditorView(
+                site: document.site,
+                cancel: { showsSiteCodeEditor = false },
+                save: { enabled, head, start, end, css, javaScript in
+                    editor.setSiteCode(isEnabled: enabled, head: head, bodyStart: start, bodyEnd: end, css: css, javaScript: javaScript)
+                    showsSiteCodeEditor = false
                 }
             )
         }
@@ -1039,7 +1051,7 @@ struct ContentView: View {
             guard let partID = message.partID,
                   let propertyKey = message.propertyKey,
                   let part = page.parts.node(withID: partID),
-                  part.type.definition.properties.contains(where: { $0.key == propertyKey }) else { return }
+                  part.definition.properties.contains(where: { $0.key == propertyKey }) else { return }
             selectedPartIDs = [partID]
             selectedPartID = partID
             selectedPrimitive = .init(
@@ -1098,8 +1110,8 @@ struct ContentView: View {
                   let propertyKey = message.propertyKey,
                   let source = message.propertyValue,
                   let part = page.parts.node(withID: partID),
-                  let package = part.type.definition.package,
-                  PartTemplateRenderer.htmlPrimitives(
+                  let package = part.definition.package,
+                  (part.type == .html && propertyKey == HTMLPartPrototype.contentKey) || PartTemplateRenderer.htmlPrimitives(
                       in: package.htmlTemplate,
                       loopMaximums: package.loopMaximums
                   ).contains(where: {
@@ -1118,14 +1130,16 @@ struct ContentView: View {
                     css: part.propertyValue(PartPackageAdapter.htmlCSSKey(for: propertyKey.rawValue))
                         .value(at: message.propertyPath ?? [])?.stringValue ?? "",
                     javaScript: part.propertyValue(PartPackageAdapter.htmlJavaScriptKey(for: propertyKey.rawValue))
-                        .value(at: message.propertyPath ?? [])?.stringValue ?? ""
+                        .value(at: message.propertyPath ?? [])?.stringValue ?? "",
+                    controls: part.type == .html && propertyKey == HTMLPartPrototype.contentKey
+                        ? part.storedPropertyValue(HTMLPartPrototype.controlsKey)?.stringValue ?? "[]" : nil
                 )
             )
         case .editPart:
             guard let partID = message.partID,
                   let propertyKey = message.propertyKey,
                   let part = page.parts.node(withID: partID),
-                  part.type.definition.properties.contains(where: { definition in
+                  part.definition.properties.contains(where: { definition in
                       guard definition.key == propertyKey else { return false }
                       switch definition.control {
                       case .singleLineText, .multilineText: return true
@@ -1135,7 +1149,7 @@ struct ContentView: View {
                   let value = message.propertyValue else { return }
             selectedPartIDs = [partID]
             selectedPartID = partID
-            if part.type.definition.properties.contains(where: {
+            if part.definition.properties.contains(where: {
                 $0.key == propertyKey && !$0.isInspectorVisible
             }) {
                 selectedPrimitive = .init(
@@ -1157,18 +1171,18 @@ struct ContentView: View {
                   let part = page.parts.node(withID: partID) else { return }
             // A video property takes the movie itself; an image property — or
             // a manifest video control's poster companion — takes an image.
-            let targetsVideo = part.type.definition.properties.contains(where: {
+            let targetsVideo = part.definition.properties.contains(where: {
                 if case .video = $0.control { return $0.key == propertyKey }
                 return false
             })
-            let targetsImage = part.type.definition.properties.contains(where: {
+            let targetsImage = part.definition.properties.contains(where: {
                 if $0.key == propertyKey, case .image = $0.control { return true }
                 if case .video = $0.control {
                     return PartVideoTemplateValues.posterPropertyKey(for: $0.key.rawValue) == propertyKey
                 }
                 return false
             })
-            let targetsSVG = part.type.definition.properties.contains(where: {
+            let targetsSVG = part.definition.properties.contains(where: {
                 if case .svg = $0.control { return $0.key == propertyKey }
                 return false
             })
@@ -1343,7 +1357,7 @@ struct ContentView: View {
         switch action {
         case .clearImage:
             guard let imageProperty,
-                  let definition = part.type.definition.properties.first(where: {
+                  let definition = part.definition.properties.first(where: {
                       guard $0.key == imageProperty else { return false }
                       if case .image = $0.control { return true }
                       if case .svg = $0.control { return true }
@@ -1398,7 +1412,7 @@ struct ContentView: View {
         imagePropertyPath: [Int]
     ) -> Bool {
         guard let part = selectedPage?.parts.node(withID: partID),
-              let definition = part.type.definition.properties.first(where: {
+              let definition = part.definition.properties.first(where: {
                   guard $0.key == imageProperty else { return false }
                   if case .image = $0.control { return true }
                   if case .svg = $0.control { return true }
@@ -1441,10 +1455,14 @@ struct ContentView: View {
     }
 
     private func saveHTMLSource(_ source: HTMLPartSource, request: HTMLSourceEditRequest) {
+        if source.controls != nil, request.propertyKey == HTMLPartPrototype.contentKey, request.propertyPath.isEmpty {
+            editor.setHTMLPrototype(id: request.partID, source: source)
+            return
+        }
         guard let page = document.site.pages.first(where: { $0.id == request.pageID }),
               let part = page.parts.node(withID: request.partID),
-              let package = part.type.definition.package,
-              PartTemplateRenderer.htmlPrimitives(
+              let package = part.definition.package,
+              (part.type == .html && request.propertyKey == HTMLPartPrototype.contentKey) || PartTemplateRenderer.htmlPrimitives(
                   in: package.htmlTemplate,
                   loopMaximums: package.loopMaximums
               ).contains(where: {
@@ -1482,7 +1500,7 @@ struct ContentView: View {
     private func savePageText(_ value: String, request: PageTextEditRequest) {
         guard let page = document.site.pages.first(where: { $0.id == request.pageID }),
               let part = page.parts.node(withID: request.partID),
-              part.type.definition.properties.contains(where: { definition in
+              part.definition.properties.contains(where: { definition in
                   guard definition.key == request.propertyKey else { return false }
                   switch definition.control {
                   case .singleLineText, .multilineText: return true
@@ -1490,7 +1508,7 @@ struct ContentView: View {
                   }
               }) else { return }
         undoManager?.beginUndoGrouping()
-        let defaultLeafValue = part.type.definition.package.flatMap { package in
+        let defaultLeafValue = part.definition.package.flatMap { package in
             PartTemplateRenderer.textPrimitives(
                 in: package.htmlTemplate,
                 loopMaximums: package.loopMaximums

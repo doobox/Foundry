@@ -111,23 +111,24 @@ nonisolated struct LoadedPartPackage: Sendable {
 
     /// The resolved icon recipe: one mono glyph — the manifest's SVG stencil
     /// when it exists, else its SF Symbol, else the generic part mark — plus
-    /// a system tint. Appearance never enters: system tints adapt themselves.
+    /// appearance-aware colours resolved at draw time.
     var iconSpecification: PartIconSpecification {
-        let tint = manifest.icon?.resolvedTint ?? .gray
-        let shade = manifest.icon?.resolvedShade ?? .regular
+        let background = manifest.icon?.background ?? .neutral
+        let foreground = manifest.icon?.foreground ?? .white
+        let structure = manifest.icon?.structure
         let rendering = manifest.icon?.resolvedRendering ?? .monochrome
         if let file = manifest.icon?.file {
             let url = resourceRootURL.appending(path: file)
             if FileManager.default.fileExists(atPath: url.path) {
-                return .init(glyph: .svg(url), tint: tint, shade: shade,
+                return .init(glyph: .svg(url), background: background, foreground: foreground, structure: structure,
                              rendering: rendering == .original ? .original : .monochrome)
             }
         }
         // Symbols always draw monochrome; original rendering is for SVG artwork.
         if let symbol = manifest.icon?.symbol, !symbol.isEmpty {
-            return .init(glyph: .symbol(symbol), tint: tint, shade: shade)
+            return .init(glyph: .symbol(symbol), background: background, foreground: foreground, structure: structure)
         }
-        return .init(glyph: .symbol(PartDefinition.genericSystemImage), tint: tint, shade: shade)
+        return .init(glyph: .symbol(PartDefinition.genericSystemImage), background: background, foreground: foreground, structure: structure)
     }
 
     var isDevelopmentPack: Bool {
@@ -204,9 +205,7 @@ nonisolated struct LoadedPartPackage: Sendable {
     }
 }
 
-/// A ready-to-render icon: which mono glyph to stencil and which system
-/// tint to paint with. Tiles fill with the tint behind a white glyph; the
-/// structure tree paints the glyph in the tint directly.
+/// A ready-to-render glyph with independent appearance-aware colours.
 nonisolated struct PartIconSpecification: Equatable, Hashable, Sendable {
     enum Glyph: Equatable, Hashable, Sendable {
         case svg(URL)
@@ -214,14 +213,16 @@ nonisolated struct PartIconSpecification: Equatable, Hashable, Sendable {
     }
 
     let glyph: Glyph
-    let tint: PartIconTint
-    var shade: PartIconShade = .regular
+    var background: PartIconColour = .neutral
+    var foreground: PartIconColour = .white
+    /// Nil preserves original SVG artwork, or uses background for monochrome.
+    var structure: PartIconColour?
     /// Already matched to the glyph kind by the loader.
     var rendering: PartIconRendering = .monochrome
 
     /// Stable identity for row-reuse fingerprints and view invalidation.
     var cacheKey: String {
-        let style = "\(tint.rawValue).\(shade.rawValue):\(rendering.rawValue)"
+        let style = "\(background.cacheKey):\(foreground.cacheKey):\(structure?.cacheKey ?? "automatic"):\(rendering.rawValue)"
         return switch glyph {
         case .svg(let url): "svg:\(url.path):\(style)"
         case .symbol(let name): "symbol:\(name):\(style)"

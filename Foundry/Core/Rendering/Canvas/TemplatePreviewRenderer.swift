@@ -45,7 +45,7 @@ final class TemplatePreviewRenderer {
         }
         let packages = Dictionary(
             flattened(definition.root)
-                .compactMap(\.type.definition.package)
+                .compactMap(\.definition.package)
                 .map { ($0.manifest.identifier, $0) },
             uniquingKeysWith: { _, latest in latest }
         )

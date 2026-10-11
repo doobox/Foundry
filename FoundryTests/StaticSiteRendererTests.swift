@@ -429,25 +429,35 @@ struct StaticSiteRendererTests {
     @Test
     func enabledSiteCodeIsPlacedAtEachConfiguredDocumentLocation() throws {
         var site = Site.starter()
+        site.generatesCacheBustingLinks = false
         site.headCode = "<meta name=\"site-head\" content=\"enabled\">"
         site.bodyStartCode = "<div id=\"body-start\"></div>"
         site.bodyEndCode = "<div id=\"body-end\"></div>"
-        site.analyticsCode = "<script id=\"analytics\"></script>"
+        site.cssCode = "body { min-height: 100dvh; }"
+        site.javaScriptCode = "console.log('site');"
 
         let html = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
 
         #expect(html.contains(site.headCode))
         #expect(html.contains(site.bodyStartCode))
         #expect(html.contains(site.bodyEndCode))
-        #expect(html.contains(site.analyticsCode))
+        let bundle = StaticSiteRenderer().render(site: site)
+        #expect(bundle.file(at: "files/custom-site.css")?.contents == site.cssCode)
+        #expect(bundle.file(at: "files/custom-site.js")?.contents == site.javaScriptCode)
         let bodyOpen = try #require(html.range(of: "<body>"))
         let bodyStart = try #require(html.range(of: site.bodyStartCode))
-        let analytics = try #require(html.range(of: site.analyticsCode))
+        let css = try #require(html.range(of: "files/custom-site.css"))
+        let js = try #require(html.range(of: "files/custom-site.js"))
+        let pageCSS = try #require(html.range(of: "files/page.css"))
         let headClose = try #require(html.range(of: "</head>"))
         let bodyEnd = try #require(html.range(of: site.bodyEndCode))
         let bodyClose = try #require(html.range(of: "</body>"))
         #expect(bodyOpen.lowerBound < bodyStart.lowerBound)
-        #expect(analytics.lowerBound < headClose.lowerBound)
+        #expect(pageCSS.lowerBound < css.lowerBound)
+        #expect(css.lowerBound < headClose.lowerBound)
+        #expect(js.lowerBound > bodyEnd.lowerBound)
+        #expect(js.lowerBound < bodyClose.lowerBound)
+        #expect(html.contains("<script type=\"module\" src=\"files/custom-site.js\"></script>"))
         #expect(bodyEnd.lowerBound < bodyClose.lowerBound)
     }
 
@@ -456,11 +466,37 @@ struct StaticSiteRendererTests {
         var site = Site.starter()
         site.customCodeEnabled = false
         site.headCode = "<meta name=\"disabled-site-code\">"
+        site.cssCode = "body { color: red; }"
+        site.javaScriptCode = "console.log('disabled');"
 
         let html = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
 
         #expect(!html.contains(site.headCode))
         #expect(site.headCode == "<meta name=\"disabled-site-code\">")
+        let bundle = StaticSiteRenderer().render(site: site)
+        #expect(bundle.file(at: "files/custom-site.css") == nil)
+        #expect(bundle.file(at: "files/custom-site.js") == nil)
+        #expect(html.contains("custom-site") == false)
+    }
+
+    @Test
+    func siteCSSAndJavaScriptSupportNestedPagesAndCanvas() throws {
+        var site = Site.starter()
+        site.generatesCacheBustingLinks = false
+        let page = Page(title: "Nested", slug: "nested")
+        site.pages.append(page)
+        site.cssCode = "body { min-height: 100dvh; }"
+        site.javaScriptCode = "console.log('site');"
+        let html = try #require(StaticSiteRenderer().render(site: site).file(at: "nested/index.html")?.contents)
+        #expect(html.contains("href=\"../files/custom-site.css\""))
+        #expect(html.contains("src=\"../files/custom-site.js\""))
+        let canvas = HTMLPageRenderer(site: site).render(page: page, theme: site.theme)
+        #expect(canvas.contains("<style>\(site.cssCode)</style>"))
+        let theme = try #require(canvas.range(of: "data-foundry-theme-styles"))
+        let custom = try #require(canvas.range(of: site.cssCode))
+        #expect(theme.lowerBound < custom.lowerBound)
+        site.customCodeEnabled = false
+        #expect(HTMLPageRenderer(site: site).render(page: page, theme: site.theme).contains(site.cssCode) == false)
     }
 
     @Test

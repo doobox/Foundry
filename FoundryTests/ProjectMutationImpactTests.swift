@@ -5,6 +5,41 @@ import Testing
 @MainActor
 struct ProjectMutationImpactTests {
     @Test
+    func siteCodeSavesAsOneUndoableMutation() {
+        var site = Site(name: "Code", pages: [])
+        site.headCode = "<!-- original -->"
+        let document = FoundryDocument(site: site)
+        let undoManager = UndoManager()
+        undoManager.groupsByEvent = false
+        undoManager.beginUndoGrouping()
+        ProjectEditor(document: document, undoManager: undoManager).setSiteCode(
+            isEnabled: false, head: "<style>body { color: red; }</style>",
+            bodyStart: "<!-- start -->", bodyEnd: "<!-- end -->", css: "body { color: red; }", javaScript: "console.log('site');"
+        )
+        undoManager.endUndoGrouping()
+        #expect(document.mutationEvent.revision == 1)
+        #expect(document.mutationEvent.impact == .page)
+        #expect(document.site.customCodeEnabled == false)
+        #expect(document.site.headCode == "<style>body { color: red; }</style>")
+        #expect(document.site.bodyStartCode == "<!-- start -->")
+        #expect(document.site.bodyEndCode == "<!-- end -->")
+        #expect(document.site.cssCode == "body { color: red; }")
+        #expect(document.site.javaScriptCode == "console.log('site');")
+        undoManager.undo()
+        #expect(document.site.headCode == site.headCode)
+        #expect(document.site.bodyStartCode == site.bodyStartCode)
+        #expect(document.site.bodyEndCode == site.bodyEndCode)
+        #expect(document.site.cssCode == site.cssCode)
+        #expect(document.site.javaScriptCode == site.javaScriptCode)
+        #expect(document.site.customCodeEnabled == site.customCodeEnabled)
+        #expect(undoManager.canUndo == false)
+        undoManager.redo()
+        #expect(document.site.customCodeEnabled == false)
+        #expect(document.site.cssCode == "body { color: red; }")
+        #expect(document.site.javaScriptCode == "console.log('site');")
+    }
+
+    @Test
     func partPropertyEditCarriesItsIdentityAndKey() throws {
         let document = TestSiteFixtures.populatedDocument()
         let part = try #require(document.site.pages.first?.parts.first)

@@ -7,8 +7,9 @@
   "description": "Your HTML, rendered directly with the site's Bootstrap stylesheet.",
   "group": "Content",
   "icon": {
-    "symbol": "chevron.left.forwardslash.chevron.right",
-    "tint": "blue"
+    "file": "htmlicon.svg",
+    "background": { "light": "#44475a", "dark": "#282a36" },
+    "rendering" : "original"
   },
   "tags": [
     "Bootstrap",

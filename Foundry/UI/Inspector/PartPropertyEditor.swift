@@ -229,7 +229,7 @@ struct PartPropertyEditor: View {
                 indicator: responsiveIndicator,
                 tokenSections: colourTokenSections,
                 linksOnly: isLinkColour,
-                allowsInherit: part.type.definition.package?.manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource.map { [.foreground, .linkStyling].contains($0.type) } ?? true,
+                allowsInherit: part.definition.package?.manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource.map { [.foreground, .linkStyling].contains($0.type) } ?? true,
                 selection: stringBinding(as: .choice))
         case .choice(let choices):
             let availableChoices = choicesForCurrentContext(choices)
@@ -276,16 +276,16 @@ struct PartPropertyEditor: View {
                 }
             }
             .focusScope(themeSpacingFocusNamespace)
-            .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Spacing")
+            .help(part.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Spacing")
         case .themeBorderWidth:
             ThemeBorderWidthPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
-                bootstrapBorders: part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.control.type == .borderSides,
+                bootstrapBorders: part.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.control.type == .borderSides,
                 value: Binding(get: {
                     if case .themeBorderWidth(let value) = displayPart.propertyValue(definition.key) { return value }
                     if case .themeBorderWidth(let value) = definition.defaultValue { return value }
                     return ThemeBorderWidthValue()
                 }, set: { setProperty(.themeBorderWidth($0)) }))
-                .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == (definition.inspectorControlID ?? definition.key.rawValue) }?.tooltip ?? "Border")
+                .help(part.definition.package?.manifest.resolvedProperties.first { $0.id == (definition.inspectorControlID ?? definition.key.rawValue) }?.tooltip ?? "Border")
         case .themeRadius:
             ThemeRadiusPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
                 value: Binding(get: {
@@ -293,7 +293,7 @@ struct PartPropertyEditor: View {
                     if case .themeRadius(let value) = definition.defaultValue { return value }
                     return ThemeRadiusValue()
                 }, set: { setProperty(.themeRadius($0)) }))
-                .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Radius")
+                .help(part.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Radius")
         case .themeMargin:
             ThemeMarginPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
                 bootstrapSpacing: isBootstrapSpacing,
@@ -302,7 +302,7 @@ struct PartPropertyEditor: View {
                     if case .themeMargin(let value) = definition.defaultValue { return value }
                     return ThemeMarginValue()
                 }, set: { setProperty(.themeMargin($0)) }))
-                .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Margin")
+                .help(part.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Margin")
         case .themePadding:
             ThemePaddingPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
                 bootstrapSpacing: isBootstrapSpacing,
@@ -311,7 +311,7 @@ struct PartPropertyEditor: View {
                     if case .themePadding(let value) = definition.defaultValue { return value }
                     return ThemePaddingValue()
                 }, set: { setProperty(.themePadding($0)) }))
-                .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Padding")
+                .help(part.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Padding")
         case .edges(let units):
             ThemeMarginPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
                 allowsThemeTokens: false, unitChoices: units, fallbackLabel: "Edges",
@@ -320,7 +320,7 @@ struct PartPropertyEditor: View {
                     if case .themeMargin(let value) = definition.defaultValue { return value }
                     return PartPackageThemeMarginControl.customZero(units: units)
                 }, set: { setProperty(.themeMargin($0)) }))
-                .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Edges")
+                .help(part.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Edges")
         case .corners(let units):
             ThemeRadiusPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator,
                 allowsThemeTokens: false, unitChoices: units, fallbackLabel: "Corners",
@@ -329,7 +329,7 @@ struct PartPropertyEditor: View {
                     if case .themeRadius(let value) = definition.defaultValue { return value }
                     return PartPackageThemeRadiusControl.customZero(units: units)
                 }, set: { setProperty(.themeRadius($0)) }))
-                .help(part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Corners")
+                .help(part.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.tooltip ?? "Corners")
         case .fontWeight(let font):
             FontFacePartControl(label: definition.label,
                 options: fontFaceOptions(font: font, editsWeight: true),
@@ -566,7 +566,7 @@ struct PartPropertyEditor: View {
             return NSImage(data: data)
         }
         guard !source.isEmpty,
-              let package = part.type.definition.package,
+              let package = part.definition.package,
               package.manifest.assetDeclaration(containing: source) != nil else { return nil }
         return NSImage(contentsOf: package.resourceRootURL.appending(path: source))
     }
@@ -598,12 +598,12 @@ struct PartPropertyEditor: View {
     }
 
     private var allowsCustomVideoPoster: Bool {
-        part.type.definition.package?.renderDefinition.properties
+        part.definition.package?.renderDefinition.properties
             .first { $0.id == definition.key.rawValue }?.usesAutomaticVideoPoster != true
     }
 
     private var showsVideoPlaybackOptions: Bool {
-        guard let package = part.type.definition.package else { return true }
+        guard let package = part.definition.package else { return true }
         return !package.manifest.controlGroups
             .flatMap(\.properties)
             .contains { $0.id == definition.key.rawValue && $0.controlGroupSource?.type == .background && $0.control.type == .video }
@@ -912,14 +912,14 @@ struct PartPropertyEditor: View {
 
     private var backgroundInspectorContext: PartBackgroundInspectorContext? {
         guard collectionRecord == nil else { return nil }
-        return PartBackgroundInspectorContext(property: part.type.definition.package?.manifest.resolvedProperties.first {
+        return PartBackgroundInspectorContext(property: part.definition.package?.manifest.resolvedProperties.first {
             $0.id == definition.key.rawValue
         })
     }
 
     private func replaceVideoBackgroundStyleForHover() {
         guard let context = backgroundInspectorContext,
-              case .choice(let choices)? = part.type.definition.property(for: context.styleKey)?.control,
+              case .choice(let choices)? = part.definition.property(for: context.styleKey)?.control,
               let fallback = context.replacementStyle(newMode: "hover", currentStyle: displayPart.property(context.styleKey), choices: choices) else {
             return
         }
@@ -1420,30 +1420,35 @@ struct PartPropertyEditor: View {
     }
 
     private var isBootstrapSpacing: Bool {
-        part.type.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.controlGroupSource?.type == .spacing
+        part.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }?.controlGroupSource?.type == .spacing
     }
 
     private var colourTokenSections: [String] {
-        if isLinkColour { return ["links"] }
-        guard let manifest = part.type.definition.package?.manifest,
+        if part.definition.package?.manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.control.type == .themeColors,
+           part.definition.package?.manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource == nil {
+            return definition.colourSections.filter { $0 == "themes" }
+        }
+        guard let manifest = part.definition.package?.manifest,
               let source = manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource else { return definition.colourSections }
         if source.type == .borders { return ["borders", "blackWhite", "themes"] }
+        if source.type == .linkStyling { return ["links"] }
         return manifest.controlGroups.first(where: { $0.namespace == source.namespace })?.colourSections ?? ["themes"]
     }
 
     private var isLinkColour: Bool {
-        part.type.definition.package?.manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource?.type == .linkStyling
+        let property = part.definition.package?.manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })
+        return property?.controlGroupSource?.type == .linkStyling || definition.colourPurpose == .link
     }
 
     private var bootstrapGapPrefix: String? {
-        guard let source = part.type.definition.package?.manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource,
+        guard let source = part.definition.package?.manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource,
               source.type == .gap else { return nil }
         return BootstrapControlGroupClasses.gapPrefix(source.localID)
     }
 
     private var displayPart: PartNode {
         var resolved = part.resolved(at: breakpoint, screens: theme.screens)
-        if part.type.definition.package?.manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource?.type.generatesBootstrapClasses == true {
+        if part.definition.package?.manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource?.type.generatesBootstrapClasses == true {
             resolved.setProperty(definition.key, value: part.propertyValue(definition.key, at: breakpoint, screens: theme.screens))
         }
         guard let record = collectionRecord?.wrappedValue else { return resolved }
@@ -1471,7 +1476,7 @@ struct PartPropertyEditor: View {
     }
 
     private var availableDefinitions: [PartPropertyDefinition] {
-        collectionRecord == nil ? part.type.definition.properties : collectionDefinitions
+        collectionRecord == nil ? part.definition.properties : collectionDefinitions
     }
 
     private enum StringValueKind {

@@ -9,7 +9,7 @@ struct TypedCustomColourTests {
     func customColoursBelongToTheirFamily(kind: BootstrapColourKind) async throws {
         let model = ThemeColourPreviewModel()
         model.addTheme(named: "editorial", kind: kind)
-        let palette = try #require(model.storedPalettes.last)
+        let palette = try #require(model.storedPalettes.first { $0.name == "editorial" })
         #expect(palette.colourKind == kind)
         var theme = Theme.standard
         theme.colourPalettes = model.storedPalettes
@@ -27,8 +27,8 @@ struct TypedCustomColourTests {
             #expect(groups.flatMap { $0.1 }.suffix(palette.colourTokens.count) == palette.colourTokens[...])
             for token in palette.colourTokens { #expect(PartColourToken.parse("token:" + token) != nil) }
             model.renameTheme(id: palette.id, name: "renamed", undoManager: nil)
-            #expect(model.storedPalettes.last?.colourTokens == palette.colourTokens)
-            #expect(model.storedPalettes.last?.name == "renamed")
+            #expect(model.storedPalettes.first { $0.id == palette.id }?.colourTokens == palette.colourTokens)
+            #expect(model.storedPalettes.first { $0.id == palette.id }?.name == "renamed")
         }
         if kind == .link {
             let links = PartColourToken.groups(for: ["links"], palettes: theme.colourPalettes, linksOnly: true)
@@ -39,7 +39,7 @@ struct TypedCustomColourTests {
     @Test func resetKeepsCustomColours() throws {
         let model = ThemeColourPreviewModel()
         model.addTheme(named: "paper", kind: .surface)
-        let custom = try #require(model.storedPalettes.last)
+        let custom = try #require(model.storedPalettes.first { $0.name == "paper" })
         var background = BootstrapColourCatalogue.palette(role: .background, hue: "pink")
         background.bootstrapTokens["bg-body"] = .init(light: .native("black"))
         model.update(.init(stored: background), session: UUID(), undoManager: nil)
@@ -53,7 +53,7 @@ struct TypedCustomColourTests {
         await PartPackageCatalog.shared.waitUntilLoaded()
         let model = ThemeColourPreviewModel()
         model.addTheme(named: "ink", kind: .foreground)
-        let palette = try #require(model.storedPalettes.last)
+        let palette = try #require(model.storedPalettes.first { $0.name == "ink" })
         let document = FoundryDocument()
         document.site.theme.colourPalettes = model.storedPalettes
         var paragraph = PartNode.make(.paragraph)
@@ -70,9 +70,9 @@ struct TypedCustomColourTests {
         await PartPackageCatalog.shared.waitUntilLoaded()
         let model = ThemeColourPreviewModel()
         model.addTheme(named: "ink", kind: .foreground)
-        let foreground = try #require(model.storedPalettes.last)
+        let foreground = try #require(model.storedPalettes.first { $0.name == "ink" })
         model.addTheme(named: "outline", kind: .border)
-        let border = try #require(model.storedPalettes.last)
+        let border = try #require(model.storedPalettes.first { $0.name == "outline" })
         var theme = Theme.standard
         theme.colourPalettes = model.storedPalettes
         var node = PartNode.make(.container)

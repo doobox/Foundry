@@ -57,7 +57,9 @@ struct InspectorPaletteMenu: View {
                         .accessibilityAddTraits(selectedID == "inherit" ? .isSelected : [])
                     }
                     ForEach(orderedSections, id: \.self) { section in
-                        if section != "themes" {
+                        if section == "palettes" {
+                            PaletteShadePicker(previews: tokenPreviews, selectedID: selectedID, search: search, select: select)
+                        } else if section != "themes" {
                             PartColourTokenPicker(previews: tokenPreviews, sections: [section], selectedID: selectedID, palettes: palettes, linksOnly: linksOnly, search: search, select: select)
                         }
                         let matches = section == "themes" && !linksOnly ? filtered.filter { BootstrapPaletteTheme.nativeRole($0) != nil } : []

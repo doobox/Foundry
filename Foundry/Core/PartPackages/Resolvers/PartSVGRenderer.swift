@@ -159,7 +159,7 @@ nonisolated enum PartSVGRenderer {
             node.property(.init(rawValue: "foreground.theme")) != "inherit"
         let overrideFill = usesPaintOverrides && node.propertyValue(.init(rawValue: "fillEnabled")) == .boolean(true)
         let overrideStroke = usesPaintOverrides && node.propertyValue(.init(rawValue: "strokeEnabled")) == .boolean(true)
-        for definition in node.type.definition.properties {
+        for definition in node.definition.properties {
             guard case .svg = definition.control else { continue }
             let key = definition.key.rawValue
             let alt = node.property(PartPackageAdapter.imageAltKey(for: key))

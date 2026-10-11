@@ -45,7 +45,7 @@ nonisolated enum PartPackageFontControl {
 
     static func familyReference(_ id: String, node: PartNode) -> String {
         let key = PartProperty.Key(rawValue: id)
-        if let definition = node.type.definition.properties.first(where: { $0.key == key }), !definition.isInspectorVisible {
+        if let definition = node.definition.properties.first(where: { $0.key == key }), !definition.isInspectorVisible {
             return definition.defaultValue.stringValue
         }
         return node.propertyValue(key).stringValue
@@ -54,7 +54,7 @@ nonisolated enum PartPackageFontControl {
     static func resolved(_ id: String, node: PartNode, theme: Theme) -> PartPackageValue {
         let family = familyReference(id, node: node)
         var fields: [String: PartPackageValue] = ["family": .string(PartPackageThemeValueResolver.resolve(family, from: .fontFamilies, theme: theme) ?? "inherit")]
-        let definitions = node.type.definition.properties
+        let definitions = node.definition.properties
         let weightKey = fieldKey(id, "weight")
         if definitions.contains(where: { $0.key == weightKey }) {
             fields["weight"] = .number(node.propertyValue(weightKey).numberValue ?? 400)

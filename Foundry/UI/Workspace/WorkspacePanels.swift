@@ -589,14 +589,6 @@ nonisolated private enum PartLibraryIconSize: String, CaseIterable, Identifiable
         }
     }
 
-    var tileHeight: CGFloat {
-        switch self {
-        case .list: 44
-        case .small: 84
-        case .medium: 96
-        }
-    }
-
     var gridMinimumWidth: CGFloat {
         switch self {
         case .list: 140
@@ -1475,7 +1467,10 @@ struct ReusablePartLibraryPanel: View {
     var body: some View {
         VStack(spacing: 0) {
             LibraryPanelHeader(title: "Templates", accessibilityLabel: "Add Template Folder") {
-                if folderCreationTargets.count == 1, let target = folderCreationTargets.first {
+                if folderCreationTargets.isEmpty {
+                    Button("No writable library available") {}
+                        .disabled(true)
+                } else if folderCreationTargets.count == 1, let target = folderCreationTargets.first {
                     Button("New Folder…", systemImage: "folder.badge.plus") {
                         beginNamingFolder(inSection: target.id)
                     }
@@ -1492,6 +1487,18 @@ struct ReusablePartLibraryPanel: View {
             }
             Divider()
             LibraryPanelTabPicker(tab: $tab, tabs: availableTabs)
+            if tab != .project, !ReusablePartLibrary.shared.loadingErrors.isEmpty {
+                VStack(alignment: .leading, spacing: 8) {
+                    Label("Some libraries could not be loaded", systemImage: "exclamationmark.triangle")
+                        .foregroundStyle(.orange)
+                    Text(ReusablePartLibrary.shared.loadingErrors.joined(separator: "\n"))
+                        .font(.caption)
+                        .textSelection(.enabled)
+                    Button("Retry") { ReusablePartLibrary.shared.refresh() }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(12)
+            }
             TemplatesOutlineView(
                 kind: .templates,
                 sections: displayedSections,
@@ -1646,7 +1653,7 @@ private struct PartLibraryTile: View {
                         Spacer(minLength: 0)
                     }
                     .padding(6)
-                    .frame(maxWidth: .infinity, minHeight: iconSize.tileHeight, maxHeight: iconSize.tileHeight)
+                    .frame(maxWidth: .infinity, minHeight: 44, maxHeight: 44)
                 } else {
                     VStack(spacing: 6) {
                         partIcon
@@ -1654,7 +1661,9 @@ private struct PartLibraryTile: View {
                             .frame(maxWidth: .infinity)
                     }
                     .padding(6)
-                    .frame(width: iconSize.tileWidth, height: iconSize.tileHeight)
+                    .padding(.top, 2)
+                    // Natural height preserves the two-line title space.
+                    .frame(width: iconSize.tileWidth)
                 }
             }
             // The accent ring carries the selection; the fill is the
@@ -1684,13 +1693,14 @@ private struct PartLibraryTile: View {
         )
     }
 
-    // One size for every tile: long names truncate rather than shrink, so
+    // Reserve two lines for grid titles; long names never shrink, so
     // the grid never mixes text sizes. The tooltip carries the full name.
     // The title stays primary — the system selection colour can be pale
     // when unfocused, where white text vanishes in light appearance.
     private var partTitle: some View {
         Text(type.displayName)
-            .lineLimit(1)
+            .lineLimit(iconSize == .list ? 1 : 2, reservesSpace: true)
+            .multilineTextAlignment(iconSize == .list ? .leading : .center)
             .truncationMode(.tail)
             .font(.caption)
             .foregroundStyle(Color.primary)
@@ -1698,7 +1708,7 @@ private struct PartLibraryTile: View {
     }
 }
 
-/// One tinted tile behind a white stencil glyph — the shared rendering for
+/// One coloured tile behind a monochrome or original glyph — shared rendering for
 /// every part-icon surface except the structure tree. The composed image
 /// gives SVG stencils and SF Symbols identical geometry on the tile.
 private struct PartIconTile: View {

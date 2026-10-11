@@ -4,7 +4,7 @@ import Foundation
 nonisolated enum BootstrapSpacingClasses {
 
     static func resolve(node: PartNode, key: PartProperty.Key, screens: ScreenTokens, spacing: SpacingTokens = .standard) -> String? {
-        guard let source = node.type.definition.package?.manifest.resolvedProperties.first(where: { $0.id == key.rawValue })?.controlGroupSource,
+        guard let source = node.definition.package?.manifest.resolvedProperties.first(where: { $0.id == key.rawValue })?.controlGroupSource,
               source.type == .spacing else { return nil }
         var classes = utilities(node.propertyValue(key), spacing: spacing)
         for (index, id) in BootstrapLayout.ids.enumerated() where screens.screen(id).isEnabled {

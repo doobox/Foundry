@@ -35,7 +35,7 @@ nonisolated enum PartPackageValidator {
     private static let propertyExpression = try! NSRegularExpression(
         pattern: #"^[A-Za-z][A-Za-z0-9_-]*$"#
     )
-    static func validate(_ manifest: PartPackageManifest, rootURL: URL) -> [PartPackageDiagnostic] {
+    static func validate(_ manifest: PartPackageManifest, rootURL: URL, sourceFiles: [String: String] = [:]) -> [PartPackageDiagnostic] {
         var diagnostics: [PartPackageDiagnostic] = []
 
         if manifest.minimumAPIVersion > FoundryPartAPI.supportedVersions.upperBound {
@@ -142,7 +142,7 @@ nonisolated enum PartPackageValidator {
         for path in declaredFiles {
             if !isSafeRelativePath(path) {
                 diagnostics.append(.init(severity: .error, location: path, message: "Package paths must be relative and cannot contain '..'."))
-            } else if !FileManager.default.fileExists(atPath: rootURL.appending(path: path).path) {
+            } else if sourceFiles[path] == nil && !FileManager.default.fileExists(atPath: rootURL.appending(path: path).path) {
                 diagnostics.append(.init(severity: .error, location: path, message: "The declared package file does not exist."))
             }
         }
@@ -243,7 +243,7 @@ nonisolated enum PartPackageValidator {
         let templateContents: [String: String] = Dictionary(
             uniqueKeysWithValues: Set(templates.compactMap(\.path)).compactMap { path -> (String, String)? in
             guard isSafeRelativePath(path),
-                  let contents = try? String(contentsOf: rootURL.appending(path: path), encoding: .utf8) else {
+                  let contents = sourceFiles[path] ?? (try? String(contentsOf: rootURL.appending(path: path), encoding: .utf8)) else {
                 return nil
             }
             return (path, contents)
@@ -345,6 +345,9 @@ nonisolated enum PartPackageValidator {
     ) {
         // Dividers and notes carry no value, so a template has nothing to read.
         var propertyIDs = Set(manifest.resolvedProperties.filter { !$0.control.type.permitsOmittedID }.map(\.id))
+        for property in manifest.resolvedProperties where property.control.type.colourPurpose != nil {
+            propertyIDs.insert(property.id + ".color")
+        }
         let namedGroupNamespaces = Set(manifest.controlGroups.compactMap(\.id))
         for group in manifest.controlGroups where group.type.generatesBootstrapClasses {
             propertyIDs.insert(group.namespace + ".classes")
@@ -1182,11 +1185,27 @@ nonisolated enum PartPackageValidator {
                 diagnostics.append(.init(severity: .error, location: location, message: "A fontStyle default must be normal or italic."))
                 return
             }
-        case .themeColors:
+        case .themeColors, .backgroundColor, .foregroundColor, .borderColor, .linkColor:
+            if property.control.type == .themeColors, property.controlGroupSource == nil,
+               (property.control.colourSections ?? ["themes"]).contains(where: { $0 != "themes" }) {
+                diagnostics.append(.init(severity: .error, location: location, message: "themeColors selects complete themes only. Use backgroundColor, foregroundColor, borderColor or linkColor for individual colours."))
+            }
             guard case .string(let value) = defaultValue,
                   value == "inherit" || PartColourToken.parse(value) != nil || BootstrapPaletteTheme.selectablePalettes(in: .standard).contains(where: { $0.id == BootstrapPaletteTheme.paletteID(value) }) else {
                 diagnostics.append(.init(severity: .error, location: location, message: "A themeColors default must identify a Bootstrap theme, a supported colour token, or inherit."))
                 return
+            }
+            if property.control.type == .themeColors, property.controlGroupSource == nil, PartColourToken.parse(value) != nil {
+                diagnostics.append(.init(severity: .error, location: location, message: "A complete theme default must be inherit or a theme name, not a colour token."))
+            }
+            if property.controlGroupSource == nil, value != "inherit" {
+                let sections = property.control.colourSections ?? property.control.type.colourPurpose?.defaultSections ?? ["themes"]
+                let allowed = PartColourToken.parse(value).map { token in
+                    PartColourToken.groups(for: sections).contains { $0.1.contains(token.id) }
+                } ?? sections.contains("themes")
+                if !allowed {
+                    diagnostics.append(.init(severity: .error, location: location, message: "The default must belong to a group included in colourSections."))
+                }
             }
         case .select:
             guard case .string(let value) = defaultValue else {

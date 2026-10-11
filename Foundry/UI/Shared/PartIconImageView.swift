@@ -3,7 +3,7 @@ import AppKit
 /// An AppKit part-icon tile: a tint-filled backing behind a white stencil
 /// glyph, re-resolved whenever the view's effective appearance changes.
 final class PartIconImageView: NSImageView {
-    var tileTint: NSColor? {
+    var tileBackground: NSColor? {
         didSet { updateBackgroundColor() }
     }
 
@@ -20,7 +20,7 @@ final class PartIconImageView: NSImageView {
     func updateBackgroundColor() {
         var backgroundColor: CGColor?
         effectiveAppearance.performAsCurrentDrawingAppearance {
-            backgroundColor = tileTint?.cgColor
+            backgroundColor = tileBackground?.cgColor
         }
         layer?.backgroundColor = backgroundColor
     }

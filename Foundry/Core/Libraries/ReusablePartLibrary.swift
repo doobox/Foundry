@@ -61,6 +61,7 @@ final class ReusablePartLibrary {
 
     private(set) var entries: [ReusablePartLibraryEntry] = []
     private(set) var packs: [ReusablePartLibraryPack] = []
+    private(set) var loadingErrors: [String] = []
     private var packStates: [PackState] = []
     private var entryURLs: [UUID: URL] = [:]
     private var entryPackIDs: [UUID: String] = [:]
@@ -86,6 +87,7 @@ final class ReusablePartLibrary {
     // MARK: Listing
 
     func refresh() {
+        loadingErrors = []
         entryURLs.removeAll(keepingCapacity: true)
         entryPackIDs.removeAll(keepingCapacity: true)
         folderURLs.removeAll(keepingCapacity: true)
@@ -177,11 +179,19 @@ final class ReusablePartLibrary {
             )]
         }
         var roots: [(url: URL, isPersonal: Bool, showsWhenEmpty: Bool)] = []
-        if let personal = try? FoundryPackLoader.personalDevelopmentPackURL() {
+        do {
+            let personal = try FoundryPackLoader.personalDevelopmentPackURL()
             roots.append((personal.standardizedFileURL, true, true))
+        } catch {
+            loadingErrors.append("My Library: \(error.localizedDescription)")
         }
-        let installedRoots = (try? FoundryPackLoader.installedPacksURL())
-            .map { FoundryPackLoader.packURLs(in: $0) } ?? []
+        let installedRoots: [URL]
+        do {
+            installedRoots = FoundryPackLoader.packURLs(in: try FoundryPackLoader.installedPacksURL())
+        } catch {
+            loadingErrors.append("Installed packs: \(error.localizedDescription)")
+            installedRoots = []
+        }
         // Dev packs are standing authoring targets and always show, even
         // empty — the Dev tab keeps them out of everyone else's view, so a
         // first template can land in any of them without ceremony.
@@ -203,7 +213,13 @@ final class ReusablePartLibrary {
     }
 
     private func packSource(at rootURL: URL, isPersonal: Bool, showsWhenEmpty: Bool) -> PackState? {
-        guard let pack = try? FoundryPackLoader.load(from: rootURL) else { return nil }
+        let pack: FoundryPack
+        do {
+            pack = try FoundryPackLoader.load(from: rootURL)
+        } catch {
+            loadingErrors.append("\(rootURL.deletingPathExtension().lastPathComponent): \(error.localizedDescription)")
+            return nil
+        }
         return PackState(
             rootURL: rootURL.standardizedFileURL,
             templatesURL: rootURL.appending(

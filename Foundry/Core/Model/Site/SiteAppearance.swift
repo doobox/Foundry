@@ -22,22 +22,28 @@ nonisolated enum SiteAppearanceMode: String, Codable, CaseIterable, Sendable {
     }
 
     /// Runs before styles load so a saved visitor choice does not flash the other appearance.
-    func bootstrap(siteID: UUID) -> String {
+    func bootstrap(siteID: UUID, defaultMode: String = "system") -> String {
         guard self == .both else { return "" }
+        let initialMode = ["system", "light", "dark"].contains(defaultMode) ? defaultMode : "system"
         return """
         <script>
         (() => {
           const key = 'foundry.appearance.\(siteID.uuidString.lowercased())';
-          const apply = value => {
+          let current = '\(initialMode)';
+          const apply = (value, persist = true) => {
             if (!['system', 'light', 'dark'].includes(value)) return;
             if (value === 'system') delete document.documentElement.dataset.bsTheme;
             else document.documentElement.dataset.bsTheme = value;
-            try { localStorage.setItem(key, value); } catch (_) {}
+            current = value;
+            if (persist) { try { localStorage.setItem(key, value); } catch (_) {} }
+            window.dispatchEvent(new CustomEvent('foundry:appearance-change', { detail: value }));
           };
-          window.foundryAppearance = { set: apply };
-          let saved = 'system';
-          try { saved = localStorage.getItem(key) || 'system'; } catch (_) {}
-          apply(saved);
+          window.foundryAppearance = { set: value => apply(value), get: () => current };
+          try {
+            const saved = localStorage.getItem(key);
+            if (['system', 'light', 'dark'].includes(saved)) current = saved;
+          } catch (_) {}
+          apply(current, false);
         })();
         </script>
         """

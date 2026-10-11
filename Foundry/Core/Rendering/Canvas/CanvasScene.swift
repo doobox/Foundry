@@ -21,7 +21,7 @@ nonisolated struct CanvasScene: Sendable {
     private static func retainUtilityOverrides(in node: inout PartNode) {
         // Ordinary controls are already resolved for this viewport. Bootstrap
         // utility groups retain base values and need overrides to emit classes.
-        let keys = Set(node.type.definition.package?.manifest.resolvedProperties
+        let keys = Set(node.definition.package?.manifest.resolvedProperties
             .filter { $0.controlGroupSource?.type.generatesBootstrapClasses == true }.map(\.id) ?? [])
         node.responsiveOverrides = node.responsiveOverrides?.filter { keys.contains($0.key.rawValue) }
         if node.responsiveOverrides?.isEmpty == true { node.responsiveOverrides = nil }
@@ -135,7 +135,7 @@ nonisolated struct CanvasScene: Sendable {
                 live.insert(source.id)
                 let path = parentPath + [index]
                 if paths[source.id] != path { paths[source.id] = path }
-                let ownPackage = source.type.definition.package
+                let ownPackage = source.definition.package
                 if let identifier = ownPackage?.manifest.identifier,
                    packageIdentifiers.insert(identifier).inserted {
                     packages.append(identifier)

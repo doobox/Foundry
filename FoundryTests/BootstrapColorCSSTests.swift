@@ -44,4 +44,21 @@ struct BootstrapColorCSSTests {
         #expect(FoundryWebLibraryRegistry.exportScripts(for: [], prefix: "files/libraries", placement: .beforePage)
             .contains { $0.isModule && $0.path.contains("bootstrap-6.0.0-alpha.1.bundle.min.js") })
     }
+
+    @Test func bootstrapIconsAreAvailableWithoutPartDependencies() {
+        #expect(FoundryWebLibraryRegistry.uniqueRequirements(in: []) == [
+            FoundryWebLibraryRegistry.bootstrapRequirement,
+            FoundryWebLibraryRegistry.iconRequirement
+        ])
+        let canvasCSS = FoundryWebLibraryRegistry.canvasCSS(for: [])
+        #expect(canvasCSS.contains(".bi-magic::before"))
+        #expect(canvasCSS.contains("data:font/woff2;base64,"))
+        let exportCSS = FoundryWebLibraryRegistry.exportCSS(for: [])
+        #expect(exportCSS.contains(".bi-magic::before"))
+        #expect(exportCSS.contains("./libraries/bootstrapIcons/bootstrap-icons.woff2"))
+        let fonts = FoundryWebLibraryRegistry.exportFiles(for: []).filter {
+            $0.path == "files/libraries/bootstrapIcons/bootstrap-icons.woff2"
+        }
+        #expect(fonts.count == 1)
+    }
 }

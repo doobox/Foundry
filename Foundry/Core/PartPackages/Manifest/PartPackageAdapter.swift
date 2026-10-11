@@ -299,7 +299,8 @@ nonisolated enum PartPackageAdapter {
             dateMinimum: property.control.minimumDate.flatMap(PartDateValue.init).map(\.date),
             dateMaximum: property.control.maximumDate.flatMap(PartDateValue.init).map(\.date),
             presentation: property.control.presentation,
-            colourSections: property.control.colourSections ?? ["themes"]
+            colourSections: property.control.colourSections ?? property.control.type.colourPurpose?.defaultSections ?? ["themes"],
+            colourPurpose: property.control.type.colourPurpose
         )]
     }
 
@@ -393,7 +394,7 @@ nonisolated enum PartPackageAdapter {
                 step: control.step ?? 1, unit: unit
             )
         case .color: .literalColor(allowsOpacity: control.opacity == true)
-        case .themeColors: .themeColors
+        case .themeColors, .backgroundColor, .foregroundColor, .borderColor, .linkColor: .themeColors
         case .themeFont: .themeFont
         case .themeFontSize: .themeFontSize
         case .themeStackingOrder: .themeStackingOrder
@@ -487,7 +488,7 @@ nonisolated enum PartPackageAdapter {
             switch control {
             case .link: .link(.init(destination: value.isEmpty ? .none : .url(value)))
             case .color: .color(value)
-            case .themeColors: .choice(value)
+            case .themeColors, .backgroundColor, .foregroundColor, .borderColor, .linkColor: .choice(value)
             case .icon, .select, .themeFont, .themeFontSize, .themeStackingOrder, .pageFolder, .fontStyle, .textAlignment, .themeShadow: .choice(value)
             case .date: .string(value)
             case .image, .svg, .video: .url(value)

@@ -284,7 +284,7 @@ struct CanvasView: View {
         Dictionary(
             page.parts
                 .flatMap(flattened)
-                .compactMap(\.type.definition.package)
+                .compactMap(\.definition.package)
                 .map { ($0.manifest.identifier, $0) },
             uniquingKeysWith: { _, latest in latest }
         )
@@ -464,7 +464,7 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
               path.allSatisfy({ $0.reusableDefinitionID == nil }),
               let owner = path.last else { return false }
         return flattened(owner).allSatisfy { node in
-            guard let package = node.type.definition.package else { return true }
+            guard let package = node.definition.package else { return true }
             return package.pageCSS.isEmpty
                 && package.siteCSS.isEmpty
                 && package.placedHTML.isEmpty
@@ -482,8 +482,8 @@ nonisolated struct CanvasRenderSnapshot: Sendable {
         guard let path = partPath(to: partID, in: page.parts),
               path.allSatisfy({ $0.reusableDefinitionID == nil }),
               let part = path.last,
-              let package = part.type.definition.package,
-              let property = part.type.definition.properties.first(where: { $0.key == propertyKey }) else {
+              let package = part.definition.package,
+              let property = part.definition.properties.first(where: { $0.key == propertyKey }) else {
             return false
         }
         guard package.pageCSS.isEmpty,

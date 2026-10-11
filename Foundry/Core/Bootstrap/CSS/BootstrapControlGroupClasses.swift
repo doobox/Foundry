@@ -3,15 +3,15 @@ import Foundation
 /// Native utility groups share the same responsive class contract in every renderer.
 nonisolated enum BootstrapControlGroupClasses {
     static func resolve(node: PartNode, key: PartProperty.Key, theme: Theme) -> String? {
-        guard let property = node.type.definition.package?.manifest.resolvedProperties.first(where: { $0.id == key.rawValue }) else { return nil }
+        guard let property = node.definition.package?.manifest.resolvedProperties.first(where: { $0.id == key.rawValue }) else { return nil }
         if property.control.type == .borderSides, case .themeBorderWidth(let edges) = node.propertyValue(key) {
             return BootstrapBorderClasses.sides(edges)
         }
         guard let source = property.controlGroupSource, source.type.generatesBootstrapClasses else { return nil }
         if source.type == .linkStyling,
-           let group = node.type.definition.package?.manifest.controlGroups.first(where: { $0.namespace == source.namespace }) {
+           let group = node.definition.package?.manifest.controlGroups.first(where: { $0.namespace == source.namespace }) {
             guard !BootstrapLinkStyling.css(node: node, group: group, theme: theme).isEmpty else { return "" }
-            let first = node.type.definition.package?.manifest.resolvedProperties.first { $0.controlGroupSource?.namespace == source.namespace }
+            let first = node.definition.package?.manifest.resolvedProperties.first { $0.controlGroupSource?.namespace == source.namespace }
             return first?.id == property.id ? BootstrapLinkStyling.className(node: node, group: group) : ""
         }
         if source.type == .spacing {

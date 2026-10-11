@@ -1,12 +1,22 @@
 import Foundation
 
-/// A palette-backed text colour inside rich text. Only the reference is
-/// stored — resolution happens wherever the fragment renders, so palette
+/// A shared text colour inside rich text. Only the reference is
+/// stored — resolution happens wherever the fragment renders, so theme
 /// edits recolour existing text the same way they recolour parts.
 nonisolated struct RichTextColourReference: Codable, Hashable, Sendable {
     var source: String
     var lightShade: ColourShade
     var darkShade: ColourShade
+
+    var foregroundToken: PartColourToken? {
+        guard let token = PartColourToken.parse(source),
+              token.id.hasPrefix("fg-") || token.id.hasPrefix("custom-") && token.id.contains("-fg-") else { return nil }
+        return token
+    }
+
+    init(foregroundToken: PartColourToken) {
+        self.init(source: foregroundToken.selection, lightShade: .one, darkShade: .one)
+    }
 
     var paletteID: String {
         ThemePaletteColorRole(rawValue: source) != nil ? "framework." + source : source
@@ -14,7 +24,7 @@ nonisolated struct RichTextColourReference: Codable, Hashable, Sendable {
 
     /// The stored `data-foundry-color` attribute value.
     var marker: String {
-        "\(source):\(lightShade.rawValue):\(darkShade.rawValue)"
+        foregroundToken?.selection ?? "\(source):\(lightShade.rawValue):\(darkShade.rawValue)"
     }
 
     init(source: String, lightShade: ColourShade, darkShade: ColourShade) {
@@ -24,6 +34,11 @@ nonisolated struct RichTextColourReference: Codable, Hashable, Sendable {
     }
 
     init?(marker: String) {
+        if let token = PartColourToken.parse(marker) {
+            self.init(foregroundToken: token)
+            guard foregroundToken != nil else { return nil }
+            return
+        }
         let parts = marker.split(separator: ":")
         guard parts.count == 3,
               let light = Int(parts[1]).flatMap(ColourShade.init(rawValue:)),
@@ -41,7 +56,11 @@ nonisolated struct RichTextColourReference: Codable, Hashable, Sendable {
     }
 
     func resolveCSS(in palettes: [ColourPalette], appearance: SiteAppearance) -> String? {
-        palettes.resolvedPalette(id: paletteID)?.cssColour(at: appearance == .light ? lightShade : darkShade)
+        if let token = foregroundToken {
+            guard PartColourToken.groups(for: ["foregrounds"], palettes: palettes).flatMap({ $0.1 }).contains(token.id) else { return nil }
+            return token.expression
+        }
+        return palettes.resolvedPalette(id: paletteID)?.cssColour(at: appearance == .light ? lightShade : darkShade)
     }
 }
 
@@ -129,9 +148,8 @@ nonisolated enum FoundryRichTextCodec {
         return result
     }
 
-    /// Replaces stored palette references with concrete CSS colours. The
-    /// canvas passes its single appearance; export passes the site's mode so
-    /// dual-appearance sites get `light-dark()` colours, matching parts.
+    /// Foreground references emit live CSS variables; saved palette shades
+    /// resolve using the requested mode. Both remain linked to shared colours.
     static func resolvingColours(in fragment: String, context: ColourContext) -> String {
         let expression = try! NSRegularExpression(
             pattern: #"<span\s+data-foundry-color=\"([^\"]*)\"\s*>"#,

@@ -8,7 +8,7 @@
   "group": "Layout",
   "icon": {
     "symbol": "chevron.left.forwardslash.chevron.right",
-    "tint": "gray"
+    "background": { "light": "#8E8E93", "dark": "#98989D" }
   },
   "tags": [
     "layout",

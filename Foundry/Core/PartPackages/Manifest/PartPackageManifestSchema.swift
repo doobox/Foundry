@@ -30,7 +30,7 @@ nonisolated enum PartPackageManifestSchema {
         "tags", "showsInPartLibrary", "allowedParents", "icon", "inspector", "templates", "assets", "helpURL",
         "requiresPHP", "libraries"
     ]
-    private static let iconKeys: Set<String> = ["file", "symbol", "tint", "rendering"]
+    private static let iconKeys: Set<String> = ["file", "symbol", "background", "foreground", "structure", "rendering"]
     private static let propertyKeys: Set<String> = [
         "id", "label", "title", "body", "systemImage", "defaults", "responsive", "subtitle", "buttonText", "units", "noneValue", "tooltip", "linked",
         "type", "font", "showsFamily", "showsWeight", "showsStyle", "showsSize", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "opacity", "outputFormat",
@@ -125,13 +125,14 @@ nonisolated enum PartPackageManifestSchema {
         case .themeBorder: return common.union(["showsStyle"]).contains(key)
         default: break
         }
+        if type.isColourPicker, ["responsive", "count", "themeValues", "options", "allowsCustom", "opacity", "outputFormat"].contains(key) { return false }
         if key == "responsive", [.themeColors, .link, .video].contains(type) { return false }
         if key == "count", [.themeColors, .themeFont, .themeFontSize, .themeStackingOrder, .pageFolder, .themeShadow, .image, .svg, .video, .link].contains(type) { return false }
         if ["themeValues", "options", "allowsCustom"].contains(key),
            [.themeColors, .themeFont, .themeFontSize, .themeStackingOrder, .pageFolder].contains(type) { return false }
         if ["themeValues", "allowsCustom"].contains(key), type == .select { return false }
         switch key {
-        case "colourSections": return type == .themeColors
+        case "colourSections": return type.isColourPicker
         case "presentation": return type == .select || type == .toggle
         case "opacity", "outputFormat": return type == .color
         case "font": return type == .fontWeight || type == .fontStyle
@@ -296,13 +297,25 @@ nonisolated enum PartPackageManifestSchema {
                     diagnostics.append(.init(
                         severity: .error,
                         location: "manifest.json:icon",
-                        message: "Unknown key '\(key)'. Supported keys: file, symbol, tint, rendering."
+                        message: "Unknown key '\(key)'. Supported keys: file, symbol, background, foreground, structure, rendering."
                     ))
                 }
                 optionalString("file", in: icon, location: "manifest.json:icon", into: &diagnostics)
                 optionalString("symbol", in: icon, location: "manifest.json:icon", into: &diagnostics)
-                // Unrecognised tint and rendering names fall back quietly; they are not errors.
-                optionalString("tint", in: icon, location: "manifest.json:icon", into: &diagnostics)
+                for key in ["background", "foreground", "structure"] {
+                    guard let value = icon[key] else { continue }
+                    if let pair = value as? [String: Any] {
+                        for unknown in pair.keys.sorted() where unknown != "light" && unknown != "dark" {
+                            diagnostics.append(.init(severity: .warning, location: "manifest.json:icon.\(key)", message: "Unknown key '\(unknown)' is ignored; use light and dark."))
+                        }
+                    }
+                    do {
+                        let data = try JSONSerialization.data(withJSONObject: value, options: [.fragmentsAllowed])
+                        _ = try JSONDecoder().decode(PartIconColour.self, from: data)
+                    } catch {
+                        diagnostics.append(.init(severity: .error, location: "manifest.json:icon.\(key)", message: "Use #RRGGBB or #RRGGBBAA, or a dictionary with light and/or dark hex colours."))
+                    }
+                }
                 optionalString("rendering", in: icon, location: "manifest.json:icon", into: &diagnostics)
                 if icon["file"] is String, icon["symbol"] is String {
                     diagnostics.append(.init(
@@ -315,7 +328,7 @@ nonisolated enum PartPackageManifestSchema {
                 diagnostics.append(.init(
                     severity: .error,
                     location: "manifest.json:icon",
-                    message: "icon must be a dictionary with file, symbol, or tint keys."
+                    message: "icon must be a dictionary with file, symbol, background, foreground, structure, or rendering keys."
                 ))
             }
         }
@@ -540,7 +553,7 @@ nonisolated enum PartPackageManifestSchema {
             diagnostics.append(.init(severity: .error, location: location + ".colourSections", message: "colourSections applies to background and foreground control groups. Links always use link colours."))
         }
         if let sections = controlGroup["colourSections"] as? [String], sections.contains(where: { !PartColourToken.pickerSectionIDs.contains($0) }) {
-            diagnostics.append(.init(severity: .error, location: location + ".colourSections", message: "Unknown colour section. Use themes, blackWhite, surfaces, foregrounds, borders, links or shadow."))
+            diagnostics.append(.init(severity: .error, location: location + ".colourSections", message: "Unknown colour section. Use themes, blackWhite, surfaces, foregrounds, borders, links, shadow or palettes."))
         }
         if let visibleWhen = controlGroup["visibleWhen"] as? [String: Any] {
             unknownKeys(in: visibleWhen, allowed: visibleWhenKeys, location: "\(location).visibleWhen", into: &diagnostics)
@@ -724,6 +737,9 @@ nonisolated enum PartPackageManifestSchema {
         var normalized = property
         normalized.removeValue(forKey: "defaults")
         guard let raw = property["defaults"] else {
+            if let name = property["type"] as? String, PartPackageControl.Kind(rawValue: name)?.isColourPicker == true {
+                normalized["default"] = "inherit"
+            }
             var result: [PartPackageDiagnostic] = []
             validateResolvedProperty(normalized, location: location, into: &result)
             diagnostics += result.map { .init(severity: $0.severity, location: $0.location.replacingOccurrences(of: ":default", with: ":defaults"), message: $0.message.replacingOccurrences(of: "A default value", with: "A defaults dictionary with base")) }
@@ -925,15 +941,15 @@ nonisolated enum PartPackageManifestSchema {
         }
         if property["colourSections"] != nil {
             optionalStringArray("colourSections", in: property, location: location, into: &diagnostics)
-            if type != .themeColors {
-                diagnostics.append(.init(severity: .error, location: "\(location).colourSections", message: "colourSections applies only to themeColors controls."))
+            if !type.isColourPicker {
+                diagnostics.append(.init(severity: .error, location: "\(location).colourSections", message: "colourSections applies only to Bootstrap colour pickers."))
             }
             if let sections = property["colourSections"] as? [String],
                sections.contains(where: { !PartColourToken.pickerSectionIDs.contains($0) }) {
-                diagnostics.append(.init(severity: .error, location: "\(location).colourSections", message: "Unknown colour section. Use themes, blackWhite, surfaces, foregrounds, borders, links or shadow."))
+                diagnostics.append(.init(severity: .error, location: "\(location).colourSections", message: "Unknown colour section. Use themes, blackWhite, surfaces, foregrounds, borders, links, shadow or palettes."))
             }
         }
-        if type == .themeColors {
+        if type.isColourPicker {
             for key in ["count", "themeValues", "options", "allowsCustom", "opacity", "outputFormat"] where property[key] != nil {
                 diagnostics.append(.init(severity: .error, location: "\(location).\(key)", message: "A themeColors control does not accept \(key)."))
             }

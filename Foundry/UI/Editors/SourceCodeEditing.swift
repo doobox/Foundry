@@ -14,6 +14,7 @@ struct HighlightedCodeEditor: View {
         TextEditor(text: $text)
             .autocorrectionDisabled()
             .background(CodeEditingSubstitutionDisabler())
+            .background(SourceCodeIndentationKeys())
             .task(id: String(text.characters)) {
                 await Task.yield()
                 guard !Task.isCancelled else { return }

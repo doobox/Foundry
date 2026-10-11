@@ -1,4 +1,5 @@
 import Foundation
+import AppKit
 import CryptoKit
 import Testing
 @testable import Foundry
@@ -124,7 +125,7 @@ struct PartPackageTests {
         #expect(fields.first { $0.key.rawValue == "detail" }?.outputWhenHidden == flag)
     }
 
-    @Test(arguments: [[], ["themes"], ["links"], ["foregrounds", "themes", "blackWhite"]])
+    @Test(arguments: [[], ["themes"], ["links"], ["palettes"], ["foregrounds", "themes", "palettes"], ["foregrounds", "themes", "blackWhite"]])
     func colourGroupSectionsRemainExclusiveAfterRoundTrip(sections: [String]) throws {
         let group = PartPackageControlGroup(type: .foreground, id: "paint", colourSections: sections)
         let data = try JSONEncoder().encode(group)
@@ -133,9 +134,9 @@ struct PartPackageTests {
         #expect(decoded.colourSections.contains("themes") == sections.contains("themes"))
     }
 
-    @Test(arguments: [nil, [], ["themes"], ["foregrounds", "themes", "blackWhite"], ["foregrounds", "blackWhite"], ["surfaces", "links", "foregrounds", "surfaces"], ["borders", "shadow"]] as [[String]?])
-    func standaloneThemeColorsSectionsRoundTrip(sections: [String]?) throws {
-        var control: [String: Any] = ["type": "themeColors", "id": "paint", "defaults": ["base": "inherit"]]
+    @Test(arguments: [nil, [], ["themes"], ["palettes"], ["foregrounds", "themes", "palettes"], ["foregrounds", "themes", "blackWhite"], ["foregrounds", "blackWhite"], ["surfaces", "links", "foregrounds", "surfaces"], ["borders", "shadow"]] as [[String]?])
+    func standaloneColourSectionsRoundTrip(sections: [String]?) throws {
+        var control: [String: Any] = ["type": "foregroundColor", "id": "paint", "defaults": ["base": "inherit"]]
         if let sections { control["colourSections"] = sections }
         let controlData = try JSONSerialization.data(withJSONObject: control)
         let source = manifest(withInspectorEntries: String(decoding: controlData, as: UTF8.self))
@@ -149,8 +150,8 @@ struct PartPackageTests {
         let saved = try JSONEncoder().encode(property.control)
         #expect(try JSONDecoder().decode(PartPackageControl.self, from: saved).colourSections == sections)
         let definition = try #require(PartPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "paint" })
-        #expect(definition.colourSections == sections ?? ["themes"])
-        #expect(PartColourToken.groups(for: definition.colourSections).map(\.0) == PartColourToken.groups(for: sections ?? ["themes"]).map(\.0))
+        #expect(definition.colourSections == sections ?? ["foregrounds", "themes"])
+        #expect(PartColourToken.groups(for: definition.colourSections).map(\.0) == PartColourToken.groups(for: sections ?? ["foregrounds", "themes"]).map(\.0))
     }
 
     @Test(arguments: [
@@ -163,6 +164,33 @@ struct PartPackageTests {
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: control).utf8))
         let severity: PartPackageDiagnostic.Severity = control.contains("\"type\":\"text\"") ? .warning : .error
         #expect(diagnostics.contains { $0.severity == severity && $0.location.contains("colourSections") })
+    }
+
+    @Test(arguments: [nil, "inherit", "theme-primary", "token:fg-body"] as [String?])
+    func colourPickerOptionalDefaults(value: String?) throws {
+        var control: [String: Any] = ["type": "foregroundColor", "id": "paint", "colourSections": ["themes", "foregrounds"]]
+        if let value { control["defaults"] = ["base": value] }
+        let data = try JSONSerialization.data(withJSONObject: control)
+        let source = manifest(withInspectorEntries: String(decoding: data, as: UTF8.self))
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(source.utf8))
+        #expect(diagnostics.filter { $0.severity == .error }.isEmpty)
+        let url = try makePackage(manifest: source, template: "<div {{ part.attributes }}>{{ childArea(\"content\") }}</div>")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        let property = try #require(package.manifest.resolvedProperties.first { $0.id == "paint" })
+        #expect(property.defaultValue == .string(value ?? "inherit"))
+        let definition = try #require(PartPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "paint" })
+        #expect(definition.defaultValue == .choice(value ?? "inherit"))
+    }
+
+    @Test(arguments: [
+        #"{"type":"themeColors","id":"paint","defaults":{}}"#,
+        #"{"type":"themeColors","id":"paint","defaults":{"base":"inherit","desktop":"theme-primary"}}"#,
+        #"{"type":"text","id":"paint"}"#
+    ])
+    func optionalThemeDefaultsDoNotRelaxOtherRequirements(control: String) throws {
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: control).utf8))
+        #expect(diagnostics.contains { $0.severity == .error })
     }
 
     @Test(arguments: ["themeColor", "bootstrapColors"])
@@ -6637,6 +6665,7 @@ struct PartPackageTests {
 
         #expect(FoundryWebLibraryRegistry.uniqueRequirements(in: [package]) == [
             FoundryWebLibraryRegistry.bootstrapRequirement,
+            FoundryWebLibraryRegistry.iconRequirement,
             FoundryWebLibraryRegistry.alpineRequirement,
             FoundryWebLibraryRegistry.gsapRequirement,
             FoundryWebLibraryRegistry.gsapScrollTriggerRequirement
@@ -7131,31 +7160,166 @@ struct PartPackageTests {
     }
 
     @Test
-    func iconTintShadesAndRenderingsResolveWithQuietFallbacks() {
-        let light = PartPackageIcon(file: "icon.svg", tint: "blue.light", rendering: "original")
-        #expect(light.resolvedTint == .blue)
-        #expect(light.resolvedShade == .light)
-        #expect(light.resolvedRendering == .original)
-        #expect(PartPackageIcon(tint: "indigo.dark").resolvedShade == .dark)
-        #expect(PartPackageIcon(tint: "indigo").resolvedShade == .regular)
-        // Unknown names fall back rather than failing.
-        let unknown = PartPackageIcon(tint: "chartreuse.misty", rendering: "sparkly")
-        #expect(unknown.resolvedTint == .gray)
-        #expect(unknown.resolvedShade == .regular)
-        #expect(unknown.resolvedRendering == .monochrome)
-        #expect(PartPackageIcon(tint: "red.misty").resolvedTint == .red)
+    func builtInIconColourManifestsLoad() throws {
+        let appRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let partsRoot = appRoot.appending(path: "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts")
+        let folders = try FileManager.default.contentsOfDirectory(at: partsRoot, includingPropertiesForKeys: nil)
+        let manifests = folders.map { $0.appending(path: "manifest.json") }.filter { FileManager.default.fileExists(atPath: $0.path) }
+        #expect(manifests.count == 12)
+        for url in manifests {
+            let data = try Data(contentsOf: url)
+            let diagnostics = try PartPackageManifestSchema.diagnostics(for: data)
+            #expect(diagnostics.filter { $0.location.contains("icon") }.isEmpty, "\(url.path)")
+            let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
+            let icon = try #require(manifest.icon)
+            let background = try #require(icon.background)
+            #expect(PartIconColour.isValidHex(background.light))
+            #expect(PartIconColour.isValidHex(background.dark))
+        }
+    }
+
+    @Test
+    func iconColoursDecodeAndRoundTrip() throws {
+        for json in ["\"#7950F2\"", ##"{"light":"#7950F2"}"##, ##"{"dark":"#7950F2"}"##] {
+            let colour = try JSONDecoder().decode(PartIconColour.self, from: Data(json.utf8))
+            #expect(colour.light == "#7950F2")
+            #expect(colour.dark == "#7950F2")
+            let encoded = try JSONEncoder().encode(colour)
+            #expect(try JSONDecoder().decode(PartIconColour.self, from: encoded) == colour)
+        }
+        let pair = try JSONDecoder().decode(PartIconColour.self, from: Data(##"{"light":"#000000","dark":"#FFFFFF80"}"##.utf8))
+        #expect(pair.light == "#000000")
+        #expect(pair.dark == "#FFFFFF80")
+        #expect(try JSONDecoder().decode(PartIconColour.self, from: JSONEncoder().encode(pair)) == pair)
+        #expect(PartPackageIcon(rendering: "unknown").resolvedRendering == .monochrome)
+        #expect(PartPackageIcon(rendering: "original").resolvedRendering == .original)
     }
 
     @Test
     func iconRenderingKeysValidateWithoutErrors() throws {
         let item = #"{"type":"text","id":"note","defaults":{"base":""}}"#
         var manifestObject = try #require(JSONSerialization.jsonObject(with: Data(manifest(withInspectorEntries: item).utf8)) as? [String: Any])
-        manifestObject["icon"] = ["symbol": "star", "tint": "purple.light", "rendering": "original"]
+        manifestObject["icon"] = ["symbol": "star", "background": ["light": "#7950F2", "dark": "#B197FC"], "foreground": "#FFFFFF", "structure": "#FF9500", "rendering": "original"] as [String: Any]
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: JSONSerialization.data(withJSONObject: manifestObject))
         #expect(diagnostics.filter { $0.location.contains("icon") }.isEmpty)
-        manifestObject["icon"] = ["symbol": "star", "tint": "nope", "rendering": "nope"]
-        let unknown = try PartPackageManifestSchema.diagnostics(for: JSONSerialization.data(withJSONObject: manifestObject))
-        #expect(unknown.filter { $0.location.contains("icon") }.isEmpty)
+        for invalid: Any in ["blue", "#12345G", "#1234567", [:] as [String: String], ["light": "#000000", "dark": "bad"], 42] {
+            manifestObject["icon"] = ["background": invalid]
+            let diagnostics = try PartPackageManifestSchema.diagnostics(for: JSONSerialization.data(withJSONObject: manifestObject))
+            #expect(diagnostics.contains { $0.location == "manifest.json:icon.background" && $0.severity == .error })
+        }
+    }
+
+    @Test @MainActor
+    func iconColoursFollowAppearance() throws {
+        let url = FileManager.default.temporaryDirectory.appending(path: "adaptive-icon-\(UUID()).svg")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Data(#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" fill="red"/></svg>"#.utf8).write(to: url)
+        let specification = PartIconSpecification(
+            glyph: .svg(url),
+            background: .init(light: "#000000", dark: "#FFFFFF"),
+            foreground: .init(light: "#FFFFFF", dark: "#000000"),
+            structure: .init(light: "#FF0000", dark: "#00FF00")
+        )
+        let image = specification.tileImage(size: NSSize(width: 100, height: 100))
+        for name in [NSAppearance.Name.aqua, .darkAqua] {
+            let appearance = try #require(NSAppearance(named: name))
+            var edge: NSColor?
+            var center: NSColor?
+            var row: NSColor?
+            appearance.performAsCurrentDrawingAppearance {
+                // Explicitly draw the same image in each mode, as a view does.
+                let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 100, pixelsHigh: 100, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)
+                if let bitmap, let context = NSGraphicsContext(bitmapImageRep: bitmap) {
+                    NSGraphicsContext.saveGraphicsState()
+                    NSGraphicsContext.current = context
+                    image.draw(in: NSRect(x: 0, y: 0, width: 100, height: 100))
+                    NSGraphicsContext.restoreGraphicsState()
+                    edge = bitmap.colorAt(x: 10, y: 50)?.usingColorSpace(.sRGB)
+                    center = bitmap.colorAt(x: 50, y: 50)?.usingColorSpace(.sRGB)
+                }
+                row = specification.rowImage().tint?.usingColorSpace(.sRGB)
+            }
+            let background = try #require(edge)
+            let foreground = try #require(center)
+            let structure = try #require(row)
+            if name == .aqua {
+                #expect(background.redComponent < 0.02)
+                #expect(foreground.redComponent > 0.98)
+                #expect(structure.redComponent > 0.98)
+            } else {
+                #expect(background.redComponent > 0.98)
+                #expect(foreground.redComponent < 0.02)
+                #expect(structure.greenComponent > 0.98)
+            }
+        }
+    }
+
+    @Test @MainActor
+    func originalIconRetainsTileGeometryAndUsesStructureColour() throws {
+        let url = FileManager.default.temporaryDirectory.appending(path: "icon-\(UUID()).svg")
+        defer { try? FileManager.default.removeItem(at: url) }
+        try Data(#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" fill="red"/></svg>"#.utf8).write(to: url)
+        let original = PartIconSpecification(glyph: .svg(url), background: .init(light: "#007AFF"), structure: .init(light: "#FF9500"), rendering: .original)
+        let mono = PartIconSpecification(glyph: .svg(url), background: .init(light: "#007AFF"), structure: .init(light: "#FF9500"))
+        func pixel(_ icon: PartIconSpecification, x: Int) throws -> NSColor {
+            let image = icon.tileImage(size: NSSize(width: 100, height: 100))
+            let data = try #require(image.tiffRepresentation)
+            let bitmap = try #require(NSBitmapImageRep(data: data))
+            return try #require(bitmap.colorAt(x: x * bitmap.pixelsWide / 100, y: bitmap.pixelsHigh / 2)?.usingColorSpace(.sRGB))
+        }
+        let edge = try pixel(original, x: 10)
+        let monoEdge = try pixel(mono, x: 10)
+        #expect(edge.alphaComponent > 0.99)
+        #expect(abs(edge.blueComponent - monoEdge.blueComponent) < 0.01)
+        let center = try pixel(original, x: 50)
+        // Compare against AppKit's colour-managed SVG, not an assumed device RGB red.
+        let source = try #require(NSImage(contentsOf: url))
+        let sourceData = try #require(source.tiffRepresentation)
+        let sourceBitmap = try #require(NSBitmapImageRep(data: sourceData))
+        let sourceColor = try #require(sourceBitmap.colorAt(x: sourceBitmap.pixelsWide / 2, y: sourceBitmap.pixelsHigh / 2)?.usingColorSpace(.sRGB))
+        #expect(abs(center.redComponent - sourceColor.redComponent) < 0.02)
+        #expect(abs(center.greenComponent - sourceColor.greenComponent) < 0.02)
+        let originalEverywhere = PartIconSpecification(glyph: .svg(url), rendering: .original)
+        let originalRow = originalEverywhere.rowImage()
+        #expect(originalRow.tint == nil)
+        let originalRowImage = try #require(originalRow.image)
+        #expect(originalRowImage.isTemplate == false)
+        #expect(originalRowImage.size == NSSize(width: 18, height: 18))
+        let originalRowData = try #require(originalRowImage.tiffRepresentation)
+        let originalRowBitmap = try #require(NSBitmapImageRep(data: originalRowData))
+        let rowColor = try #require(originalRowBitmap.colorAt(x: originalRowBitmap.pixelsWide / 2, y: originalRowBitmap.pixelsHigh / 2)?.usingColorSpace(.sRGB))
+        #expect(abs(rowColor.redComponent - sourceColor.redComponent) < 0.02)
+        #expect(abs(rowColor.greenComponent - sourceColor.greenComponent) < 0.02)
+        #expect(PartIconLoader.loadNow(at: url)?.image.isTemplate == true)
+        let defaultMono = PartIconSpecification(glyph: .svg(url), background: .init(light: "#FF0000"))
+        #expect(defaultMono.rowImage().image?.isTemplate == true)
+        #expect(defaultMono.rowImage().tint?.usingColorSpace(.sRGB)?.redComponent == 1)
+        #expect(try pixel(mono, x: 50).greenComponent > 0.95)
+        // Tight SVG artwork occupies half the tile height, compensating
+        // for the optical padding already present in SF Symbol bounds.
+        for specification in [original, mono] {
+            let outside = try pixel(specification, x: 22)
+            let inside = try pixel(specification, x: 27)
+            #expect(abs(outside.redComponent - edge.redComponent) < 0.02)
+            #expect(inside.redComponent > 0.95)
+        }
+        #expect(original.rowImage().tint?.usingColorSpace(.sRGB)?.redComponent == 1)
+        #expect(original.rowImage().image?.isTemplate == true)
+        for specification in [original, mono, originalEverywhere] {
+            let row = try #require(specification.rowImage().image)
+            #expect(row.size == NSSize(width: 18, height: 18))
+            let rowData = try #require(row.tiffRepresentation)
+            let bitmap = try #require(NSBitmapImageRep(data: rowData))
+            func alpha(at point: Int) throws -> CGFloat {
+                let pixel = try #require(bitmap.colorAt(x: point * bitmap.pixelsWide / 18, y: bitmap.pixelsHigh / 2))
+                return pixel.alphaComponent
+            }
+            #expect(try alpha(at: 0) < 0.01)
+            #expect(try alpha(at: 3) > 0.99)
+            #expect(try alpha(at: 14) > 0.99)
+            #expect(try alpha(at: 17) < 0.01)
+        }
+        #expect(original.cacheKey != PartIconSpecification(glyph: .svg(url), background: .init(light: "#007AFF"), structure: .init(light: "#00FF00"), rendering: .original).cacheKey)
     }
 
     @Test

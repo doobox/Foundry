@@ -98,18 +98,15 @@ nonisolated enum FoundryWebLibraryRegistry {
     static func uniqueRequirements(
         in packages: [LoadedPartPackage]
     ) -> [PartPackageLibraryRequirement] {
-        var seen: Set<PartPackageLibraryRequirement> = [bootstrapRequirement]
+        var seen: Set<PartPackageLibraryRequirement> = [bootstrapRequirement, iconRequirement]
         let requested = packages.flatMap { package in
             var requirements = package.manifest.libraries
-            if package.manifest.resolvedProperties.contains(where: { $0.control.type == .icon }) {
-                requirements.append(iconRequirement)
-            }
             if package.manifest.controlGroups.contains(where: { $0.type == .reveal }) {
                 requirements.append(gsapScrollTriggerRequirement)
             }
             return requirements
         }
-        var resolved: [PartPackageLibraryRequirement] = [bootstrapRequirement]
+        var resolved: [PartPackageLibraryRequirement] = [bootstrapRequirement, iconRequirement]
         for requirement in requested {
             if requirement == gsapScrollTriggerRequirement,
                seen.insert(gsapRequirement).inserted {

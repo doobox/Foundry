@@ -152,6 +152,17 @@ struct ProjectEditor {
         mutate(actionName: "Change Custom Code") { $0.customCodeEnabled = isEnabled }
     }
 
+    func setSiteCode(isEnabled: Bool, head: String, bodyStart: String, bodyEnd: String, css: String, javaScript: String) {
+        mutate(actionName: "Edit Site Code") {
+            $0.customCodeEnabled = isEnabled
+            $0.headCode = head
+            $0.bodyStartCode = bodyStart
+            $0.bodyEndCode = bodyEnd
+            $0.cssCode = css
+            $0.javaScriptCode = javaScript
+        }
+    }
+
     func setSiteHeadCode(_ code: String) {
         mutate(actionName: "Edit Head Code") { $0.headCode = code }
     }
@@ -162,10 +173,6 @@ struct ProjectEditor {
 
     func setSiteBodyEndCode(_ code: String) {
         mutate(actionName: "Edit Body End Code") { $0.bodyEndCode = code }
-    }
-
-    func setSiteAnalyticsCode(_ code: String) {
-        mutate(actionName: "Edit Analytics Code") { $0.analyticsCode = code }
     }
 
     func setGeneratesCacheBustingLinks(_ isEnabled: Bool) {

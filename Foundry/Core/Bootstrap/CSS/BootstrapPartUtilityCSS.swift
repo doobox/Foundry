@@ -3,7 +3,7 @@ import Foundation
 /// Only explicit, currently used extensions are included in canvas and output.
 nonisolated enum BootstrapPartUtilityCSS {
     static func render(node: PartNode, theme: Theme) -> String {
-        let styles = node.type.definition.package?.manifest.resolvedProperties.compactMap { property -> String? in
+        let styles = node.definition.package?.manifest.resolvedProperties.compactMap { property -> String? in
             if let source = property.controlGroupSource, source.type == .foreground, source.localID == "opacity",
                node.propertyValue(.init(rawValue: source.namespace + ".theme")).stringValue != "inherit",
                let name = BootstrapControlGroupClasses.foregroundOpacityClass(node.propertyValue(.init(rawValue: property.id))),
@@ -31,9 +31,25 @@ nonisolated enum BootstrapPartUtilityCSS {
             return ".border-style-\(value){--bs-border-style:\(value)}"
         } ?? []
         let borderCSS = styles.isEmpty ? "" : "@layer utilities{\(Set(styles).sorted().joined())}"
-        let links = node.type.definition.package?.manifest.controlGroups.filter { $0.type == .linkStyling }.map {
+        let links = node.definition.package?.manifest.controlGroups.filter { $0.type == .linkStyling }.map {
             BootstrapLinkStyling.css(node: node, group: $0, theme: theme)
         }.joined() ?? ""
-        return borderCSS + links
+        var paints: [String] = []
+        for definition in node.definition.properties {
+            if let purpose = definition.colourPurpose {
+                paints.append(purpose.resolve(node.property(definition.key), theme: theme).css)
+            }
+            if case .collection(_, let fields) = definition.control,
+               case .array(let records) = node.propertyValue(definition.key) {
+                for record in records {
+                    for field in fields {
+                        guard let purpose = field.colourPurpose else { continue }
+                        let value = record.objectValue?[field.key.rawValue] ?? field.defaultValue
+                        paints.append(purpose.resolve(value.stringValue, theme: theme).css)
+                    }
+                }
+            }
+        }
+        return borderCSS + links + Set(paints).sorted().joined()
     }
 }

@@ -17,6 +17,8 @@ struct BootstrapButtonTests {
         explicit = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(explicit))
         #expect(explicit.property(.init(rawValue: "theme")) == "framework.primary")
         var parent = PartNode.make(.container)
+        #expect(parent.property(.init(rawValue: "theme")) == "inherit")
+        parent.setProperty(.init(rawValue: "theme"), value: .choice("theme-danger"))
         parent.anchor = "theme-parent"
         parent.children = [inherited, explicit]
         let page = Page(title: "Inherited theme", slug: "index", parts: [parent])
@@ -35,6 +37,7 @@ struct BootstrapButtonTests {
         let errors = try await browser.web.evaluateJavaScript("""
             (()=>{const errors=[],parent=document.getElementById('theme-parent'),a=document.getElementById('inherited-button'),b=document.getElementById('explicit-button');
             const ref=document.createElement('a');ref.href='#';document.body.append(ref);
+            if(!parent.classList.contains('theme-danger'))errors.push('container theme selection not rendered');
             const style=document.createElement('style');style.textContent='.btn{transition:none!important}';document.head.append(style);
             if([...a.classList].some(c=>c.startsWith('theme-')))errors.push('inherit emitted theme class');
             if(!b.classList.contains('theme-primary'))errors.push('explicit selection lost');

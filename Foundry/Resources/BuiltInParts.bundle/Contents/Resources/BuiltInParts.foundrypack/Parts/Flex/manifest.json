@@ -8,7 +8,7 @@
   "group": "Layout",
   "icon": {
     "file": "flex.svg",
-    "tint": "blue"
+    "background": { "light": "#007AFF", "dark": "#0A84FF" }
   },
   "tags": [
     "Bootstrap",

@@ -45,7 +45,7 @@ struct BootstrapThemeTokenEditor: View {
                     hex: previews[token],
                     isEnabled: canEdit,
                     accessibilityLabel: "Edit \(palette.name) \(label(token)), \(mode.rawValue) mode",
-                    help: "\(token) · \(mode.rawValue) mode. Edit this token independently.")
+                    help: "\(palette.name) · \(label(token)) · \(mode.rawValue.capitalized) mode. Edit this token independently.")
             }) { open(token: $0.id) }
         }
         .padding(.vertical, 8)

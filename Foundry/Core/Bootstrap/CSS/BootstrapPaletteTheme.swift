@@ -9,6 +9,7 @@ nonisolated enum BootstrapPaletteTheme {
             Range($0.range(at: 1), in: css).map { String(css[$0]) }
         })
     }()
+    static func hasBundledClass(_ name: String) -> Bool { bundledClasses.contains(name) }
     static func paletteID(_ selection: String) -> String {
         if selection.hasPrefix("theme-"), BootstrapColourCatalogue.themeRoles.contains(String(selection.dropFirst(6))) {
             return "framework." + selection.dropFirst(6)

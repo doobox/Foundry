@@ -8,7 +8,7 @@ nonisolated struct PartArtifactPlan {
         nodes = page.parts.flatMap(\.flattened)
         var identifiers = Set<String>()
         packages = nodes.compactMap { node in
-            guard let package = node.type.definition.package,
+            guard let package = node.definition.package,
                   identifiers.insert(package.manifest.identifier).inserted else { return nil }
             return package
         }
@@ -22,7 +22,7 @@ nonisolated struct PartArtifactPlan {
     }
 
     static func htmlArtifact(for node: PartNode, suffix: String) -> String {
-        guard let package = node.type.definition.package else { return "" }
+        guard let package = node.definition.package else { return "" }
         let source = PartTemplateRenderer.htmlPrimitives(in: package.htmlTemplate)
             .map { primitive in
                 let key = suffix == "CSS"

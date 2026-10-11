@@ -45,6 +45,14 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             storedAssets: site.webIconAssets,
             contents: assets
         )
+        if site.customCodeEnabled {
+            if !site.cssCode.isEmpty {
+                try emit(SiteExportFile(path: "files/custom-site.css", contents: site.cssCode))
+            }
+            if !site.javaScriptCode.isEmpty {
+                try emit(SiteExportFile(path: "files/custom-site.js", contents: site.javaScriptCode))
+            }
+        }
         var sitePackages: [LoadedPartPackage] = []
         var sitePackageIdentifiers = Set<String>()
         for page in site.pages {
@@ -85,7 +93,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             let documentPackageAssetPrefix = "files"
             var pageFiles = [SiteExportFile(
                 path: Self.outputPath(for: page, in: site),
-                contents: render(
+                contents: HTMLTagWhitespaceCleanup.clean(render(
                     page: page,
                     language: site.language,
                     theme: site.theme,
@@ -96,7 +104,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     assets: assets,
                     site: site,
                     webIconPlan: webIconPlan
-                )
+                ))
             ), SiteExportFile(
                 path: Self.joinedPath(pageFilesDirectory, "page.css"),
                 contents: pageStyles(
@@ -170,8 +178,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 .trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
                 return true
             }
-            return node.type.definition.package?.declaresJavaScript(in: .instance, .page) == true
-                || !(node.type.definition.package?.manifest.controlGroupJavaScript.isEmpty ?? true)
+            return node.definition.package?.declaresJavaScript(in: .instance, .page) == true
+                || !(node.definition.package?.manifest.controlGroupJavaScript.isEmpty ?? true)
         }
     }
 
@@ -252,7 +260,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let customHeadCode = site.customCodeEnabled ? site.headCode : ""
         let customBodyStartCode = site.customCodeEnabled ? site.bodyStartCode : ""
         let customBodyEndCode = site.customCodeEnabled ? site.bodyEndCode : ""
-        let analyticsCode = site.customCodeEnabled ? site.analyticsCode : ""
+        let rootPrefix = String(assetPrefix.dropLast("assets".count))
+        let customStyle = site.customCodeEnabled && !site.cssCode.isEmpty
+            ? "<link rel=\"stylesheet\" href=\"\(rootPrefix)files/custom-site.css\">" : ""
+        let customScript = site.customCodeEnabled && !site.javaScriptCode.isEmpty
+            ? FoundryWebScript(path: rootPrefix + "files/custom-site.js", isModule: true).htmlTag : ""
         let documentLanguage = (page.language ?? language).trimmingCharacters(in: .whitespacesAndNewlines)
         // Conditional pieces that render nothing must not leave blank lines
         // in the document, so assemble from non-empty lines instead of
@@ -265,12 +277,13 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             "  <meta name=\"color-scheme\" content=\"\(site.appearanceMode.cssColorScheme)\">",
             "  <title>\(escape(browserTitle))</title>",
             metadata,
-            site.appearanceMode.bootstrap(siteID: site.id),
+            site.appearanceMode.bootstrap(siteID: site.id, defaultMode: page.parts.flatMap(\.flattened)
+                .first(where: { $0.type == .appearanceSwitcher })?.property(.init(rawValue: "defaultAppearance")) ?? "system"),
             stylesheetPaths.map { "  <link rel=\"stylesheet\" href=\"\($0)\">" }.joined(separator: "\n"),
-            analyticsCode,
-            headEnd
+            headEnd,
+            customStyle
         ]
-        let bodyLines = [customBodyStartCode, bodyStart, body, bodyEnd, scriptTags, customBodyEndCode]
+        let bodyLines = [customBodyStartCode, bodyStart, body, bodyEnd, scriptTags, customBodyEndCode, customScript]
         func joined(_ lines: [String]) -> String {
             lines
                 .map { $0.trimmingCharacters(in: .newlines) }
@@ -295,7 +308,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let nodes = page.parts.flatMap(\.flattened)
         let instancePHP = nodes.compactMap { node -> String? in
             guard !Task.isCancelled else { return nil }
-            guard let package = node.type.definition.package else { return nil }
+            guard let package = node.definition.package else { return nil }
             let source = package.instancePHP
             guard !source.isEmpty else { return nil }
             return PartTemplateRenderer.render(
@@ -312,13 +325,14 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     pageURL: pageURL(for: page, in: site),
                     siteRootPath: siteRootPath(for: assetPrefix),
                     siteAssetsPath: assetPrefix,
-                    environment: environment
+                    environment: environment,
+                    loopMaximums: package.loopMaximums
                 )
             )
         }
         var seenPackages: Set<String> = []
         let sharedPHP = nodes.compactMap { node -> String? in
-            guard let package = node.type.definition.package,
+            guard let package = node.definition.package,
                   seenPackages.insert(package.manifest.identifier).inserted else { return nil }
             let source = package.pagePHP
             guard !source.isEmpty else { return nil }
@@ -336,7 +350,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     pageURL: pageURL(for: page, in: site),
                     siteRootPath: siteRootPath(for: assetPrefix),
                     siteAssetsPath: assetPrefix,
-                    environment: environment
+                    environment: environment,
+                    loopMaximums: package.loopMaximums
                 )
             )
         }
@@ -347,7 +362,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let nodes = page.parts.flatMap(\.flattened)
         let instanceScripts = nodes.compactMap { node -> String? in
             guard !Task.isCancelled else { return nil }
-            guard let package = node.type.definition.package else { return nil }
+            guard let package = node.definition.package else { return nil }
             let source = [
                 package.instanceJavaScript,
                 PartArtifactPlan.htmlArtifact(for: node, suffix: "JavaScript"),
@@ -357,16 +372,16 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             guard !source.isEmpty else { return nil }
             return PartTemplateRenderer.render(
                 source,
-                context: .init(instanceID: node.id, packageIdentifier: package.manifest.identifier, properties: packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site), templateValues: navigationValues(for: page, in: site), slots: [:], assetBasePath: packageAssetPrefix, assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix), siteBaseURL: siteBaseURL(for: site), pageURL: pageURL(for: page, in: site), siteRootPath: siteRootPath(for: assetPrefix), siteAssetsPath: assetPrefix, environment: environment)
+                context: .init(instanceID: node.id, packageIdentifier: package.manifest.identifier, properties: packageProperties(node, theme: theme, assetPrefix: assetPrefix, assets: assets, site: site), templateValues: navigationValues(for: page, in: site), slots: [:], assetBasePath: packageAssetPrefix, assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix), siteBaseURL: siteBaseURL(for: site), pageURL: pageURL(for: page, in: site), siteRootPath: siteRootPath(for: assetPrefix), siteAssetsPath: assetPrefix, environment: environment, loopMaximums: package.loopMaximums)
             )
         }
         var seenPackages: Set<String> = []
         let sharedScripts = nodes.compactMap { node -> String? in
-            guard let package = node.type.definition.package,
+            guard let package = node.definition.package,
                   seenPackages.insert(package.manifest.identifier).inserted else { return nil }
             let source = package.pageJavaScript
             guard !source.isEmpty else { return nil }
-            return PartTemplateRenderer.render(source, context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], templateValues: navigationValues(for: page, in: site), slots: [:], assetBasePath: packageAssetPrefix, assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix), siteBaseURL: siteBaseURL(for: site), pageURL: pageURL(for: page, in: site), siteRootPath: siteRootPath(for: assetPrefix), siteAssetsPath: assetPrefix, environment: environment))
+            return PartTemplateRenderer.render(source, context: .init(instanceID: UUID(uuid: (0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0)), packageIdentifier: package.manifest.identifier, properties: [:], templateValues: navigationValues(for: page, in: site), slots: [:], assetBasePath: packageAssetPrefix, assetPaths: templateAssetPaths(for: package, pageAssetPrefix: packageAssetPrefix, siteAssetPrefix: assetPrefix), siteBaseURL: siteBaseURL(for: site), pageURL: pageURL(for: page, in: site), siteRootPath: siteRootPath(for: assetPrefix), siteAssetsPath: assetPrefix, environment: environment, loopMaximums: package.loopMaximums))
         }
         let source = (instanceScripts + sharedScripts).joined(separator: "\n")
         return source
@@ -375,7 +390,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     private func placedHTML(for page: Page, placement: PartPackageTemplateFile.Placement, assetPrefix: String, packageAssetPrefix: String, site: Site) -> String {
         var seenPackages: Set<String> = []
         return page.parts.flatMap(\.flattened).compactMap { node -> String? in
-            guard let package = node.type.definition.package,
+            guard let package = node.definition.package,
                   seenPackages.insert(package.manifest.identifier).inserted else { return nil }
             let templates = package.placedHTML.filter { $0.placement == placement }
             guard !templates.isEmpty else { return nil }
@@ -391,7 +406,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                 pageURL: pageURL(for: page, in: site),
                 siteRootPath: siteRootPath(for: assetPrefix),
                 siteAssetsPath: assetPrefix,
-                environment: environment
+                environment: environment,
+                loopMaximums: package.loopMaximums
             )
             return templates.map { PartTemplateRenderer.render($0.contents, context: context) }.joined(separator: "\n")
         }.joined(separator: "\n")
@@ -508,9 +524,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
 
     private func render(_ node: PartNode, page: Page, theme: Theme, assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site, outputHooks: PublishedPartHooks) -> String {
         guard !Task.isCancelled else { return "" }
-        switch node.type.definition.renderKind {
+        switch node.definition.renderKind {
         case .package:
-            guard let package = node.type.definition.package else {
+            guard let package = node.definition.package else {
                 return missingPackageHTML(
                     node,
                     page: page,
@@ -585,7 +601,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     richTextColourContext: .init(
                         palettes: theme.colourPalettes,
                         mode: site.appearanceMode
-                    )
+                    ),
+                    loopMaximums: package.loopMaximums
                 )
             let rendered = PartTemplateRenderer.render(package.htmlTemplate, context: templateContext)
             let decorated = PartPackageHTMLContributionRenderer.decorate(
@@ -767,14 +784,14 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             let rules = nodes.compactMap { node -> String? in
                 guard !Task.isCancelled else { return nil }
                 let hasPartOverride = node.responsiveOverrides?.contains(where: { $0.breakpoint == breakpoint }) == true
-                let hasCollectionOverride = node.type.definition.properties.contains { definition in
+                let hasCollectionOverride = node.definition.properties.contains { definition in
                     guard definition.control.isCollection else { return false }
                     let value = node.storedPropertyValue(definition.key) ?? definition.defaultValue
                     return PartCollectionValue.hasOverride(in: value, at: breakpoint)
                 }
                 guard hasPartOverride || hasCollectionOverride else { return nil }
                 let resolved = node.resolved(at: breakpoint, screens: site.theme.screens)
-                if let package = resolved.type.definition.package {
+                if let package = resolved.definition.package {
                     let css = PartTemplateRenderer.render(
                         [package.css, package.renderDefinition.controlGroupCSS]
                             .filter { !$0.isEmpty }
@@ -799,7 +816,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                             pageURL: pageURL(for: page, in: site),
                             siteRootPath: siteRootPath(for: assetPrefix),
                             siteAssetsPath: assetPrefix,
-                            environment: environment
+                            environment: environment,
+                            loopMaximums: package.loopMaximums
                         )
                     )
                     let scopedCSS = PartTemplateRenderer.scopedCSS(
@@ -832,7 +850,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let nodes = PartArtifactPlan(page: page).nodes
         let instanceStyles = nodes.compactMap { node in
             guard !Task.isCancelled else { return nil as String? }
-            guard let package = node.type.definition.package else { return nil }
+            guard let package = node.definition.package else { return nil }
             let css = PartTemplateRenderer.render(
                 [package.css, PartArtifactPlan.htmlArtifact(for: node, suffix: "CSS"), package.renderDefinition.controlGroupCSS]
                     .filter { !$0.isEmpty }
@@ -856,7 +874,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     pageURL: pageURL(for: page, in: site),
                     siteRootPath: siteRootPath(for: assetPrefix),
                     siteAssetsPath: assetPrefix,
-                    environment: environment
+                    environment: environment,
+                    loopMaximums: package.loopMaximums
                 )
             )
             let scoped = PartTemplateRenderer.scopedCSS(
@@ -884,7 +903,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     pageURL: pageURL(for: page, in: site),
                     siteRootPath: siteRootPath(for: assetPrefix),
                     siteAssetsPath: assetPrefix,
-                    environment: environment
+                    environment: environment,
+                    loopMaximums: package.loopMaximums
                 )
             )
         }.joined(separator: "\n")
@@ -920,7 +940,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     siteBaseURL: siteBaseURL(for: site),
                     siteRootPath: "..",
                     siteAssetsPath: "../assets",
-                    environment: environment
+                    environment: environment,
+                    loopMaximums: package.loopMaximums
                 )
             )
         }.joined(separator: "\n")
@@ -953,7 +974,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         // One definition fetch, one stored-value index and one manifest
         // property expansion for the whole pass; repeating any of them per
         // key dominates page-render profiles.
-        let partDefinition = node.type.definition
+        let partDefinition = node.definition
         let definitions = partDefinition.properties
         let manifestProperties = partDefinition.package?.renderDefinition.properties ?? []
         var values: [String: PartPackageValue] = Dictionary(uniqueKeysWithValues: definitions.map { definition in
@@ -1165,6 +1186,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             instanceID: node.id
         )
         PartPackageControlGroupCSSResolver.resolve(&values, properties: manifestProperties)
+        PartColourPurpose.insert(node: node, theme: theme, into: &values)
         let resolved = PartPackageDerivedValueResolver.resolve(
             values,
             properties: manifestProperties
@@ -1210,7 +1232,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         var emitted = Set<UUID>()
         for page in site.pages {
             for node in page.parts.flatMap(\.flattened) {
-                guard let package = node.type.definition.package else { continue }
+                guard let package = node.definition.package else { continue }
                 for property in package.renderDefinition.properties where property.usesAutomaticVideoPoster {
                     guard let id = node.property(.init(rawValue: property.id)).foundryAssetID,
                           emitted.insert(id).inserted,
@@ -1232,7 +1254,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         var requests = Set<ImageRenditionRequest>()
         for page in site.pages {
             for node in page.parts.flatMap(\.flattened) {
-                guard let package = node.type.definition.package else { continue }
+                guard let package = node.definition.package else { continue }
                 for property in package.renderDefinition.properties where property.control.type == .image {
                     guard case .url(let source) = node.propertyValue(.init(rawValue: property.id)),
                           let assetID = source.foundryAssetID else { continue }

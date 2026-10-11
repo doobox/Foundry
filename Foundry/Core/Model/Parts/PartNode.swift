@@ -69,6 +69,8 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
     var customCSS: String?
     var rootAttributes: [PartHTMLAttribute]?
 
+    var definition: PartDefinition { HTMLPartPrototype.definition(for: self) }
+
     init(
         id: UUID = UUID(),
         type: PartType,
@@ -112,7 +114,7 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
     }
 
     mutating func applyInitialResponsiveDefaults() {
-        responsiveOverrides = type.definition.properties.flatMap { property in
+        responsiveOverrides = definition.properties.flatMap { property in
             property.breakpointDefaults.map { breakpoint, value in
                 ResponsivePropertyOverride(breakpoint: breakpoint, key: property.key, value: value)
             }
@@ -202,7 +204,7 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
         if let value = storedPropertyValue(key) {
             return value
         }
-        return type.definition.property(for: key)?.defaultValue ?? .string("")
+        return definition.property(for: key)?.defaultValue ?? .string("")
     }
 
     /// Reads only the exact declared property key.
@@ -249,7 +251,7 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
         // Only keys that carry breakpoint data can differ from the stored
         // base value; every other key would resolve to itself, and writing
         // all of them dominates page-render profiles.
-        let definition = type.definition
+        let definition = self.definition
         var keys: [PartProperty.Key] = []
         var seen: Set<PartProperty.Key> = []
         for override in responsiveOverrides ?? [] where definition.property(for: override.key) != nil {

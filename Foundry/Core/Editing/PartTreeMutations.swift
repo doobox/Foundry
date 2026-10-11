@@ -119,9 +119,9 @@ nonisolated extension Array where Element == PartNode {
             var child = self[index]
             var container = wrapper
             container.slotID = child.slotID
-            child.slotID = container.type.definition.package?.dropZoneNames.first.map {
-                container.type.definition.package?.dropZoneSlotID(for: $0) ?? ""
-            } ?? container.type.definition.package?.manifest.slots.first?.id
+            child.slotID = container.definition.package?.dropZoneNames.first.map {
+                container.definition.package?.dropZoneSlotID(for: $0) ?? ""
+            } ?? container.definition.package?.manifest.slots.first?.id
             container.children = [child]
             guard [container].accepts(child, at: .inside(container.id)) else { return false }
             self[index] = container
@@ -144,16 +144,16 @@ nonisolated extension Array where Element == PartNode {
             append(node)
             return true
         case .inside(let parentID):
-            guard self.node(withID: parentID)?.type.definition.allowsChildren == true else {
+            guard self.node(withID: parentID)?.definition.allowsChildren == true else {
                 return false
             }
             var child = node
-            let package = self.node(withID: parentID)?.type.definition.package
+            let package = self.node(withID: parentID)?.definition.package
             child.slotID = package?.dropZoneNames.first.map { package?.dropZoneSlotID(for: $0) ?? "" }
                 ?? package?.manifest.slots.first?.id
             return updateNode(withID: parentID) { $0.children.append(child) }
         case .insideSlot(let parentID, let slotID):
-            guard self.node(withID: parentID)?.type.definition.allowsChildren == true else {
+            guard self.node(withID: parentID)?.definition.allowsChildren == true else {
                 return false
             }
             var slottedNode = node
@@ -190,7 +190,7 @@ nonisolated extension Array where Element == PartNode {
     func permitsRemoving(_ id: UUID, for destination: PartPlacement? = nil) -> Bool {
         guard let sourceContext = slotContext(of: id),
               let parent = node(withID: sourceContext.parentID),
-              let slot = parent.type.definition.package?.manifest.slots.first(where: { $0.id == sourceContext.slotID }) else {
+              let slot = parent.definition.package?.manifest.slots.first(where: { $0.id == sourceContext.slotID }) else {
             return true
         }
         if destination.flatMap(slotContext(for:)) == sourceContext {
@@ -208,21 +208,21 @@ nonisolated extension Array where Element == PartNode {
         case .before(let targetID), .after(let targetID): location(of: targetID)?.parentID
         case .end: nil
         }
-        let allowedParents = node.type.definition.package?.manifest.allowedParents ?? []
+        let allowedParents = node.definition.package?.manifest.allowedParents ?? []
         if !allowedParents.isEmpty {
             guard let destinationParentID,
                   let parent = self.node(withID: destinationParentID),
                   allowedParents.contains(parent.type.rawValue) else { return false }
         }
         if case .insideSlot(let parentID, let slotID) = placement,
-           let package = self.node(withID: parentID)?.type.definition.package,
+           let package = self.node(withID: parentID)?.definition.package,
            !package.isDropZoneSlotID(slotID),
            !package.manifest.slots.contains(where: { $0.id == slotID }) {
             return false
         }
         guard let context = slotContext(for: placement),
               let parent = self.node(withID: context.parentID),
-              let slot = parent.type.definition.package?.manifest.slots.first(where: { $0.id == context.slotID }) else {
+              let slot = parent.definition.package?.manifest.slots.first(where: { $0.id == context.slotID }) else {
             return true
         }
         guard slot.acceptsPart(node.type) else { return false }
@@ -234,7 +234,7 @@ nonisolated extension Array where Element == PartNode {
               let parentID = location.parentID,
               let parent = node(withID: parentID),
               let child = node(withID: childID),
-              let package = parent.type.definition.package,
+              let package = parent.definition.package,
               let slotID = child.slotID
                 ?? package.dropZoneNames.first.map(package.dropZoneSlotID(for:))
                 ?? package.manifest.slots.first?.id else {
@@ -248,7 +248,7 @@ nonisolated extension Array where Element == PartNode {
         case .insideSlot(let parentID, let slotID):
             return SlotContext(parentID: parentID, slotID: slotID)
         case .inside(let parentID):
-            guard let package = node(withID: parentID)?.type.definition.package,
+            guard let package = node(withID: parentID)?.definition.package,
                   let slotID = package.dropZoneNames.first.map(package.dropZoneSlotID(for:))
                     ?? package.manifest.slots.first?.id else { return nil }
             return SlotContext(parentID: parentID, slotID: slotID)
@@ -261,7 +261,7 @@ nonisolated extension Array where Element == PartNode {
 
     func children(in context: SlotContext) -> [PartNode] {
         guard let parent = node(withID: context.parentID) else { return [] }
-        let package = parent.type.definition.package
+        let package = parent.definition.package
         let defaultSlotID = package?.dropZoneNames.first.map { package?.dropZoneSlotID(for: $0) ?? "" }
             ?? package?.manifest.slots.first?.id
         return parent.children.filter { ($0.slotID ?? defaultSlotID) == context.slotID }

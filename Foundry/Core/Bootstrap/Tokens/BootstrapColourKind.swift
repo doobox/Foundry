@@ -46,7 +46,7 @@ nonisolated extension ColourPalette {
         }
     }
     /// Stable names keep saved swatch selections intact when the display name changes.
-    var customTokenPrefix: String { "custom-custom-" + id.utf8.map { String(format: "%02x", $0) }.joined() + "-" }
+    var customTokenPrefix: String { "custom-" + id.utf8.map { String(format: "%02x", $0) }.joined() + "-" }
     func colourToken(_ source: String) -> String {
         guard origin == .custom else { return source }
         if colourKind == .theme {

@@ -119,7 +119,8 @@ struct DocumentCodingTests {
         original.headCode = "<meta name=\"custom\" content=\"head\">"
         original.bodyStartCode = "<div>body start</div>"
         original.bodyEndCode = "<div>body end</div>"
-        original.analyticsCode = "<script>analytics()</script>"
+        original.cssCode = "body { min-height: 100dvh; }"
+        original.javaScriptCode = "console.log('site');"
         original.cleansObsoleteExportFiles = true
         original.publishingDestination = .amazonS3
         original.publishingUsername = "ACCESSKEY"

@@ -24,8 +24,16 @@ nonisolated enum PartCollectionRenderResolver {
         for definition in fields {
             let id = definition.key.rawValue
             guard let value = raw[id] else { continue }
+            if let purpose = definition.colourPurpose {
+                let output = purpose.resolve(value.stringValue, theme: theme)
+                values[id] = .string(output.className)
+                values[id + ".color"] = .string(output.color)
+                continue
+            }
 
             switch (definition.control, value) {
+            case (.themeColors, _):
+                values[id] = .string(BootstrapPaletteTheme.resolve(value.stringValue, theme: theme))
             case (_, .themeBorderWidth(let width)):
                 values[id] = PartPackageThemeBorderWidthControl.resolved(width, theme: theme)
             case (_, .themeRadius(let radius)):

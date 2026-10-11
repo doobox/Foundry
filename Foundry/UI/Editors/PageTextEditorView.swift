@@ -19,6 +19,8 @@ struct PageTextEditorView: View {
     @Environment(\.self) private var environment
     @FocusState private var editorIsFocused: Bool
     @State private var text: AttributedString
+    private let originalText: AttributedString
+    @State private var closeRequested = false
     @State private var selection = AttributedTextSelection()
     @State private var rememberedSelection = AttributedTextSelection()
     @State private var linkDraft = PartLink()
@@ -26,6 +28,7 @@ struct PageTextEditorView: View {
     @State private var showsLinkEditor = false
     @State private var showsColourPicker = false
     @State private var popoverReference: RichTextColourReference?
+    @State private var foregroundPreviews: [String: String] = [:]
     @State private var popoverColor: Color?
 
     let theme: Theme
@@ -46,7 +49,9 @@ struct PageTextEditorView: View {
         cancel: @escaping () -> Void,
         save: @escaping (String) -> Void
     ) {
-        _text = State(initialValue: RichTextHTMLCodec.attributedString(from: value, palettes: theme.colourPalettes))
+        let initialText = RichTextHTMLCodec.attributedString(from: value, palettes: theme.colourPalettes)
+        originalText = initialText
+        _text = State(initialValue: initialText)
         self.theme = theme
         self.pages = pages
         self.folders = folders
@@ -71,7 +76,7 @@ struct PageTextEditorView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
-                Button("Cancel", role: .cancel, action: cancel)
+                Button("Cancel", role: .cancel) { closeRequested = true }
                     .keyboardShortcut(.cancelAction)
                 Button("Save") {
                     save(RichTextHTMLCodec.storageValue(from: text, environment: environment))
@@ -80,8 +85,10 @@ struct PageTextEditorView: View {
             }
             .padding(16)
         }
-        .frame(minWidth: 680, idealWidth: 820, minHeight: 440, idealHeight: 580)
+        .rememberedEditorSize("text", minimum: CGSize(width: 680, height: 440), defaultSize: CGSize(width: 820, height: 580))
+        .editorCloseHandling(requested: $closeRequested, hasChanges: text != originalText, close: cancel)
         .onAppear { editorIsFocused = true }
+        .task(id: foregroundPreviewCSS) { await resolveForegroundPreviews() }
     }
 
     // Sheets place `.toolbar` items in the bottom accessory bar on macOS, so
@@ -175,8 +182,8 @@ struct PageTextEditorView: View {
                 RichTextColourPicker(
                     theme: theme,
                     reference: popoverReference,
-                    apply: applyColourReference,
-                    clear: clearColour
+                    previews: foregroundPreviews,
+                    apply: applyColourReference
                 )
             }
 
@@ -222,20 +229,17 @@ struct PageTextEditorView: View {
 
             Spacer()
 
-            Button {
-                transformSelection { attributes in
-                    attributes.font = nil
-                    attributes.foregroundColor = nil
-                    attributes[FoundryRichTextColourAttribute.self] = nil
-                    attributes.underlineStyle = nil
-                    attributes.strikethroughStyle = nil
-                    attributes.link = nil
-                }
+            Menu {
+                Button("Clear All Formatting", action: clearAllFormatting)
+                    .disabled(text.characters.isEmpty)
+                Button("Clear Selected Formatting", action: clearSelectedFormatting)
+                    .disabled(!hasSelectedText)
             } label: {
-                Image(systemName: "xmark")
+                Image(systemName: "eraser")
                     .frame(width: 18, height: 18)
             }
             .help("Clear formatting")
+            .accessibilityLabel("Clear formatting")
         }
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
@@ -321,7 +325,8 @@ struct PageTextEditorView: View {
     private func applyColourReference(_ reference: RichTextColourReference) {
         // The reference is authoritative; the resolved light-appearance colour
         // is only the editor's WYSIWYG rendering of it.
-        let display = reference.resolve(in: theme.colourPalettes, appearance: .light)
+        let display = (reference.foregroundToken.flatMap { foregroundPreviews[$0.id] }
+            ?? reference.resolve(in: theme.colourPalettes, appearance: .light))
             .flatMap { Color(hex: $0) }
         popoverReference = reference
         popoverColor = display
@@ -331,12 +336,29 @@ struct PageTextEditorView: View {
         }
     }
 
-    private func clearColour() {
-        popoverReference = nil
-        popoverColor = nil
-        transformRememberedSelection { attributes in
-            attributes[FoundryRichTextColourAttribute.self] = nil
-            attributes.foregroundColor = nil
+    private var foregroundPreviewCSS: String {
+        BootstrapColourCatalogue.sourceCSS + BootstrapColorCSS.canvas(theme: theme, appearance: .light)
+            + BootstrapThemeCSS.render(theme: theme)
+    }
+
+    private func resolveForegroundPreviews() async {
+        let tokens = PartColourToken.groups(for: ["foregrounds"], palettes: theme.colourPalettes).flatMap { $0.1 }
+        do {
+            let colours = try await BootstrapScalePreviewResolver().resolve(
+                expressions: tokens.map { "var(--bs-\($0))" }, css: foregroundPreviewCSS, mode: "light")
+            try Task.checkCancellation()
+            foregroundPreviews = Dictionary(uniqueKeysWithValues: zip(tokens, colours))
+            var updated = text
+            for run in text.runs {
+                guard let token = run[FoundryRichTextColourAttribute.self]?.foregroundToken else { continue }
+                updated[run.range].foregroundColor = foregroundPreviews[token.id].flatMap { Color(hex: $0) }
+            }
+            text = updated
+            if let token = popoverReference?.foregroundToken {
+                popoverColor = foregroundPreviews[token.id].flatMap { Color(hex: $0) }
+            }
+        } catch {
+            if !Task.isCancelled { foregroundPreviews = [:] }
         }
     }
 
@@ -353,6 +375,25 @@ struct PageTextEditorView: View {
     private func transformSelection(_ transform: (inout AttributeContainer) -> Void) {
         text.transformAttributes(in: &selection, body: transform)
         editorIsFocused = true
+    }
+
+    private var hasSelectedText: Bool {
+        if case .ranges(let ranges) = selection.indices(in: text) {
+            return !ranges.isEmpty
+        }
+        return false
+    }
+
+    private func clearAllFormatting() {
+        text.transform(updating: &selection) { value in
+            value.setAttributes(AttributeContainer())
+        }
+        editorIsFocused = true
+    }
+
+    private func clearSelectedFormatting() {
+        guard hasSelectedText else { return }
+        transformSelection { $0 = AttributeContainer() }
     }
 
     private func applyLink(_ value: PartLink?) {
@@ -372,93 +413,6 @@ struct PageTextEditorView: View {
     }
 }
 
-/// The theme palette picker for text runs: shade ribbon for the current
-/// palette, the shared palette list, and a remove action. Text colours are
-/// palette references only — one-off custom colours belong to the theme's
-/// palettes, not to individual paragraphs.
-private struct RichTextColourPicker: View {
-    let theme: Theme
-    let reference: RichTextColourReference?
-    let apply: (RichTextColourReference) -> Void
-    let clear: () -> Void
-
-    private var palette: ColourPalette? {
-        reference.flatMap { theme.colourPalettes.resolvedPalette(id: $0.paletteID) }
-    }
-
-    var body: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if let reference, let palette {
-                HStack(spacing: 6) {
-                    HStack(spacing: 0) {
-                        ForEach(palette.single ? [palette.lightDefaultShade] : ColourShade.allCases, id: \.self) { step in
-                            Button {
-                                guard !palette.single else { return }
-                                var updated = reference
-                                updated.lightShade = step
-                                apply(updated)
-                            } label: {
-                                Rectangle()
-                                    .fill(Color(hex: palette.colour(at: .shade(step))) ?? .clear)
-                                    .frame(maxWidth: .infinity, minHeight: 24, maxHeight: 24)
-                                    .overlay {
-                                        if !palette.single && reference.lightShade == step {
-                                            Rectangle().strokeBorder(.white, lineWidth: 2)
-                                                .padding(1)
-                                                .overlay { Rectangle().strokeBorder(.black.opacity(0.7), lineWidth: 1) }
-                                        }
-                                    }
-                            }
-                            .buttonStyle(InspectorPaletteSwatchStyle())
-                            .help("\(palette.name) · Shade \(step.rawValue)")
-                            .accessibilityLabel("\(palette.name), shade \(step.rawValue)")
-                            .accessibilityAddTraits(reference.lightShade == step ? .isSelected : [])
-                        }
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: 4))
-                    .overlay {
-                        RoundedRectangle(cornerRadius: 4)
-                            .strokeBorder(.secondary.opacity(0.25), lineWidth: 1)
-                            .allowsHitTesting(false)
-                    }
-                    Button {
-                        var updated = reference
-                        updated.lightShade = palette.lightDefaultShade
-                        updated.darkShade = palette.darkDefaultShade
-                        apply(updated)
-                    } label: {
-                        Image(systemName: palette.single || reference.lightShade == palette.lightDefaultShade ? "star.fill" : "star")
-                            .frame(width: 22, height: 24)
-                            .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.borderless)
-                    .help("Select \(palette.name)’s default shade")
-                    .accessibilityLabel("Select default shade")
-                }
-            }
-            InspectorPaletteMenu(
-                palettes: theme.colourPalettes,
-                selectedID: reference?.paletteID ?? ""
-            ) { value in
-                guard let palette = theme.colourPalettes.resolvedPalette(id: value) else { return }
-                let role = value.hasPrefix("framework.") ? ThemePaletteColorRole(rawValue: String(value.dropFirst(10))) : nil
-                apply(RichTextColourReference(
-                    source: role?.rawValue ?? value,
-                    lightShade: palette.lightDefaultShade,
-                    darkShade: palette.darkDefaultShade
-                ))
-            }
-            if reference != nil {
-                Divider()
-                Button("Remove Colour", action: clear)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-        }
-        .padding(10)
-        .frame(width: 260)
-        .controlSize(.small)
-    }
-}
 
 #Preview {
     PageTextEditorView(

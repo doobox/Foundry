@@ -10,6 +10,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     let appearanceMode: SiteAppearanceMode
     let openProjectSettings: () -> Void
     let openThemeEditor: () -> Void
+    let openSiteCode: () -> Void
     let previewSite: () -> Void
     let publishSite: () -> Void
     let publishingDestinations: [PublishingDestination]
@@ -235,13 +236,16 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     }
 
     private var projectSettingsButton: some View {
-        Button {
-            openProjectSettings()
-        } label: {
-            Label("Project Settings", systemImage: "gearshape")
+        ControlGroup {
+            Button("Site Settings", systemImage: "gearshape", action: openProjectSettings)
                 .labelStyle(.iconOnly)
+                .help("Open site settings")
+            Button("Site Code", systemImage: "chevron.left.forwardslash.chevron.right", action: openSiteCode)
+                .labelStyle(.iconOnly)
+                .help("Edit site-wide code")
         }
-        .help("Open project settings")
+        .controlGroupStyle(.navigation)
+        .fixedSize()
     }
 
     private var publishButton: some View {

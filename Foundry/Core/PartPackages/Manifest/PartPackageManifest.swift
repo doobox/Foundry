@@ -126,58 +126,34 @@ nonisolated struct PartPackageControlSection: Codable, Equatable, Sendable {
 }
 
 /// A part's library artwork: one square glyph — an SVG or an SF Symbol —
-/// plus a system tint. By default the tile fills with the tint behind a
-/// white glyph; the structure tree paints the glyph in the tint directly.
+/// with independent appearance-aware tile, glyph and Structure colours.
 nonisolated struct PartPackageIcon: Codable, Equatable, Sendable {
     let file: String?
     let symbol: String?
-    /// A system colour name, optionally with a shade: `blue`, `blue.light`.
-    let tint: String?
+    let background: PartIconColour?
+    let foreground: PartIconColour?
+    let structure: PartIconColour?
     let rendering: String?
 
-    init(file: String? = nil, symbol: String? = nil, tint: String? = nil, rendering: String? = nil) {
+    init(file: String? = nil, symbol: String? = nil, background: PartIconColour? = nil, foreground: PartIconColour? = nil, structure: PartIconColour? = nil, rendering: String? = nil) {
         self.file = file
         self.symbol = symbol
-        self.tint = tint
+        self.background = background
+        self.foreground = foreground
+        self.structure = structure
         self.rendering = rendering
     }
 
-    private var tintParts: (colour: Substring, shade: Substring?) {
-        let parts = (tint ?? "").split(separator: ".", maxSplits: 1)
-        return (parts.first ?? "", parts.count > 1 ? parts[1] : nil)
-    }
-
-    /// Unknown colours render as gray rather than failing validation.
-    var resolvedTint: PartIconTint {
-        PartIconTint(rawValue: String(tintParts.colour)) ?? .gray
-    }
-
-    /// Unknown shades use the regular colour.
-    var resolvedShade: PartIconShade {
-        tintParts.shade.flatMap { PartIconShade(rawValue: String($0)) } ?? .regular
-    }
-
-    /// Unknown renderings use the standard white glyph.
+    /// Unknown renderings use a monochrome glyph.
     var resolvedRendering: PartIconRendering {
         rendering.flatMap(PartIconRendering.init(rawValue:)) ?? .monochrome
     }
 }
 
-/// A lighter or darker version of an icon tint.
-nonisolated enum PartIconShade: String, Codable, CaseIterable, Sendable {
-    case regular, light, dark
-}
-
 /// How an icon's glyph is drawn. Original applies to SVG files, which then
-/// draw as authored; everything else draws as a white monochrome glyph.
+/// draw as authored; everything else uses the foreground colour.
 nonisolated enum PartIconRendering: String, Codable, CaseIterable, Sendable {
     case monochrome, original
-}
-
-/// The supported icon tints, mirroring the macOS system colours so both
-/// appearances come for free.
-nonisolated enum PartIconTint: String, Codable, CaseIterable, Sendable {
-    case red, orange, yellow, green, mint, teal, cyan, blue, indigo, purple, pink, brown, gray
 }
 
 nonisolated struct PartPackageManifest: Codable, Equatable, Sendable {
@@ -1173,7 +1149,8 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
                     : try container.decodeIfPresent(Bool.self, forKey: .responsive) ?? false
             }
         } else {
-            guard let base = defaults?["base"] else { throw DecodingError.keyNotFound(CodingKeys.defaultValue, .init(codingPath: decoder.codingPath, debugDescription: "defaults.base is required")) }
+            let implicitDefault: PartPackageValue? = control.type.isColourPicker ? .string("inherit") : nil
+            guard let base = defaults?["base"] ?? implicitDefault else { throw DecodingError.keyNotFound(CodingKeys.defaultValue, .init(codingPath: decoder.codingPath, debugDescription: "defaults.base is required")) }
             defaultValue = base
             responsive = try container.decodeIfPresent(Bool.self, forKey: .responsive) ?? false
         }
@@ -1365,6 +1342,10 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         case number
         case color
         case themeColors
+        case backgroundColor
+        case foregroundColor
+        case borderColor
+        case linkColor
         case themeFont = "themeFont"
         case themeFontSize = "themeFontSize"
         case themeStackingOrder = "themeStackingOrder"

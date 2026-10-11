@@ -8,7 +8,7 @@ nonisolated struct PartInspectorSectionState {
     let neutralizingProperty: PartProperty?
 
     init(part: PartNode, section: PartPropertySection, theme: Theme) {
-        let definition = part.type.definition
+        let definition = part.definition
         let members = definition.inspectorRows.flatMap { row -> [PartPropertyDefinition] in
             if case .controls(let group) = row { return group.properties }
             return []

@@ -70,6 +70,7 @@ nonisolated struct PartType: RawRepresentable, Codable, Hashable, Identifiable, 
     static let html = PartType(rawValue: "foundry.content.html")
     static let heading = PartType(rawValue: "foundry.content.heading")
     static let button = PartType(rawValue: "foundry.content.button")
+    static let appearanceSwitcher = PartType(rawValue: "foundry.utility.appearance-switcher")
     static let image = PartType(rawValue: "foundry.media.image")
     static let svg = PartType(rawValue: "foundry.media.svg")
     static let video = PartType(rawValue: "foundry.media.video")

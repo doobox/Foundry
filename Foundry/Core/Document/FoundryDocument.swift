@@ -622,7 +622,7 @@ final class FoundryDocument: ReferenceFileDocument {
     }
 
     nonisolated static func decodeProject(from data: Data) throws -> Site {
-        let site = try decoder.decode(Site.self, from: data)
+        let site = try decoder.decode(Site.self, from: CustomColourTokenMigration.migrate(data))
         try site.validate()
         return site
     }

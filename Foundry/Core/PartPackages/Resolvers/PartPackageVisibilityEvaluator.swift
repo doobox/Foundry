@@ -133,7 +133,7 @@ nonisolated enum PartPackageVisibilityEvaluator {
         breakpoint: ResponsiveBreakpoint,
         screens: ScreenTokens
     ) -> PartProperty.Value? {
-        guard part.type.definition.property(for: key) != nil else { return nil }
+        guard part.definition.property(for: key) != nil else { return nil }
         return part.propertyValue(key, at: breakpoint, screens: screens)
     }
 

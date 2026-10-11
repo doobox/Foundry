@@ -11,7 +11,6 @@ enum ProjectSettingsSection: Hashable, Identifiable, Sendable {
     case advanced
     case publishing
     case publishingDestination(UUID)
-    case code
 
     var id: String {
         switch self {
@@ -22,7 +21,6 @@ enum ProjectSettingsSection: Hashable, Identifiable, Sendable {
         case .advanced: "advanced"
         case .publishing: "publishing"
         case .publishingDestination(let id): "publishingDestination.\(id.uuidString)"
-        case .code: "code"
         }
     }
 }
@@ -135,11 +133,6 @@ private struct ProjectSettingsWindowContent: View {
             generatesSitemap: document.site.generatesSitemap,
             generatesRobotsTXT: document.site.generatesRobotsTXT,
             allowsSearchIndexing: document.site.allowsSearchIndexing,
-            customCodeEnabled: document.site.customCodeEnabled,
-            headCode: document.site.headCode,
-            bodyStartCode: document.site.bodyStartCode,
-            bodyEndCode: document.site.bodyEndCode,
-            analyticsCode: document.site.analyticsCode,
             editor: session.editor,
             openPageMetadata: session.openPageMetadata
         )
@@ -169,11 +162,6 @@ struct ProjectSettingsView: View {
     let generatesSitemap: Bool
     let generatesRobotsTXT: Bool
     let allowsSearchIndexing: Bool
-    let customCodeEnabled: Bool
-    let headCode: String
-    let bodyStartCode: String
-    let bodyEndCode: String
-    let analyticsCode: String
     let editor: ProjectEditor
     let openPageMetadata: (UUID) -> Void
 
@@ -206,8 +194,6 @@ struct ProjectSettingsView: View {
                             }
                         }
                 }
-                Label("Code & Analytics", systemImage: "chevron.left.forwardslash.chevron.right")
-                    .tag(ProjectSettingsSection.code)
             }
             .listStyle(.sidebar)
             .navigationTitle("Project Settings")
@@ -268,15 +254,6 @@ struct ProjectSettingsView: View {
                 } else {
                     PublishingDestinationsOverview(selection: $selection, site: site, editor: editor)
                 }
-            case .code:
-                CodeAndAnalyticsProjectSettingsView(
-                    isEnabled: customCodeEnabled,
-                    headCode: headCode,
-                    bodyStartCode: bodyStartCode,
-                    bodyEndCode: bodyEndCode,
-                    analyticsCode: analyticsCode,
-                    editor: editor
-                )
             }
         }
         .frame(minWidth: 880, idealWidth: 1_000, minHeight: 560, idealHeight: 680)
@@ -645,98 +622,6 @@ private struct PublishingDestinationDetail: View {
     }
 }
 
-private struct CodeAndAnalyticsProjectSettingsView: View {
-    let isEnabled: Bool
-    let headCode: String
-    let bodyStartCode: String
-    let bodyEndCode: String
-    let analyticsCode: String
-    let editor: ProjectEditor
-
-    var body: some View {
-        Form {
-            Section("Custom Code") {
-                Toggle(
-                    "Enable custom code",
-                    isOn: Binding(get: { isEnabled }, set: editor.setCustomCodeEnabled)
-                )
-                Text("Saved snippets are retained when disabled. Enabled code executes in canvas previews and exported pages.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
-
-            Section("Document Head") {
-                codeEditor("Head Code", code: headCode, setter: editor.setSiteHeadCode)
-                Text("Inserted inside <head> on every page. Use this for verification tags, preload links and site-wide styles.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                validationMessage(for: headCode)
-            }
-
-            Section("Document Body") {
-                codeEditor("After <body>", code: bodyStartCode, setter: editor.setSiteBodyStartCode)
-                Text("Inserted immediately after the opening <body> tag.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                validationMessage(for: bodyStartCode)
-
-                codeEditor("Before </body>", code: bodyEndCode, setter: editor.setSiteBodyEndCode)
-                Text("Inserted at the end of every page after Foundry’s part scripts.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                validationMessage(for: bodyEndCode)
-            }
-
-            Section("Analytics") {
-                codeEditor("Analytics Code", code: analyticsCode, setter: editor.setSiteAnalyticsCode)
-                Text("Inserted near the end of <head>. Paste a complete analytics or tag-manager snippet supplied by your provider.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                validationMessage(for: analyticsCode)
-            }
-        }
-        .formStyle(.grouped)
-        .navigationTitle("Code & Analytics")
-    }
-
-    private func codeEditor(_ title: String, code: String, setter: @escaping (String) -> Void) -> some View {
-        LabeledContent(title) {
-            TextEditor(text: Binding(get: { code }, set: setter))
-                .font(.system(.body, design: .monospaced))
-                .frame(minHeight: 90)
-                .padding(4)
-                .background(.quaternary, in: RoundedRectangle(cornerRadius: 6))
-                .disabled(!isEnabled)
-        }
-    }
-
-    @ViewBuilder
-    private func validationMessage(for code: String) -> some View {
-        if let warning = markupWarning(for: code) {
-            Label(warning, systemImage: "exclamationmark.triangle")
-                .font(.caption)
-                .foregroundStyle(.orange)
-        }
-    }
-
-    private func markupWarning(for code: String) -> String? {
-        let lowercased = code.lowercased()
-        if ["<html", "<head", "<body"].contains(where: lowercased.contains) {
-            return "Paste only the contents for this location, without html, head or body wrapper tags."
-        }
-        if occurrenceCount(of: "<script", in: lowercased) != occurrenceCount(of: "</script>", in: lowercased) {
-            return "This snippet appears to contain an unclosed script element."
-        }
-        if occurrenceCount(of: "<style", in: lowercased) != occurrenceCount(of: "</style>", in: lowercased) {
-            return "This snippet appears to contain an unclosed style element."
-        }
-        return nil
-    }
-
-    private func occurrenceCount(of needle: String, in value: String) -> Int {
-        value.components(separatedBy: needle).count - 1
-    }
-}
 
 private struct SearchProjectSettingsView: View {
     let publicURL: String
@@ -1032,7 +917,7 @@ private struct PublishingProjectSettingsView: View {
         }
         let unavailableParts = site.pages.flatMap(\.parts).flatMap(\.flattened)
             .filter { part in
-                part.packageLock != nil && part.type.definition.renderKind == .unavailable
+                part.packageLock != nil && part.definition.renderKind == .unavailable
             }
         if !unavailableParts.isEmpty {
             warnings.append("\(unavailableParts.count) parts use unavailable packages.")

@@ -9,7 +9,7 @@ nonisolated struct PublishedPartHooks {
     init(page: Page, site: Site) {
         let plan = PartArtifactPlan(page: page)
         let customCode = site.customCodeEnabled &&
-            [site.headCode, site.bodyStartCode, site.bodyEndCode, site.analyticsCode]
+            [site.headCode, site.bodyStartCode, site.bodyEndCode, site.cssCode, site.javaScriptCode]
                 .contains { !$0.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty }
         let sharedSiteStyles = PartArtifactPlan.sitePackages(in: site).contains { !$0.siteCSS.isEmpty }
         retainsPageIdentity = customCode || sharedSiteStyles || plan.packages.contains { package in

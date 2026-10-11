@@ -185,6 +185,7 @@ nonisolated struct PartPropertyDefinition: Identifiable, Sendable {
     let dateMaximum: Date?
     let presentation: PartPackageControl.ControlPresentation?
     let colourSections: [String]
+    let colourPurpose: PartColourPurpose?
 
     var id: PartProperty.Key { key }
 
@@ -205,7 +206,8 @@ nonisolated struct PartPropertyDefinition: Identifiable, Sendable {
         dateMinimum: Date? = nil,
         dateMaximum: Date? = nil,
         presentation: PartPackageControl.ControlPresentation? = nil,
-        colourSections: [String] = ["themes"]
+        colourSections: [String] = ["themes"],
+        colourPurpose: PartColourPurpose? = nil
     ) {
         self.key = key
         self.label = label
@@ -224,6 +226,7 @@ nonisolated struct PartPropertyDefinition: Identifiable, Sendable {
         self.dateMaximum = dateMaximum
         self.presentation = presentation
         self.colourSections = colourSections
+        self.colourPurpose = colourPurpose
     }
 
     private static let builtInResponsiveKeys: Set<PartProperty.Key> = [
