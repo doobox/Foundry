@@ -7,20 +7,13 @@
   "description": "Inline SVG artwork with Bootstrap sizing and theme colour.",
   "group": "Media",
   "icon": {
-    "symbol": "scribble.variable",
-    "background": { "light": "#007AFF", "dark": "#0A84FF" }
+    "symbol": "scribble.variable"
   },
   "tags": [
     "Bootstrap",
     "SVG"
   ],
   "assets": [],
-  "libraries": [
-    {
-      "id": "bootstrap",
-      "majorVersion": 6
-    }
-  ],
   "templates": {
     "html": "part.html"
   },
@@ -71,7 +64,7 @@
           "label": "Override fill",
           "presentation": "switch",
           "defaults": {
-            "base": false
+            "xs": false
           },
           "visibleWhen": {
             "id": "foreground.theme",
@@ -86,7 +79,7 @@
           "label": "Override stroke",
           "presentation": "switch",
           "defaults": {
-            "base": false
+            "xs": false
           },
           "visibleWhen": {
             "id": "foreground.theme",

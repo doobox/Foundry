@@ -7,8 +7,7 @@
   "description": "Arrange child parts using Bootstrap CSS Grid utilities.",
   "group": "Layout",
   "icon": {
-    "symbol": "square.grid.2x2",
-    "background": { "light": "#007AFF", "dark": "#0A84FF" }
+    "symbol": "square.grid.2x2"
   },
   "tags": [
     "Bootstrap",
@@ -16,12 +15,6 @@
     "grid"
   ],
   "assets": [],
-  "libraries": [
-    {
-      "id": "bootstrap",
-      "majorVersion": 6
-    }
-  ],
   "templates": {
     "html": "part.html"
   },

@@ -250,6 +250,13 @@ struct PartPropertyEditor: View {
                     selection: stringBinding(as: .choice)
                 )
             }
+        case .space:
+            InspectorRow(title: definition.label, indicator: responsiveIndicator) {
+                SpacePartControl(value: Binding(
+                    get: { PartSpaceValue(displayPart.propertyValue(definition.key)) },
+                    set: { setProperty($0.storedValue) }
+                ), label: definition.label)
+            }
         case .themeFont:
             ThemeFontPartControl(label: definition.label, theme: theme, indicator: responsiveIndicator, selection: stringBinding(as: .choice))
         case .themeSpacing:
@@ -1448,6 +1455,9 @@ struct PartPropertyEditor: View {
 
     private var displayPart: PartNode {
         var resolved = part.resolved(at: breakpoint, screens: theme.screens)
+        if case .space = definition.control {
+            resolved.setProperty(definition.key, value: part.propertyValue(definition.key, at: breakpoint, screens: theme.screens))
+        }
         if part.definition.package?.manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource?.type.generatesBootstrapClasses == true {
             resolved.setProperty(definition.key, value: part.propertyValue(definition.key, at: breakpoint, screens: theme.screens))
         }

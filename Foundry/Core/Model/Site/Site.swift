@@ -349,6 +349,18 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
 
     mutating func replacePartThemeReference(_ reference: String, with replacement: String) {
         for pageIndex in pages.indices {
+            for key in [\Page.foregroundOverride, \Page.borderOverride, \Page.linksOverride] {
+                if let value = pages[pageIndex][keyPath: key] {
+                    let updated = PartProperty.Value.choice(value)
+                        .replacingThemeReference(reference, with: replacement).stringValue
+                    pages[pageIndex][keyPath: key] = updated == "inherit" ? nil : updated
+                }
+            }
+            if let theme = pages[pageIndex].themeOverride {
+                let updated = PartProperty.Value.choice(theme)
+                    .replacingThemeReference(reference, with: replacement).stringValue
+                pages[pageIndex].themeOverride = updated == "inherit" ? nil : updated
+            }
             if let background = pages[pageIndex].backgroundOverride {
                 let updated = PartProperty.Value.choice(background)
                     .replacingThemeReference(reference, with: replacement).stringValue
@@ -656,6 +668,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
             }
         }
         foldNamedThemeOverrides()
+        preserveLegacySpacingSelections()
     }
 
     static func starter() -> Site {

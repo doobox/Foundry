@@ -13,7 +13,7 @@
       "controls": [
         {
           "defaults": {
-            "base": "featured"
+            "xs": "featured"
           },
           "id": "status",
           "label": "Status",
@@ -36,7 +36,7 @@
         },
         {
           "defaults": {
-            "base": true
+            "xs": true
           },
           "id": "enabled",
           "label": "Enabled",
@@ -45,7 +45,7 @@
         },
         {
           "defaults": {
-            "base": 72
+            "xs": 72
           },
           "id": "score",
           "label": "Score",
@@ -57,7 +57,7 @@
         },
         {
           "defaults": {
-            "base": 60
+            "xs": 60
           },
           "id": "threshold",
           "label": "Threshold",
@@ -74,7 +74,7 @@
       "controls": [
         {
           "defaults": {
-            "base": 10
+            "xs": 10
           },
           "id": "base",
           "label": "Base",
@@ -86,7 +86,7 @@
         },
         {
           "defaults": {
-            "base": 6
+            "xs": 6
           },
           "id": "offset",
           "label": "Offset",
@@ -98,7 +98,7 @@
         },
         {
           "defaults": {
-            "base": 3
+            "xs": 3
           },
           "id": "multiplier",
           "label": "Multiplier",
@@ -116,7 +116,7 @@
         {
           "count": 2,
           "defaults": {
-            "base": [
+            "xs": [
               "Alpha",
               "Beta"
             ]

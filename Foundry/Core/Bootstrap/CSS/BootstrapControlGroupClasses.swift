@@ -25,7 +25,12 @@ nonisolated enum BootstrapControlGroupClasses {
                 switch source.localID {
                 case "theme":
                     guard node.propertyValue(.init(rawValue: source.namespace + ".colourEnabled")) == .boolean(true) else { return nil }
-                    if let token = PartColourToken.parse(value.stringValue) { return "border-token--" + token.id }
+                    if let token = PartColourToken.parse(value.stringValue) {
+                        if let name = customUtilityClass(for: token.id, theme: theme), name.hasPrefix("border-") {
+                            return name
+                        }
+                        return "border-token--" + token.id
+                    }
                     let theme = BootstrapPaletteTheme.resolve(value.stringValue, theme: theme)
                     guard theme != "theme-reset" else { return nil }
                     let subtle = node.propertyValue(.init(rawValue: source.namespace + ".subtle")) == .boolean(true)
@@ -44,6 +49,9 @@ nonisolated enum BootstrapControlGroupClasses {
                 }
                 guard source.localID == "theme", value.stringValue != "inherit" else { return nil }
                 if let token = PartColourToken.parse(value.stringValue) {
+                    if let name = customUtilityClass(for: token.id, theme: theme), name.hasPrefix("fg-") {
+                        return name
+                    }
                     if token.id.hasPrefix("fg-") { return token.id }
                     if ["black", "white"].contains(token.id) { return "fg-" + token.id }
                     return "fg-token--" + token.id
@@ -75,6 +83,14 @@ nonisolated enum BootstrapControlGroupClasses {
             classes.append("\(prefix):\(selected)")
         }
         return classes.joined(separator: " ")
+    }
+
+    static func customUtilityClass(for token: String, theme: Theme) -> String? {
+        guard let palette = theme.colourPalettes.first(where: {
+            $0.origin == .custom && $0.colourTokens.contains(token)
+        }), let source = palette.colourKind.sourceTokens.first(where: { palette.colourToken($0) == token })
+        else { return nil }
+        return palette.publicUtilityClass(for: source)
     }
 
     static func gapPrefix(_ localID: String) -> String? {

@@ -18,6 +18,7 @@ private struct PageTextEditRequest: Identifiable {
     let propertyKey: PartProperty.Key
     let propertyPath: [Int]
     let value: String
+    var isMarkdown = false
 }
 
 private struct PageDeletionRequest {
@@ -75,7 +76,8 @@ struct ContentView: View {
     @State private var canvasViewportWidth: Double
     @State private var selectedAppearance = SiteAppearance.light
     private var canvasAppearance: SiteAppearance {
-        document.site.appearanceMode.permits(selectedAppearance) ? selectedAppearance :
+        if let override = selectedPage?.appearanceOverride { return override }
+        return document.site.appearanceMode.permits(selectedAppearance) ? selectedAppearance :
             (document.site.appearanceMode == .dark ? .dark : .light)
     }
     @State private var htmlSourceEditRequest: HTMLSourceEditRequest?
@@ -291,19 +293,30 @@ struct ContentView: View {
             )
         }
         .sheet(item: $pageTextEditRequest) { request in
-            PageTextEditorView(
-                value: request.value,
-                theme: document.site.theme,
-                pages: document.site.pages,
-                folders: document.site.pageFolders,
-                assets: document.site.assets,
-                publicURL: document.site.publicURL,
-                cancel: { pageTextEditRequest = nil },
-                save: { value in
-                    savePageText(value, request: request)
-                    pageTextEditRequest = nil
-                }
-            )
+            if request.isMarkdown {
+                MarkdownSourceEditorView(
+                    source: request.value,
+                    cancel: { pageTextEditRequest = nil },
+                    save: { value in
+                        savePageText(value, request: request)
+                        pageTextEditRequest = nil
+                    }
+                )
+            } else {
+                PageTextEditorView(
+                    value: request.value,
+                    theme: document.site.theme,
+                    pages: document.site.pages,
+                    folders: document.site.pageFolders,
+                    assets: document.site.assets,
+                    publicURL: document.site.publicURL,
+                    cancel: { pageTextEditRequest = nil },
+                    save: { value in
+                        savePageText(value, request: request)
+                        pageTextEditRequest = nil
+                    }
+                )
+            }
         }
         .alert("Site Export Failed", isPresented: exportErrorBinding) {
             Button("OK", role: .cancel) { exportErrorMessage = nil }
@@ -1120,7 +1133,10 @@ struct ContentView: View {
                     javaScript: part.propertyValue(PartPackageAdapter.htmlJavaScriptKey(for: propertyKey.rawValue))
                         .value(at: message.propertyPath ?? [])?.stringValue ?? "",
                     controls: part.type == .html && propertyKey == HTMLPartPrototype.contentKey
-                        ? part.storedPropertyValue(HTMLPartPrototype.controlsKey)?.stringValue ?? "[]" : nil
+                        ? part.storedPropertyValue(HTMLPartPrototype.controlsKey)?.stringValue ?? "[]" : nil,
+                    pageCSS: part.storedPropertyValue(HTMLPartPrototype.pageCSSKey)?.stringValue ?? "",
+                    siteCSS: part.storedPropertyValue(HTMLPartPrototype.siteCSSKey)?.stringValue ?? "",
+                    pageJavaScript: part.storedPropertyValue(HTMLPartPrototype.pageJavaScriptKey)?.stringValue ?? ""
                 )
             )
         case .editPart:
@@ -1151,7 +1167,10 @@ struct ContentView: View {
                 partID: partID,
                 propertyKey: propertyKey,
                 propertyPath: message.propertyPath ?? [],
-                value: value
+                value: value,
+                isMarkdown: part.definition.package.map {
+                    PartTemplateRenderer.isMarkdownPrimitive(propertyKey.rawValue, in: $0.htmlTemplate)
+                } ?? false
             )
         case .importImageAsset:
             guard let propertyKey = message.propertyKey,
@@ -1510,7 +1529,7 @@ struct ContentView: View {
             defaultLeafValue: .string(defaultLeafValue)
         )
         undoManager?.endUndoGrouping()
-        undoManager?.setActionName("Edit Text")
+        undoManager?.setActionName(request.isMarkdown ? "Edit Markdown" : "Edit Text")
     }
 
     private func setCanvasProperty(
@@ -2068,7 +2087,12 @@ struct ContentView: View {
             definition: definition,
             site: document.site,
             assetContents: document.assetContents,
-            pageBackground: selectedPage?.backgroundOverride
+            pageBackground: selectedPage?.backgroundOverride,
+            pageTheme: selectedPage?.themeOverride,
+            pageForeground: selectedPage?.foregroundOverride,
+            pageBorder: selectedPage?.borderOverride,
+            pageLinks: selectedPage?.linksOverride,
+            pageAppearance: selectedPage?.appearanceOverride
         ) { data in
             if let data {
                 ReusablePartLibrary.shared.savePreview(data, forID: definition.id)

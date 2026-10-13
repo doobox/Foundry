@@ -1,0 +1,65 @@
+@layer components {
+  .fd-markdown-code {
+    --fd-code-bg: var(--bs-theme-bg-subtle, var(--bs-bg-1));
+    --fd-code-fg: var(--bs-theme-fg-emphasis, var(--bs-fg-body));
+    --fd-code-border: var(--bs-theme-border, var(--bs-border-color));
+    display: block;
+    min-inline-size: 0;
+    overflow: hidden;
+    color: var(--fd-code-fg);
+    background: var(--fd-code-bg);
+    border: 1px solid var(--fd-code-border);
+    border-radius: var(--bs-radius-3, .5rem);
+  }
+
+  .fd-markdown-code-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    min-block-size: 2.5rem;
+    padding-inline: .875rem;
+    border-block-end: 1px solid var(--fd-code-border);
+    font: 600 .75rem/1.3 system-ui, sans-serif;
+  }
+
+  .fd-markdown-code-language { opacity: .8; }
+
+  .fd-markdown-code-copy {
+    appearance: none;
+    padding: .3rem .45rem;
+    color: inherit;
+    background: transparent;
+    border: 1px solid transparent;
+    border-radius: .3rem;
+    font: inherit;
+    cursor: pointer;
+  }
+  .fd-markdown-code-copy:hover { border-color: var(--fd-code-border); }
+  .fd-markdown-code-copy:focus-visible {
+    outline: 2px solid var(--bs-theme-focus-ring, var(--bs-primary-focus-ring));
+    outline-offset: 2px;
+  }
+
+  .fd-markdown-code pre,
+  .prose .fd-markdown-code pre {
+    display: block;
+    margin: 0;
+    padding: 1rem;
+    overflow: auto;
+    color: inherit;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    font: 400 .875rem/1.55 ui-monospace, SFMono-Regular, Menlo, monospace;
+    tab-size: 2;
+  }
+  .fd-markdown-code pre code,
+  .prose .fd-markdown-code pre code {
+    padding: 0;
+    color: inherit;
+    background: transparent;
+    font: inherit;
+    white-space: pre;
+  }
+}

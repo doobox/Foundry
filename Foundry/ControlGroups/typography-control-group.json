@@ -9,7 +9,7 @@
       "label": "Family",
       "responsive": false,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -36,7 +36,7 @@
       "label": "Font size",
       "responsive": true,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -91,7 +91,7 @@
       "label": "Text size",
       "responsive": true,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -146,7 +146,7 @@
       "label": "Style",
       "responsive": false,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -169,7 +169,7 @@
       "label": "Weight",
       "responsive": true,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -212,7 +212,7 @@
       "label": "Line height",
       "responsive": false,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -243,7 +243,7 @@
       "label": "Alignment",
       "responsive": true,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -275,7 +275,7 @@
       "label": "Decoration",
       "responsive": false,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -302,7 +302,7 @@
       "label": "Capitalisation",
       "responsive": false,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -329,7 +329,7 @@
       "label": "Wrapping",
       "responsive": true,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -364,7 +364,7 @@
       "label": "Word breaking",
       "responsive": false,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -383,7 +383,7 @@
       "label": "Text selection",
       "responsive": false,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -414,7 +414,7 @@
       "label": "Vertical alignment",
       "responsive": false,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {

@@ -1,0 +1,53 @@
+{
+  "id": "foundry.content.markdown",
+  "title": "Markdown",
+  "author": "Foundry",
+  "version": "1.0.0",
+  "minimumAPIVersion": 1,
+  "description": "Markdown content styled with Bootstrap Prose.",
+  "group": "Content",
+  "icon": {
+    "symbol": "text.document"
+  },
+  "tags": [
+    "Markdown",
+    "text",
+    "prose"
+  ],
+  "assets": [],
+  "templates": {
+    "html": "part.html"
+  },
+  "inspector": [
+    {
+      "section": "Content",
+      "systemImage": "doc.text"
+    },
+    {
+      "section": "Spacing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "spacing",
+          "id": "spacing"
+        }
+      ]
+    },
+    {
+      "section": "Typography",
+      "systemImage": "textformat",
+      "controls": [
+        {
+          "type": "prose",
+          "id": "prose",
+          "defaults": {
+            "style": "prose"
+          }
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ]
+}

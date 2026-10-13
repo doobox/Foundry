@@ -270,6 +270,7 @@ nonisolated enum PartPropertyControl: Sendable {
     case literalColor(allowsOpacity: Bool)
     case icon
     case choice([PartPropertyChoice])
+    case space(axis: String)
     case themeColors
     case themeFontSize
     case themeStackingOrder

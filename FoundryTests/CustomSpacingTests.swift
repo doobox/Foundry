@@ -4,9 +4,40 @@ import Testing
 
 @MainActor
 struct CustomSpacingTests {
+    @Test func fixedSpacingNeedsNoSeparateExtension() {
+        #expect(BootstrapSpacingCSS.render(.standard).isEmpty)
+        #expect(FoundryWebLibraryRegistry.exportFiles(for: []).contains { $0.path.hasSuffix("bootstrap-extensions.css") } == false)
+    }
+
+    @Test func savedExtendedSpacingBecomesAProjectValueOnlyWhenUsed() throws {
+        var node = PartNode.make(.container)
+        var padding = ThemePaddingValue()
+        padding.setAll(.init(token: "13"))
+        node.setProperty(.init(rawValue: "spacing.padding"), value: .themePadding(padding))
+        var margin = ThemeMarginValue()
+        margin.setAll(.init(token: "24"))
+        node.setResponsiveProperty(.init(rawValue: "spacing.margin"), value: .themeMargin(margin), at: .medium)
+        let original = Site(name: "Saved spacing", pages: [Page(title: "Home", slug: "index", parts: [node])])
+        let restored = try JSONDecoder().decode(Site.self, from: JSONEncoder().encode(original))
+        #expect(Set(restored.theme.spacing.custom.map(\.name)) == ["13", "24"])
+        #expect(restored.theme.spacing.custom.first { $0.name == "13" }?.value == 3.5)
+        #expect(restored.theme.spacing.custom.first { $0.name == "24" }?.value == 16)
+        #expect(restored.projectThemeValues.spacing == restored.theme.spacing.custom)
+        let twice = try JSONDecoder().decode(Site.self, from: JSONEncoder().encode(restored))
+        #expect(twice.theme.spacing.custom == restored.theme.spacing.custom)
+        let fresh = try JSONDecoder().decode(Site.self, from: JSONEncoder().encode(Site.starter()))
+        #expect(fresh.theme.spacing.custom.isEmpty)
+    }
+
     @Test func bootstrapStepsAreFixedAndSavedStepValuesAreIgnored() throws {
         // Bootstrap bakes its spacing steps into the utilities, so Foundry offers them as shipped.
         #expect(SpacingTokens.standard.choices.map(\.amount) == SpacingTokens.multipliers)
+        #expect(SpacingTokens.multipliers.count == 13)
+        #expect(SpacingTokens.multipliers.last == 3)
+        #expect(SpacingTokens.validName("13") == false)
+        #expect(SpacingTokens.validName("24") == false)
+        let legacyNumeric = try JSONDecoder().decode(SpacingTokens.self, from: Data(#"{"custom":[{"id":"A25E7B2B-C7C2-4CB6-A2BE-985F246CE58A","name":"13","value":9}]}"#.utf8))
+        #expect(legacyNumeric.choices.filter { $0.id == "13" }.map(\.amount) == [9])
         let legacy = try JSONDecoder().decode(SpacingTokens.self, from: Data(#"{"values":[9,9,9,9,9,9,9,9,9,9,9,9,9],"custom":[]}"#.utf8))
         #expect(legacy == .standard)
         #expect(BootstrapThemeCSS.render(theme: .standard).contains("--bs-spacer-5") == false)

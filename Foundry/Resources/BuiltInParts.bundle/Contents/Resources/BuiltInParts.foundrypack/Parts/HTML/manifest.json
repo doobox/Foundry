@@ -7,21 +7,13 @@
   "description": "Your HTML, rendered directly with the site's Bootstrap stylesheet.",
   "group": "Content",
   "icon": {
-    "file": "icon.svg",
-    "background": { "light": "#44475a", "dark": "#282a36" },
-    "rendering" : "original"
+    "symbol": "chevron.left.forwardslash.chevron.right"
   },
   "tags": [
     "Bootstrap",
     "HTML"
   ],
   "assets": [],
-  "libraries": [
-    {
-      "id": "bootstrap",
-      "majorVersion": 6
-    }
-  ],
   "templates": {
     "html": "part.html"
   },

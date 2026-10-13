@@ -7,8 +7,7 @@
   "description": "Editable paragraph text using Bootstrap typography and spacing.",
   "group": "Content",
   "icon": {
-    "symbol": "text.alignleft",
-    "background": { "light": "#007AFF", "dark": "#0A84FF" }
+    "symbol": "text.alignleft"
   },
   "tags": [
     "Bootstrap",
@@ -16,12 +15,6 @@
     "paragraph"
   ],
   "assets": [],
-  "libraries": [
-    {
-      "id": "bootstrap",
-      "majorVersion": 6
-    }
-  ],
   "templates": {
     "html": "part.html"
   },

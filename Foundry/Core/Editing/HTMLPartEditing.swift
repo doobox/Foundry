@@ -2,7 +2,7 @@ import Foundation
 
 extension ProjectEditor {
     func setHTMLPrototype(id: UUID, source: HTMLPartSource) {
-        guard HTMLPartPrototype.compile(html: source.html, css: source.css, javaScript: source.javaScript, controls: source.controls ?? "[]").definition != nil else { return }
+        guard HTMLPartPrototype.compile(source: source).definition != nil else { return }
         if let context = document.site.globalPartContext(containing: id), !context.isOverridden {
             editSharedReusablePart(partID: id, actionName: "Edit HTML Part") { $0.applyHTMLPrototype(source) }
         } else {
@@ -16,7 +16,7 @@ extension ProjectEditor {
 nonisolated extension PartNode {
     mutating func applyHTMLPrototype(_ source: HTMLPartSource) {
         guard type == .html,
-              let updated = HTMLPartPrototype.compile(html: source.html, css: source.css, javaScript: source.javaScript, controls: source.controls ?? "[]").definition else { return }
+              let updated = HTMLPartPrototype.compile(source: source).definition else { return }
         let previous = definition
         let oldKeys = Set(previous.properties.map(\.key))
         let oldControls = previous.package?.renderDefinition.propertiesByID ?? [:]
@@ -30,7 +30,10 @@ nonisolated extension PartNode {
         setProperty(PartPackageAdapter.htmlCSSKey(for: "content"), value: .string(source.css))
         setProperty(PartPackageAdapter.htmlJavaScriptKey(for: "content"), value: .string(source.javaScript))
         setProperty(HTMLPartPrototype.controlsKey, value: .string(source.controls ?? "[]"))
-        let newKeys = Set(updated.properties.map(\.key)).union([HTMLPartPrototype.controlsKey])
+        setProperty(HTMLPartPrototype.pageCSSKey, value: .string(source.pageCSS))
+        setProperty(HTMLPartPrototype.siteCSSKey, value: .string(source.siteCSS))
+        setProperty(HTMLPartPrototype.pageJavaScriptKey, value: .string(source.pageJavaScript))
+        let newKeys = Set(updated.properties.map(\.key)).union(HTMLPartPrototype.sourceKeys)
         properties.removeAll { oldKeys.contains($0.key) && !newKeys.contains($0.key) }
         responsiveOverrides?.removeAll { !newKeys.contains($0.key) || changedKeys.contains($0.key) }
         for property in updated.properties where !oldKeys.contains(property.key) || changedKeys.contains(property.key) {

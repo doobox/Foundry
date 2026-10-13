@@ -405,8 +405,7 @@ private struct PartCatalogSnapshot: Sendable {
         await progress(.loading, 0, standardizedURLs.count)
         let progressUpdateInterval = max(1, standardizedURLs.count / 100)
         let outcomes = await loadOutcomes(
-            standardizedURLs,
-            validationMode: PartValidationPreference.mode
+            standardizedURLs
         ) { completed in
             if completed == standardizedURLs.count || completed.isMultiple(of: progressUpdateInterval) {
                 await progress(.loading, completed, standardizedURLs.count)
@@ -454,7 +453,6 @@ private struct PartCatalogSnapshot: Sendable {
 
     fileprivate nonisolated static func loadOutcomes(
         _ urls: [URL],
-        validationMode: PartValidationMode = PartValidationPreference.mode,
         progress: @escaping @Sendable (Int) async -> Void = { _ in }
     ) async -> [PartPackageLoadOutcome] {
         guard !urls.isEmpty else { return [] }
@@ -464,7 +462,7 @@ private struct PartCatalogSnapshot: Sendable {
             for index in 0..<concurrentLoadCount {
                 group.addTask {
                     let url = urls[index]
-                    return (index, PartPackageLoadOutcome.load(from: url, validates: validationMode.validates(url)))
+                    return (index, PartPackageLoadOutcome.load(from: url))
                 }
             }
             var nextIndex = concurrentLoadCount
@@ -478,7 +476,7 @@ private struct PartCatalogSnapshot: Sendable {
                     nextIndex += 1
                     group.addTask {
                         let url = urls[index]
-                        return (index, PartPackageLoadOutcome.load(from: url, validates: validationMode.validates(url)))
+                        return (index, PartPackageLoadOutcome.load(from: url))
                     }
                 }
             }
@@ -492,10 +490,10 @@ private struct PartPackageLoadOutcome: Sendable {
     let package: LoadedPartPackage?
     let diagnostics: [PartPackageDiagnostic]
 
-    nonisolated static func load(from url: URL, validates: Bool) -> PartPackageLoadOutcome {
+    nonisolated static func load(from url: URL) -> PartPackageLoadOutcome {
         do {
-            let result = try PartPackageLoader.loadForCatalog(from: url, validates: validates)
-            // Enforced even with validation off: a reserved identifier is a
+            let result = try PartPackageLoader.loadForCatalog(from: url)
+            // Enforced for every catalog load: a reserved identifier is a
             // question of who owns the name, not of the part's quality.
             if LoadedPartPackage.usesReservedIdentifier(result.package.manifest.identifier, at: url) {
                 return .init(url: url, package: nil, diagnostics: [.init(

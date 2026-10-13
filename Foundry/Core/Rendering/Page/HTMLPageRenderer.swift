@@ -65,6 +65,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         let metadata = metadataHTML(for: page, browserTitle: browserTitle, site: site, assets: assets)
         let headStart = placedHTML(for: page, theme: theme, placement: .headStart)
         let headEnd = placedHTML(for: page, theme: theme, placement: .headEnd)
+        let hasMarkdownCode = body.contains("class=\"fd-markdown-code\"")
         let bodyStart = placedHTML(for: page, theme: theme, placement: .bodyStart)
         let bodyEnd = placedHTML(for: page, theme: theme, placement: .bodyEnd)
         let customHeadCode = site?.customCodeEnabled == true ? site?.headCode ?? "" : ""
@@ -165,10 +166,12 @@ nonisolated struct HTMLPageRenderer: PageRendering {
             }
             .unavailable { padding: 16px; border: 2px dashed #C33; color: #922; background: #FFF5F5; }
             \(FoundryWebLibraryRegistry.canvasCSS(for: PartArtifactPlan(page: page).packages))
+            \(hasMarkdownCode ? FoundryWebLibraryRegistry.markdownCodeCSS + ".fd-markdown-code-copy{display:none}" : "")
           </style>
           <style data-foundry-theme-styles>
             \(BootstrapThemeCSS.render(theme: theme))
             \(BootstrapColorCSS.canvas(theme: theme, appearance: appearance))
+            \(BootstrapPageColours.css(page: page, theme: theme))
           </style>
         \(instanceStyleElements(for: page, theme: theme, assets: assets, breakpoint: breakpoint))
           <style data-foundry-shared-styles>
@@ -177,7 +180,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         \(headEnd)
         \(customStyle)
         </head>
-        <body>\(customBodyStartCode)\(bodyStart)<!--foundry-roots-start-->\(body)<!--foundry-roots-end-->\(bodyEnd)\(customBodyEndCode)</body>
+        <body\(page.appearanceOverride.map { " data-bs-theme=\"\($0.rawValue)\"" } ?? "")\(page.themeClass(theme: theme).isEmpty ? "" : " class=\"" + escapeAttribute(page.themeClass(theme: theme)) + "\"")>\(customBodyStartCode)\(bodyStart)<!--foundry-roots-start-->\(body)<!--foundry-roots-end-->\(bodyEnd)\(customBodyEndCode)</body>
         </html>
         """
     }
@@ -418,7 +421,7 @@ nonisolated struct HTMLPageRenderer: PageRendering {
                     richTextLinkContext: richTextLinkContext,
                     richTextColourContext: .init(
                         palettes: theme.colourPalettes,
-                        mode: appearance == .light ? .light : .dark
+                        mode: (page.appearanceOverride ?? appearance) == .light ? .light : .dark
                     ),
                     loopMaximums: package.loopMaximums
                 )
@@ -653,6 +656,9 @@ nonisolated struct HTMLPageRenderer: PageRendering {
         let manifestPropertiesByID = partDefinition.package?.renderDefinition.propertiesByID ?? [:]
         var values: [String: PartPackageValue] = Dictionary(uniqueKeysWithValues: definitions.map { definition in
             let value = node.storedPropertyValue(definition.key) ?? definition.defaultValue
+            if case .space(let axis) = definition.control {
+                return (definition.key.rawValue, .string(PartSpaceControl.className(node: node, key: definition.key, axis: axis, screens: theme.screens)))
+            }
             if let classes = BootstrapControlGroupClasses.resolve(node: node, key: definition.key, theme: theme) {
                 return (definition.key.rawValue, .string(classes))
             }

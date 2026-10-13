@@ -113,22 +113,18 @@ nonisolated struct LoadedPartPackage: Sendable {
     /// when it exists, else its SF Symbol, else the generic part mark — plus
     /// appearance-aware colours resolved at draw time.
     var iconSpecification: PartIconSpecification {
-        let background = manifest.icon?.background ?? .neutral
-        let foreground = manifest.icon?.foreground ?? .white
-        let structure = manifest.icon?.structure
-        let rendering = manifest.icon?.resolvedRendering ?? .monochrome
+        let group = manifest.category
         if let file = manifest.icon?.file {
             let url = resourceRootURL.appending(path: file)
             if FileManager.default.fileExists(atPath: url.path) {
-                return .init(glyph: .svg(url), background: background, foreground: foreground, structure: structure,
-                             rendering: rendering == .original ? .original : .monochrome)
+                return .init(glyph: .svg(url), group: group)
             }
         }
-        // Symbols always draw monochrome; original rendering is for SVG artwork.
+        // Both symbols and SVG artwork use the group palette.
         if let symbol = manifest.icon?.symbol, !symbol.isEmpty {
-            return .init(glyph: .symbol(symbol), background: background, foreground: foreground, structure: structure)
+            return .init(glyph: .symbol(symbol), group: group)
         }
-        return .init(glyph: .symbol(PartDefinition.genericSystemImage), background: background, foreground: foreground, structure: structure)
+        return .init(glyph: .symbol(PartDefinition.genericSystemImage), group: group)
     }
 
     var isDevelopmentPack: Bool {
@@ -213,16 +209,11 @@ nonisolated struct PartIconSpecification: Equatable, Hashable, Sendable {
     }
 
     let glyph: Glyph
-    var background: PartIconColour = .neutral
-    var foreground: PartIconColour = .white
-    /// Nil preserves original SVG artwork, or uses background for monochrome.
-    var structure: PartIconColour?
-    /// Already matched to the glyph kind by the loader.
-    var rendering: PartIconRendering = .monochrome
+    var group: String = "Other"
 
     /// Stable identity for row-reuse fingerprints and view invalidation.
     var cacheKey: String {
-        let style = "\(background.cacheKey):\(foreground.cacheKey):\(structure?.cacheKey ?? "automatic"):\(rendering.rawValue)"
+        let style = group
         return switch glyph {
         case .svg(let url): "svg:\(url.path):\(style)"
         case .symbol(let name): "symbol:\(name):\(style)"
@@ -460,8 +451,12 @@ nonisolated enum PartPackageLoader {
 
     static func loadForCatalog(
         from rootURL: URL,
-        validates: Bool
+        validates: Bool = false
     ) throws -> PartPackageLoadResult {
+        // Development packages can change in place and must always be validated.
+        let validates = validates || rootURL.pathComponents.contains {
+            ($0 as NSString).pathExtension.caseInsensitiveCompare("foundrydevpack") == .orderedSame
+        }
         if !validates, let cached = PartPackagePreparedIndex.entry(for: rootURL) {
             return .init(
                 package: .init(

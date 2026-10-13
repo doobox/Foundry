@@ -105,7 +105,8 @@ struct BootstrapEditorTokenTests {
 
     @Test func defaultsAreNativeAndBootstrapScalesStayFixed() throws {
         // Defaults need only Foundry's heading-font extension, not token overrides.
-        #expect(BootstrapEditorCSS.render(.standard) == ":root,:host{--bs-font-heading:inherit}@layer content{h1,h2,h3,h4,h5,h6,.h1,.h2,.h3,.h4,.h5,.h6{font-family:var(--bs-font-heading)}}@layer utilities{.font-heading{font-family:var(--bs-font-heading)}}")
+        #expect(BootstrapEditorCSS.render(.standard).isEmpty)
+        #expect(BootstrapEditorCSS.sharedCSS.contains(".font-heading{font-family:var(--bs-font-heading,inherit)}"))
         #expect(BootstrapEditorSection.fontSize.tokens.isEmpty)
         for section in BootstrapEditorSection.allCases where !section.allowsCustom {
             #expect(section.tokens.isEmpty == false, "\(section)")

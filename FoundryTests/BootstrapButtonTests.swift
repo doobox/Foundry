@@ -17,8 +17,7 @@ struct BootstrapButtonTests {
         explicit = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(explicit))
         #expect(explicit.property(.init(rawValue: "theme")) == "framework.primary")
         var parent = PartNode.make(.container)
-        #expect(parent.property(.init(rawValue: "theme")) == "inherit")
-        parent.setProperty(.init(rawValue: "theme"), value: .choice("theme-danger"))
+        parent.customClasses = "theme-danger"
         parent.anchor = "theme-parent"
         parent.children = [inherited, explicit]
         let page = Page(title: "Inherited theme", slug: "index", parts: [parent])
@@ -29,7 +28,7 @@ struct BootstrapButtonTests {
             let bundle = StaticSiteRenderer(environment: environment).render(site: Site(name: "Themes", pages: [page]))
             #expect(bundle.errors.isEmpty)
             let source = try #require(bundle.file(at: "index.html")?.contents)
-            let css = try #require(bundle.file(at: "files/site.css")?.contents) + (try #require(bundle.file(at: "files/page.css")?.contents))
+            let css = bundle.files.filter { $0.path.hasSuffix(".css") }.map(\.contents).joined(separator: "\n")
             html = source.replacingOccurrences(of: "</head>", with: "<style>\(css)</style></head>")
         }
         let browser = BootstrapTokenBrowser()

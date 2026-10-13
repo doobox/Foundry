@@ -41,7 +41,9 @@ nonisolated enum PartBreakpointTemplateValues {
 }
 
 nonisolated enum PartNavigationTemplateValues {
-    static func values(site: Site, currentPage: Page) -> [String: PartPackageValue] {
+    // Canvas uses its virtual root. Export supplies the path back to the
+    // site's root so navigation remains portable to any deployment folder.
+    static func values(site: Site, currentPage: Page, rootPrefix: String = "/") -> [String: PartPackageValue] {
         let childrenByParent = Dictionary(grouping: site.pages, by: \.parentPageID)
 
         func sortedChildren(of parentID: UUID?) -> [Page] {
@@ -61,7 +63,7 @@ nonisolated enum PartNavigationTemplateValues {
             return .object([
                 "id": .string(page.id.uuidString),
                 "title": .string(page.title),
-                "href": .string(StaticSiteRenderer.urlPath(for: page, pages: site.pages, folders: site.pageFolders)),
+                "href": .string(rootPrefix + StaticSiteRenderer.urlPath(for: page, pages: site.pages, folders: site.pageFolders).dropFirst()),
                 "slug": .string(page.slug),
                 "depth": .number(Double(depth)),
                 "current": .boolean(page.id == currentPage.id),
@@ -231,7 +233,7 @@ nonisolated enum PartNavigationTemplateValues {
         let pageItems = site.pages.map { item($0, depth: 0, visited: []) }
         let publishedAssets = site.assets.compactMap { asset -> PartPackageValue? in
             guard asset.exportDirectory != nil else { return nil }
-            return assetValue(asset, site: site)
+            return assetValue(asset, site: site, rootPrefix: rootPrefix)
         }
 
         var result: [String: PartPackageValue] = [
@@ -255,11 +257,11 @@ nonisolated enum PartNavigationTemplateValues {
         return result.merging(PartBreakpointTemplateValues.values(screens: site.theme.screens)) { current, _ in current }
     }
 
-    private static func assetValue(_ asset: ProjectAsset, site: Site) -> PartPackageValue {
+    private static func assetValue(_ asset: ProjectAsset, site: Site, rootPrefix: String) -> PartPackageValue {
         .object([
             "id": .string(asset.id.uuidString),
             "filename": .string(asset.filename),
-            "href": .string("/" + site.publishedPath(for: asset)),
+            "href": .string(rootPrefix + site.publishedPath(for: asset)),
             "mediaType": .string(asset.mediaType),
             "width": asset.pixelWidth.map { .number(Double($0)) } ?? .number(0),
             "height": asset.pixelHeight.map { .number(Double($0)) } ?? .number(0),

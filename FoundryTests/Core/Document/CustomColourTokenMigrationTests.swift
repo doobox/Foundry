@@ -30,12 +30,12 @@ struct CustomColourTokenMigrationTests {
     func openingProjectPreservesEditedSwatchesAndSelections() throws {
         let current = "custom-\(identity)-bg-1"
         let old = "custom-custom-\(identity)-bg-1"
-        var palette = try ColourPalette(id: "custom.mine", name: "Mine", origin: .custom,
+        var palette = try ColourPalette(id: "custom.mine", name: "mine", origin: .custom,
             shades: Array(repeating: "#123456", count: ColourShade.allCases.count), lightDefaultShade: .one)
         palette.customKind = .surface
         palette.bootstrapTokens[current] = .init(light: .native("black"), dark: .native("white"))
         #expect(palette.colourToken("bg-1") == current)
-        #expect(PartColourToken.label(current, palettes: [palette]) == "Mine · bg-1")
+        #expect(PartColourToken.label(current, palettes: [palette]) == "bg-mine-1")
         var site = Site.starter()
         site.projectThemeValues.colours = [palette]
         site.theme.colourPalettes.append(palette)

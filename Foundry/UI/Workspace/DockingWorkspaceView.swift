@@ -2115,7 +2115,7 @@ private struct CanvasOptionsButton: View {
         } label: {
             Image(systemName: "gearshape")
                 .font(.system(size: 15, weight: .medium))
-                .frame(width: 22, height: 22)
+                .frame(width: 34, height: 34)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -2157,14 +2157,14 @@ private struct FixedCanvasColumn<Content: View>: View {
             HStack {
                 CanvasOptionsButton(options: $editorOptions)
                 Spacer()
-                HStack(spacing: 12) {
+                HStack(spacing: 0) {
                     ForEach(screens.enabledScreens) { screen in
                         Button {
                             selectBreakpoint(screen)
                         } label: {
                             Image(systemName: screen.id.systemImage)
                                 .font(.system(size: 15, weight: .medium))
-                                .frame(width: 22, height: 22)
+                                .frame(width: 34, height: 34)
                                 .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
@@ -2178,7 +2178,7 @@ private struct FixedCanvasColumn<Content: View>: View {
                             Button { appearance = mode } label: {
                                 Image(systemName: mode.symbol)
                                     .font(.system(size: 15, weight: .medium))
-                                    .frame(width: 22, height: 22)
+                                    .frame(width: 34, height: 34)
                                     .contentShape(Rectangle())
                             }
                             .buttonStyle(.plain)
@@ -2466,6 +2466,7 @@ private struct SideDockTarget: View {
 }
 
 private struct WorkspaceTab: View {
+    @State private var catalog = PartPackageCatalog.shared
     let panel: WorkspacePanel
     let isSelected: Bool
     let isDropTargeted: Bool
@@ -2473,6 +2474,10 @@ private struct WorkspaceTab: View {
     let select: () -> Void
     let moveToNewColumn: () -> Void
     let detach: () -> Void
+
+    private var hasIssues: Bool {
+        panel == .developer && catalog.diagnostics.values.contains { !$0.isEmpty }
+    }
 
     var body: some View {
         Button(action: select) {
@@ -2482,7 +2487,7 @@ private struct WorkspaceTab: View {
                 .contentShape(RoundedRectangle(cornerRadius: 6))
         }
         .buttonStyle(.plain)
-        .foregroundStyle(isSelected ? Color.accentColor : .secondary)
+        .foregroundStyle(hasIssues ? Color.red : (isSelected ? Color.accentColor : .secondary))
         .background {
             RoundedRectangle(cornerRadius: 6)
                 .fill(Color.accentColor.opacity(isDropTargeted ? 0.16 : 0))
@@ -2497,6 +2502,7 @@ private struct WorkspaceTab: View {
             }
         }
         .accessibilityLabel(panel.title)
+        .accessibilityValue(hasIssues ? "Issues need attention" : "")
         .accessibilityAddTraits(isSelected ? .isSelected : [])
         .help(panel.title)
         .draggable(WorkspacePanelDragPayload(panel: panel))

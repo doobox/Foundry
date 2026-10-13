@@ -4,16 +4,9 @@
   "description": "Creates a styled link for calls to action and navigation.",
   "group": "Content",
   "icon": {
-    "symbol": "inset.filled.capsule",
-    "background": { "light": "#FF9500", "dark": "#FF9F0A" }
+    "symbol": "inset.filled.capsule"
   },
   "id": "foundry.content.button",
-  "libraries": [
-    {
-      "id": "bootstrap",
-      "majorVersion": 6
-    }
-  ],
   "inspector": [
     {
       "section": "Content",
@@ -28,7 +21,7 @@
           "id": "iconPosition",
           "label": "Placement",
           "defaults": {
-            "base": "none"
+            "xs": "none"
           },
           "options": [
             {
@@ -54,7 +47,7 @@
           "id": "symbol",
           "label": "Icon",
           "defaults": {
-            "base": "arrow-right"
+            "xs": "arrow-right"
           },
           "visibleWhen": {
             "id": "iconPosition",
@@ -69,7 +62,7 @@
         {
           "absoluteURL": false,
           "defaults": {
-            "base": "#"
+            "xs": "#"
           },
           "id": "destination",
           "label": "Destination",
@@ -86,7 +79,7 @@
           "id": "theme",
           "label": "Theme",
           "defaults": {
-            "base": "inherit"
+            "xs": "inherit"
           }
         },
         {
@@ -94,7 +87,7 @@
           "id": "variant",
           "label": "Variant",
           "defaults": {
-            "base": "btn-solid"
+            "xs": "btn-solid"
           },
           "options": [
             {
@@ -128,7 +121,7 @@
           "id": "size",
           "label": "Size",
           "defaults": {
-            "base": ""
+            "xs": ""
           },
           "options": [
             {
@@ -154,7 +147,7 @@
           "id": "shape",
           "label": "Shape",
           "defaults": {
-            "base": ""
+            "xs": ""
           },
           "options": [
             {
@@ -181,7 +174,7 @@
             "value": "only"
           },
           "defaults": {
-            "base": ""
+            "xs": ""
           },
           "options": [
             {
@@ -202,7 +195,7 @@
       "controls": [
         {
           "defaults": {
-            "base": ""
+            "xs": ""
           },
           "id": "accessibilityLabel",
           "label": "Accessibility label",

@@ -2,7 +2,7 @@
   "controls": [
     {
       "defaults": {
-        "base": false
+        "xs": false
       },
       "id": "effectsEnabled",
       "label": "Enable",
@@ -12,7 +12,7 @@
     },
     {
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "id": "themeShadow",
       "label": "Shadow",

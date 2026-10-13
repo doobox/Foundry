@@ -9,7 +9,7 @@
       "label": "Destination",
       "tooltip": "Makes the part's root a link. Remove nested links, buttons and other interactive controls before enabling a whole-part link.",
       "defaults": {
-        "base": ""
+        "xs": ""
       }
     },
     {
@@ -18,7 +18,7 @@
       "label": "Accessible name",
       "tooltip": "Describes the destination for screen readers, which cannot see the part's contents.",
       "defaults": {
-        "base": ""
+        "xs": ""
       },
       "visibleWhen": {
         "id": "destination",

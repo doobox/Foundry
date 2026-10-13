@@ -3,7 +3,7 @@
 #
 # Usage: tools/bootstrap/update.sh 6.0.0-alpha.1
 #
-# No Node, npm or Sass is involved. The npm tarball is fetched, its untouched
+# This updates the bundled assets. The npm tarball is fetched, its untouched
 # dist CSS, source map and JS bundle are copied under versioned names, and the
 # downloaded package is removed when the update finishes.
 set -eu
@@ -21,7 +21,9 @@ curl -fsSL "https://registry.npmjs.org/bootstrap/-/bootstrap-$version.tgz" -o "$
 mkdir -p "$upstream"
 tar -xzf "$tmp/bootstrap.tgz" -C "$upstream" --strip-components=1
 
-rm -f "$resources"/bootstrap-*.min.css "$resources"/bootstrap-*.bundle.min.js "$resources"/bootstrap.min.css.map
+# Replace only official release CSS files.
+find "$resources" -maxdepth 1 -name 'bootstrap-*.min.css' ! -name '*-foundry.min.css' -exec rm -f {} \;
+rm -f "$resources"/bootstrap-*.bundle.min.js "$resources"/bootstrap.min.css.map
 cp "$upstream/dist/css/bootstrap.min.css" "$resources/bootstrap-$version.min.css"
 cp "$upstream/dist/css/bootstrap.min.css.map" "$resources/bootstrap.min.css.map"
 cp "$upstream/dist/js/bootstrap.bundle.min.js" "$resources/bootstrap-$version.bundle.min.js"

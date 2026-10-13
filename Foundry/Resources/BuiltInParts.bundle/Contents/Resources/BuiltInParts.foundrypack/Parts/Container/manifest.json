@@ -4,11 +4,10 @@
   "author": "Foundry",
   "version": "3.0.0",
   "minimumAPIVersion": 1,
-  "description": "Bootstrap page-width containment and grouping.",
+  "description": "A full-width outer wrapper with Bootstrap page-width content inside.",
   "group": "Layout",
   "icon": {
-    "symbol": "rectangle",
-    "background": { "light": "#007AFF", "dark": "#0A84FF" }
+    "symbol": "rectangle"
   },
   "tags": [
     "Bootstrap",
@@ -16,42 +15,27 @@
     "container"
   ],
   "assets": [],
-  "libraries": [
-    {
-      "id": "bootstrap",
-      "majorVersion": 6
-    }
-  ],
   "templates": {
     "html": "part.html"
   },
   "inspector": [
     {
-      "section": "Appearance",
-      "systemImage": "paintpalette",
-      "controls": [
-        {
-          "type": "themeColors",
-          "id": "theme",
-          "label": "Theme",
-          "colourSections": ["themes"],
-          "defaults": { "base": "inherit" },
-          "tooltip": "Supplies a theme to child components that inherit it. Does not paint the container's background or ordinary text."
-        }
-      ]
-    },
-    {
       "section": "Container",
       "systemImage": "rectangle",
+      "controls": []
+    },
+    {
+      "section": "Container content",
+      "systemImage": "text.rectangle",
       "controls": [
         {
           "type": "select",
           "id": "width",
           "label": "Width",
-          "tooltip": "Default follows every Bootstrap breakpoint. Fluid fills the available width. Fluid until a breakpoint follows Bootstrap container widths from that breakpoint upwards. All options retain Bootstrap's horizontal gutters.",
+          "tooltip": "Sets the inner content width. Default follows every Bootstrap breakpoint. Fluid fills the available width. Fluid until a breakpoint follows Bootstrap container widths from that breakpoint upwards. All options retain Bootstrap's horizontal gutters.",
           "responsive": false,
           "defaults": {
-            "base": "container"
+            "xs": "container"
           },
           "options": [
             {
@@ -83,77 +67,17 @@
               "value": "2xl:container"
             }
           ]
-        }
-      ]
-    },
-    {
-      "section": "Sizing",
-      "systemImage": "arrow.up.left.and.arrow.down.right",
-      "controls": [
+        },
         {
-          "type": "sizing",
-          "id": "sizing",
-          "excludeControls": [
-            "width",
-            "minWidth",
-            "maxWidth"
-          ]
-        }
-      ]
-    },
-    {
-      "section": "Spacing",
-      "systemImage": "arrow.up.left.and.arrow.down.right",
-      "controls": [
-        {
-          "type": "spacing",
-          "id": "spacing"
-        }
-      ]
-    },
-    {
-      "section": "Typography",
-      "systemImage": "textformat",
-      "controls": [
-        {
-          "type": "typography",
-          "id": "typography",
-          "excludeControls": [
-            "fontSize",
-            "fontStyle",
-            "lineHeight",
-            "textDecoration",
-            "textTransform",
-            "textWrap",
-            "wordWrap",
-            "userSelect",
-            "verticalAlignment"
-          ]
-        }
-      ]
-    },
-    {
-      "section": "Content typography",
-      "systemImage": "doc.text",
-      "controls": [
-        {
-          "type": "prose",
-          "id": "prose"
-        }
-      ]
-    },
-    {
-      "section": "Foreground",
-      "systemImage": "paintpalette",
-      "controls": [
-        {
-          "type": "foreground",
-          "id": "foreground",
-          "colourSections": [
-            "foregrounds",
-            "blackWhite",
-            "themes"
-          ]
+          "type": "space",
+          "id": "contentSpacing",
+          "label": "Space",
+          "tooltip": "Vertical spacing between direct child parts. Inherit leaves their existing margins unchanged.",
+          "responsive": true,
+          "defaults": {
+            "xs": "inherit"
+          },
+          "axis": "y"
         }
       ]
     },
@@ -175,44 +99,6 @@
             "image",
             "video"
           ]
-        }
-      ]
-    },
-    {
-      "section": "Borders",
-      "systemImage": "square.dashed",
-      "controls": [
-        {
-          "type": "borders",
-          "id": "borders"
-        }
-      ]
-    },
-    {
-      "section": "Links",
-      "systemImage": "link",
-      "controls": [
-        {
-          "type": "linkStyling",
-          "id": "links",
-          "targetSelector": "a[href]:not(.btn)"
-        }
-      ]
-    },
-    {
-      "section": "Display",
-      "systemImage": "eye",
-      "controls": [
-        {
-          "type": "display",
-          "id": "display",
-          "allowedOptions": {
-            "display": [
-              "none",
-              "d-block",
-              "d-none"
-            ]
-          }
         }
       ]
     },

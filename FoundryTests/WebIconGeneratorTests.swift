@@ -7,6 +7,28 @@ import UniformTypeIdentifiers
 
 struct WebIconGeneratorTests {
     @Test
+    func emptyFaviconDeclarationIsOnlyUsedWithoutAConfiguredIcon() throws {
+        var site = Site(name: "No icon", pages: [
+            Page(title: "Home", slug: "index"), Page(title: "About", slug: "about")
+        ])
+        for environment in [PartTemplateEnvironment.preview, .published] {
+            site.favicon = ""
+            let empty = StaticSiteRenderer(environment: environment).render(site: site)
+            for path in ["index.html", "about/index.html"] {
+                let html = try #require(empty.file(at: path)?.contents)
+                #expect(html.contains("<link rel=\"icon\" href=\"data:,\">"))
+                #expect(html.contains("favicon.ico") == false)
+            }
+            #expect(empty.files.contains { WebIconGenerator.isManagedExportPath($0.path) } == false)
+            site.favicon = "https://example.com/icon.png"
+            let configured = StaticSiteRenderer(environment: environment).render(site: site)
+            let html = try #require(configured.file(at: "index.html")?.contents)
+            #expect(html.contains("href=\"data:,\"") == false)
+            #expect(html.contains("<link rel=\"icon\" href=\"https://example.com/icon.png\">"))
+        }
+    }
+
+    @Test
     func storedWebIconsAndMarkupAreIncludedForEveryPageDepth() throws {
         let source = try squarePNG(size: 256)
         let sourceAsset = ProjectAsset(
@@ -40,6 +62,8 @@ struct WebIconGeneratorTests {
 
         let home = try #require(bundle.file(at: "index.html")?.contents)
         let about = try #require(bundle.file(at: "about/index.html")?.contents)
+        #expect(home.contains("href=\"data:,\"") == false)
+        #expect(about.contains("href=\"data:,\"") == false)
         #expect(home.contains("href=\"assets/web-icons/favicon.ico\""))
         #expect(home.contains("href=\"assets/web-icons/favicon-32x32.png\""))
         #expect(home.contains("href=\"assets/web-icons/apple-touch-icon-180x180.png\""))

@@ -124,6 +124,20 @@ struct BootstrapLiveThemeTests {
         #expect(decoded.screens == theme.screens)
     }
 
+    @Test func disablingEveryOptionalBreakpointKeepsContainersFluid() {
+        var theme = Theme.standard
+        for id in BootstrapLayout.ids {
+            theme.screens.update(id) { $0.isEnabled = false }
+        }
+        #expect(theme.screens.enabledScreens.map(\.id) == [.mobile])
+        let css = BootstrapUtilityExtensionsCSS.containerCSS(theme.screens)
+        for width in [576, 768, 1024, 1280, 1536] {
+            #expect(css.contains("@media (width >= \(width)px)"))
+        }
+        #expect(css.contains("max-width:none"))
+        #expect(BootstrapLayout.containerClass("2xl:container", screens: theme.screens) == "container")
+    }
+
     @Test func switchingUpdatesPreviewAndSupportsUndo() throws {
         let document = FoundryDocument()
         document.site.theme.screens.update(.extraLarge) { $0.isEnabled = true }
@@ -197,7 +211,7 @@ struct BootstrapLiveThemeTests {
                 try await Task.sleep(for: .milliseconds(25))
             }
             try #require(ready)
-            let actual = try #require(try await view.evaluateJavaScript("(() => {const s=getComputedStyle(document.getElementById('layout-test'));return [s.maxWidth,s.display];})()") as? [String])
+            let actual = try #require(try await view.evaluateJavaScript("(() => {const e=document.getElementById('layout-test');return [getComputedStyle(e.firstElementChild).maxWidth,getComputedStyle(e).display];})()") as? [String])
             let cap = theme.screens.screen(.doubleExtraLarge).container
             let expected = cap.unit == .auto ? "none" : "\(Int(cap.value))px"
             #expect(actual == [expected,"flex"], "\(destination), switches \(mask)")

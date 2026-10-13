@@ -9,7 +9,7 @@
       "label": "Enable",
       "presentation": "switch",
       "defaults": {
-        "base": false
+        "xs": false
       }
     },
     {
@@ -18,7 +18,7 @@
       "label": "Backdrop",
       "opacity": true,
       "defaults": {
-        "base": "#00000080"
+        "xs": "#00000080"
       },
       "visibleWhen": {
         "id": "enabled",
@@ -34,7 +34,7 @@
       "maximum": 40,
       "step": 1,
       "defaults": {
-        "base": 0
+        "xs": 0
       },
       "visibleWhen": {
         "id": "enabled",

@@ -73,6 +73,12 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
     var includeInSitemap: Bool
     /// Nil intentionally follows the theme's Page defaults in both appearances.
     var backgroundOverride: String?
+    /// A component theme inherited by page content; nil emits no theme class.
+    var themeOverride: String?
+    var foregroundOverride: String?
+    var borderOverride: String?
+    var linksOverride: String?
+    var appearanceOverride: SiteAppearance?
 
     init(
         id: UUID = UUID(),
@@ -90,7 +96,12 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         language: String? = nil,
         includeInSearch: Bool = true,
         includeInSitemap: Bool = true,
-        backgroundOverride: String? = nil
+        backgroundOverride: String? = nil,
+        themeOverride: String? = nil,
+        foregroundOverride: String? = nil,
+        borderOverride: String? = nil,
+        linksOverride: String? = nil,
+        appearanceOverride: SiteAppearance? = nil
     ) {
         self.id = id
         self.title = title
@@ -108,11 +119,17 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         self.includeInSearch = includeInSearch
         self.includeInSitemap = includeInSitemap
         self.backgroundOverride = backgroundOverride
+        self.themeOverride = themeOverride
+        self.foregroundOverride = foregroundOverride
+        self.borderOverride = borderOverride
+        self.linksOverride = linksOverride
+        self.appearanceOverride = appearanceOverride
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, title, slug, metadata, parts, folderID, parentPageID, order, includeInNavigation, preferredExtension,
-             folderOverride, filenameOverride, language, includeInSearch, includeInSitemap, backgroundOverride
+             folderOverride, filenameOverride, language, includeInSearch, includeInSitemap, backgroundOverride, themeOverride,
+             foregroundOverride, borderOverride, linksOverride, appearanceOverride
     }
 
     init(from decoder: Decoder) throws {
@@ -133,6 +150,18 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         includeInSearch = try container.decodeIfPresent(Bool.self, forKey: .includeInSearch) ?? true
         includeInSitemap = try container.decodeIfPresent(Bool.self, forKey: .includeInSitemap) ?? true
         backgroundOverride = try container.decodeIfPresent(String.self, forKey: .backgroundOverride)
+        themeOverride = try container.decodeIfPresent(String.self, forKey: .themeOverride)
+        foregroundOverride = try container.decodeIfPresent(String.self, forKey: .foregroundOverride)
+        borderOverride = try container.decodeIfPresent(String.self, forKey: .borderOverride)
+        linksOverride = try container.decodeIfPresent(String.self, forKey: .linksOverride)
+        appearanceOverride = try container.decodeIfPresent(SiteAppearance.self, forKey: .appearanceOverride)
+    }
+
+    func themeClass(theme: Theme) -> String {
+        guard let themeOverride, themeOverride != "inherit",
+              let palette = BootstrapPaletteTheme.effectivePalette(themeOverride, in: theme),
+              let role = BootstrapPaletteTheme.nativeRole(palette) else { return "" }
+        return "theme-" + role
     }
 
     func backgroundColour(theme: Theme, appearance: SiteAppearance) -> String {
@@ -166,7 +195,12 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
             language: language,
             includeInSearch: includeInSearch,
             includeInSitemap: includeInSitemap,
-            backgroundOverride: backgroundOverride
+            backgroundOverride: backgroundOverride,
+            themeOverride: themeOverride,
+            foregroundOverride: foregroundOverride,
+            borderOverride: borderOverride,
+            linksOverride: linksOverride,
+            appearanceOverride: appearanceOverride
         )
     }
 }

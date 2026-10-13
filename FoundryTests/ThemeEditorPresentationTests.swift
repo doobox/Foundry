@@ -33,7 +33,7 @@ struct ThemeEditorPresentationTests {
         try FileManager.default.createDirectory(at: output, withIntermediateDirectories: true)
 
         let sections: [ThemeWindowSection] = [
-            .colors, .foreground, .background, .borders, .links, .screens, .fontFamily, .extensions
+            .colors, .foreground, .background, .borders, .links, .screens, .fontFamily, .prose
         ].filter {
             let requested = ProcessInfo.processInfo.environment["FOUNDRY_FRAMEWORK_UI_SECTION"]
             return requested == nil || $0.rawValue == requested

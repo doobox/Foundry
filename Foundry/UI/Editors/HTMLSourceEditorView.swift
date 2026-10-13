@@ -3,14 +3,19 @@ import SwiftUI
 struct HTMLSourceEditorView: View {
     private static let textSizeDefaultsKey = "htmlSourceEditorTextSize"
     private static let defaultTextSize = 13.0
+    private static let sectionDefaultsKey = "htmlSourceEditorSection"
 
-    @State private var html: AttributedString
-    @State private var css: AttributedString
-    @State private var javaScript: AttributedString
-    @State private var controls: AttributedString
+    @State private var html: String
+    @State private var css: String
+    @State private var javaScript: String
+    @State private var controls: String
+    @State private var pageCSS: String
+    @State private var siteCSS: String
+    @State private var pageJavaScript: String
     @State private var diagnostics: [PartPackageDiagnostic] = []
     @State private var pendingSource: HTMLPartSource?
     @State private var closeRequested = false
+    @State private var showingDiagnostics = false
     private let originalSource: HTMLPartSource
     private let supportsControls: Bool
     @State private var selection: HTMLSourceSection = .html
@@ -21,14 +26,16 @@ struct HTMLSourceEditorView: View {
 
     init(source: HTMLPartSource, cancel: @escaping () -> Void, save: @escaping (HTMLPartSource) -> Void) {
         originalSource = source
-        let storedTextSize = UserDefaults.standard.object(forKey: Self.textSizeDefaultsKey) as? Double
-            ?? Self.defaultTextSize
-        let fontSize = CGFloat(storedTextSize)
-        _html = State(initialValue: SourceSyntaxHighlighter.highlight(source.html, language: .html, fontSize: fontSize))
-        _css = State(initialValue: SourceSyntaxHighlighter.highlight(source.css, language: .css, fontSize: fontSize))
-        _javaScript = State(initialValue: SourceSyntaxHighlighter.highlight(source.javaScript, language: .javaScript, fontSize: fontSize))
-        _controls = State(initialValue: SourceSyntaxHighlighter.highlight(source.controls ?? "[]", language: .javaScript, fontSize: fontSize))
+        _html = State(initialValue: source.html)
+        _css = State(initialValue: source.css)
+        _javaScript = State(initialValue: source.javaScript)
+        _controls = State(initialValue: HTMLPartControlsEditorText.body(from: source.controls ?? "[]"))
+        _pageCSS = State(initialValue: source.pageCSS)
+        _siteCSS = State(initialValue: source.siteCSS)
+        _pageJavaScript = State(initialValue: source.pageJavaScript)
         supportsControls = source.controls != nil
+        let remembered = UserDefaults.standard.string(forKey: Self.sectionDefaultsKey).flatMap(HTMLSourceSection.init(rawValue:)) ?? .html
+        _selection = State(initialValue: source.controls != nil || remembered.isBasic ? remembered : .html)
         self.cancel = cancel
         self.save = save
     }
@@ -43,24 +50,14 @@ struct HTMLSourceEditorView: View {
                     css: $css,
                     javaScript: $javaScript,
                     controls: $controls,
+                    pageCSS: $pageCSS,
+                    siteCSS: $siteCSS,
+                    pageJavaScript: $pageJavaScript,
                     selection: selection,
                     textSize: CGFloat(textSize)
                 )
             }
             Divider()
-            if !diagnostics.isEmpty {
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 6) {
-                        ForEach(Array(diagnostics.enumerated()), id: \.offset) { _, diagnostic in
-                            Label("\(diagnostic.location): \(diagnostic.message)", systemImage: diagnostic.severity == .error ? "exclamationmark.circle" : "exclamationmark.triangle")
-                                .foregroundStyle(diagnostic.severity == .error ? Color.red : Color.orange)
-                        }
-                    }
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .padding(12)
-                }
-                .frame(maxHeight: 130)
-            }
             HStack {
                 ControlGroup {
                     Button {
@@ -90,7 +87,45 @@ struct HTMLSourceEditorView: View {
                 .controlGroupStyle(.navigation)
                 .fixedSize()
 
-                Spacer()
+                if let diagnostic = diagnostics.first {
+                    Button {
+                        showingDiagnostics = true
+                    } label: {
+                        Label(
+                            "\(diagnostic.location): \(diagnostic.message)"
+                                + (diagnostics.count > 1 ? " (+\(diagnostics.count - 1) more)" : ""),
+                            systemImage: diagnostic.severity == .error ? "exclamationmark.circle" : "exclamationmark.triangle"
+                        )
+                        .lineLimit(1)
+                        .foregroundStyle(diagnostic.severity == .error ? Color.red : Color.orange)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Show validation messages")
+                    .popover(isPresented: $showingDiagnostics) {
+                        ScrollView {
+                            VStack(alignment: .leading, spacing: 8) {
+                                ForEach(Array(diagnostics.enumerated()), id: \.offset) { _, item in
+                                    Label(
+                                        "\(item.location): \(item.message)",
+                                        systemImage: item.severity == .error ? "exclamationmark.circle" : "exclamationmark.triangle"
+                                    )
+                                    .foregroundStyle(item.severity == .error ? Color.red : Color.orange)
+                                    .frame(maxWidth: .infinity, alignment: .leading)
+                                }
+                            }
+                            .padding(16)
+                        }
+                        .frame(width: 520, height: CGFloat(min(260, 44 + diagnostics.count * 58)))
+                    }
+                } else if selection == .controls {
+                    Text("Enter controls or sections separated by commas, without outer brackets. Leave empty for no controls.")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .help("Enter controls or sections separated by commas, without outer brackets. Leave empty for no controls.")
+                }
+
+                Spacer(minLength: 8)
                 Button("Cancel", role: .cancel) { closeRequested = true }
                     .keyboardShortcut(.cancelAction)
                 Button(pendingSource == currentSource ? "Save with Warnings" : "Save", action: validateAndSave)
@@ -100,42 +135,38 @@ struct HTMLSourceEditorView: View {
         }
         .rememberedEditorSize("html", minimum: CGSize(width: 820, height: 560), defaultSize: CGSize(width: 980, height: 700))
         .editorCloseHandling(requested: $closeRequested, hasChanges: currentSource != originalSource, close: cancel)
-        .onChange(of: textSize) { _, newSize in
-            applyTextSize(CGFloat(newSize))
+        .onChange(of: selection) { _, section in
+            UserDefaults.standard.set(section.rawValue, forKey: Self.sectionDefaultsKey)
         }
     }
 
     private var currentSource: HTMLPartSource {
-        .init(html: String(html.characters), css: String(css.characters), javaScript: String(javaScript.characters), controls: supportsControls ? String(controls.characters) : nil)
+        .init(html: html, css: css, javaScript: javaScript, controls: supportsControls ? HTMLPartControlsEditorText.storedArray(from: controls) : nil,
+              pageCSS: pageCSS, siteCSS: siteCSS, pageJavaScript: pageJavaScript)
     }
 
     private func validateAndSave() {
         let source = currentSource
-        guard let declarations = source.controls else { save(source); return }
-        let compiled = HTMLPartPrototype.compile(html: source.html, css: source.css, javaScript: source.javaScript, controls: declarations)
+        guard source.controls != nil else { save(source); return }
+        let compiled = HTMLPartPrototype.compile(source: source)
         diagnostics = compiled.diagnostics
         guard compiled.definition != nil else { pendingSource = nil; return }
         if diagnostics.isEmpty || pendingSource == source { save(source) }
         else { pendingSource = source }
     }
 
-    private func applyTextSize(_ fontSize: CGFloat) {
-        html = SourceSyntaxHighlighter.highlight(String(html.characters), language: .html, fontSize: fontSize)
-        css = SourceSyntaxHighlighter.highlight(String(css.characters), language: .css, fontSize: fontSize)
-        javaScript = SourceSyntaxHighlighter.highlight(
-            String(javaScript.characters),
-            language: .javaScript,
-            fontSize: fontSize
-        )
-        controls = SourceSyntaxHighlighter.highlight(String(controls.characters), language: .javaScript, fontSize: fontSize)
-    }
 }
 
 private enum HTMLSourceSection: String, CaseIterable, Identifiable {
     case html = "HTML"
-    case css = "CSS"
-    case javaScript = "JS"
     case controls = "Controls"
+    case css = "Instance CSS"
+    case pageCSS = "Page CSS"
+    case siteCSS = "Site CSS"
+    case javaScript = "Instance JavaScript"
+    case pageJavaScript = "Page JavaScript"
+
+    var isBasic: Bool { self == .html || self == .css || self == .javaScript }
 
     var id: Self { self }
 }
@@ -152,7 +183,7 @@ private struct HTMLSourceSidebar: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 18)
             VStack(spacing: 4) {
-                ForEach(HTMLSourceSection.allCases.filter { supportsControls || $0 != .controls }) { section in
+                ForEach(HTMLSourceSection.allCases.filter { supportsControls || $0.isBasic }) { section in
                     Button {
                         selection = section
                     } label: {
@@ -175,31 +206,39 @@ private struct HTMLSourceSidebar: View {
 }
 
 private struct HTMLSourceCodeEditor: View {
-    @Binding var html: AttributedString
-    @Binding var css: AttributedString
-    @Binding var javaScript: AttributedString
-    @Binding var controls: AttributedString
+    @Binding var html: String
+    @Binding var css: String
+    @Binding var javaScript: String
+    @Binding var controls: String
+    @Binding var pageCSS: String
+    @Binding var siteCSS: String
+    @Binding var pageJavaScript: String
     let selection: HTMLSourceSection
     let textSize: CGFloat
 
     var body: some View {
+        FoundryCodeEditor(text: selectedText, language: selectedLanguage, fontSize: textSize)
+            .id(selection)
+    }
+
+    private var selectedText: Binding<String> {
         switch selection {
-        case .html: editor(text: $html, language: .html)
-        case .css: editor(text: $css, language: .css)
-        case .javaScript: editor(text: $javaScript, language: .javaScript)
-        case .controls:
-            VStack(alignment: .leading, spacing: 0) {
-                Text("Declare Inspector controls and groups using a manifest’s inspector array. Leave [] for no controls.")
-                    .font(.callout)
-                    .foregroundStyle(.secondary)
-                    .padding(12)
-                editor(text: $controls, language: .javaScript)
-            }
+        case .html: $html
+        case .controls: $controls
+        case .css: $css
+        case .pageCSS: $pageCSS
+        case .siteCSS: $siteCSS
+        case .javaScript: $javaScript
+        case .pageJavaScript: $pageJavaScript
         }
     }
 
-    private func editor(text: Binding<AttributedString>, language: SourceCodeLanguage) -> some View {
-        HighlightedCodeEditor(text: text, language: language, fontSize: textSize)
-            .padding(12)
+    private var selectedLanguage: FoundryCodeLanguage {
+        switch selection {
+        case .html: .html
+        case .controls: .json
+        case .css, .pageCSS, .siteCSS: .css
+        case .javaScript, .pageJavaScript: .javaScript
+        }
     }
 }

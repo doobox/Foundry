@@ -125,35 +125,15 @@ nonisolated struct PartPackageControlSection: Codable, Equatable, Sendable {
     }
 }
 
-/// A part's library artwork: one square glyph — an SVG or an SF Symbol —
-/// with independent appearance-aware tile, glyph and Structure colours.
+/// A monochrome glyph; Foundry supplies colours from the part's group.
 nonisolated struct PartPackageIcon: Codable, Equatable, Sendable {
     let file: String?
     let symbol: String?
-    let background: PartIconColour?
-    let foreground: PartIconColour?
-    let structure: PartIconColour?
-    let rendering: String?
 
-    init(file: String? = nil, symbol: String? = nil, background: PartIconColour? = nil, foreground: PartIconColour? = nil, structure: PartIconColour? = nil, rendering: String? = nil) {
+    init(file: String? = nil, symbol: String? = nil) {
         self.file = file
         self.symbol = symbol
-        self.background = background
-        self.foreground = foreground
-        self.structure = structure
-        self.rendering = rendering
     }
-
-    /// Unknown renderings use a monochrome glyph.
-    var resolvedRendering: PartIconRendering {
-        rendering.flatMap(PartIconRendering.init(rawValue:)) ?? .monochrome
-    }
-}
-
-/// How an icon's glyph is drawn. Original applies to SVG files, which then
-/// draw as authored; everything else uses the foreground colour.
-nonisolated enum PartIconRendering: String, Codable, CaseIterable, Sendable {
-    case monochrome, original
 }
 
 nonisolated struct PartPackageManifest: Codable, Equatable, Sendable {
@@ -1136,11 +1116,16 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
 
         let defaults = try container.decodeIfPresent([String: PartPackageValue].self, forKey: .defaultValue)
         if let defaults {
-            guard defaults["base"] != nil else { throw DecodingError.dataCorruptedError(forKey: .defaultValue, in: container, debugDescription: "defaults.base is required") }
-            breakpointDefaults = defaults.filter { $0.key != "base" }
+            guard defaults["xs"] != nil || control.type == .space else { throw DecodingError.dataCorruptedError(forKey: .defaultValue, in: container, debugDescription: "defaults.xs is required") }
+            for (name, value) in defaults where name != "xs" {
+                guard let breakpoint = ResponsiveBreakpoint(manifestKey: name), breakpoint != .mobile else {
+                    throw DecodingError.dataCorruptedError(forKey: .defaultValue, in: container, debugDescription: "Unknown breakpoint default \(name)")
+                }
+                breakpointDefaults[breakpoint.manifestKey] = value
+            }
         }
         if control.type == .divider || control.type == .spacer || control.type == .note || control.type == .image || control.type == .svg || control.type == .video || control.type == .math || control.type == .childPicker {
-            defaultValue = defaults?["base"] ?? .string("")
+            defaultValue = defaults?["xs"] ?? .string("")
             if control.type == .video {
                 responsive = false
             } else {
@@ -1149,8 +1134,8 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
                     : try container.decodeIfPresent(Bool.self, forKey: .responsive) ?? false
             }
         } else {
-            let implicitDefault: PartPackageValue? = control.type.isColourPicker ? .string("inherit") : nil
-            guard let base = defaults?["base"] ?? implicitDefault else { throw DecodingError.keyNotFound(CodingKeys.defaultValue, .init(codingPath: decoder.codingPath, debugDescription: "defaults.base is required")) }
+            let implicitDefault: PartPackageValue? = control.type.isColourPicker || control.type == .space ? .string("inherit") : nil
+            guard let base = defaults?["xs"] ?? implicitDefault else { throw DecodingError.keyNotFound(CodingKeys.defaultValue, .init(codingPath: decoder.codingPath, debugDescription: "defaults.xs is required")) }
             defaultValue = base
             responsive = try container.decodeIfPresent(Bool.self, forKey: .responsive) ?? false
         }
@@ -1178,7 +1163,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
             try container.encodeIfPresent(noteSystemImage, forKey: .systemImage)
         }
         if ![.note, .divider, .spacer, .math, .childPicker].contains(control.type) {
-            try container.encode(breakpointDefaults.merging(["base": defaultValue]) { _, base in base }, forKey: .defaultValue)
+            try container.encode(breakpointDefaults.merging(["xs": defaultValue]) { _, base in base }, forKey: .defaultValue)
             if control.type != .video {
                 try container.encode(responsive, forKey: .responsive)
             }
@@ -1362,6 +1347,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         case fontStyle
         case icon
         case select
+        case space
         case link
         case toggle
         case textAlignment
@@ -1404,6 +1390,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
     }
 
     let type: Kind
+    let axis: String?
     let font: String?
     let showsFamily: Bool?
     let showsWeight: Bool?
@@ -1458,7 +1445,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         case showsFamily, showsWeight, showsStyle, showsSize
         case opacity, outputFormat, colourSections, count, ticks, editableValue
         case trueValue, falseValue, selectionMode, argument1, argument2, operation, round, absoluteURL, presentation, linked
-        case height
+        case height, axis
         case tickLabels, valueLabels, minimumLabel, maximumLabel, neutralValue
     }
 
@@ -1476,6 +1463,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         showsStyle: Bool? = nil
     ) {
         self.type = type
+        axis = nil
         font = nil
         showsFamily = nil
         showsWeight = nil
@@ -1520,6 +1508,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
         type = try container.decode(Kind.self, forKey: .type)
+        axis = try container.decodeIfPresent(String.self, forKey: .axis)
         font = try container.decodeIfPresent(String.self, forKey: .font)
         showsFamily = try container.decodeIfPresent(Bool.self, forKey: .showsFamily)
         showsWeight = try container.decodeIfPresent(Bool.self, forKey: .showsWeight)
@@ -1568,6 +1557,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
     func encode(to encoder: Encoder) throws {
         var container = encoder.container(keyedBy: CodingKeys.self)
         try container.encode(type, forKey: .type)
+        try container.encodeIfPresent(axis, forKey: .axis)
         try container.encodeIfPresent(font, forKey: .font)
         try container.encodeIfPresent(showsFamily, forKey: .showsFamily)
         try container.encodeIfPresent(showsWeight, forKey: .showsWeight)

@@ -30,11 +30,16 @@ Keep only essential content, behaviour, accessibility and native Bootstrap
 options. Remove legacy styling control groups; add extra capabilities back
 progressively when Gary requests them.
 
-## Bootstrap ships untouched; Foundry adds plain CSS
+## Bootstrap uses the official distribution
 
-The bundled Bootstrap CSS and JS are byte-for-byte the official npm release,
-pinned by checksum in `BootstrapBundledLibraryTests`. There is no Sass, Node or
-npm step; update Bootstrap with `tools/bootstrap/update.sh <version>`.
+The bundled CSS and JavaScript are the official npm release, pinned in
+`BootstrapBundledLibraryTests`. Use native spacing steps 0–12; the Space control
+offers custom lengths starting at 3.5 rem instead of extending the global scale.
+The sibling `../bootstrap` checkout is retained for future experiments, but its
+build is not installed into Foundry. `sh tools/bootstrap/build-foundry.sh` only
+builds that experimental output in the sibling checkout.
+Sass, Node and npm never run during preview or publishing.
+`tools/bootstrap/update.sh <version>` updates the official bundled files.
 Bootstrap's utility scales (spacing steps, text sizes, weights, numbered radii and
 border widths, numeric z-index) are fixed because Bootstrap bakes them into its
 utilities. The theme editor shows Colours, Fonts and Extensions.
@@ -49,6 +54,10 @@ responsive text and wrapping variants and container caps come from
 App code is split into `Foundry/App`, `Foundry/Core` (models, editing, Bootstrap, part packages, rendering, services; no views) and `Foundry/UI` (views only, grouped by screen area). See "Source layout" in `ARCHITECTURE.md` before adding or moving files. Put each new type in the folder for its layer, one main type per file.
 
 ## Built-in inspector order
+
+Part-specific sections come first. Reusable control groups such as Background
+belong in their own sections below the part-specific sections, not inside them.
+Advanced is always the final inspector group.
 
 Keep shared sections in this relative order, omitting those a part does not use:
 Content (including source/icon controls), Action, Appearance, Layout (including

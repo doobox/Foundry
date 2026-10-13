@@ -119,8 +119,8 @@ struct EditorSheetSizePersistence: NSViewRepresentable {
 
         static func availableFrame(parent: CGRect?, screen: CGRect) -> CGRect {
             let bounds = parent?.intersection(screen) ?? screen
-            guard !bounds.isNull, bounds.width > 40, bounds.height > 40 else { return .null }
-            return bounds.insetBy(dx: 20, dy: 20)
+            guard !bounds.isNull, bounds.width > 0, bounds.height > 0 else { return .null }
+            return bounds
         }
 
         @objc private func save() {

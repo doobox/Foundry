@@ -58,4 +58,19 @@ nonisolated extension ColourPalette {
         let source = origin == .custom ? colourKind.sourceTokens : BootstrapColourCatalogue.tokens(for: BootstrapPaletteTheme.definitionRole(self))
         return source.map(colourToken)
     }
+    var pickerLabel: String {
+        guard origin == .custom, let role = BootstrapPaletteTheme.nativeRole(self) else { return name }
+        return "theme-" + role
+    }
+    func publicUtilityClass(for source: String) -> String? {
+        guard origin == .custom, BootstrapPaletteTheme.validCustomRole(name),
+              colourKind.sourceTokens.contains(source) else { return nil }
+        switch colourKind {
+        case .theme: return nil
+        case .surface: return "bg-\(name)-\(source.dropFirst("bg-".count))"
+        case .foreground: return "fg-\(name)-\(source.dropFirst("fg-".count))"
+        case .border: return "border-\(name)-\(source.dropFirst("border-".count))"
+        case .link: return source == "link-color" ? "link-\(name)" : "link-\(name)-hover"
+        }
+    }
 }

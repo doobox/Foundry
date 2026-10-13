@@ -2,7 +2,7 @@
   "controls": [
     {
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "id": "backgroundMode",
       "label": "Type",
@@ -30,7 +30,7 @@
       "type": "select",
       "responsive": false,
       "defaults": {
-        "base": "self"
+        "xs": "self"
       },
       "options": [
         {
@@ -57,7 +57,7 @@
       "type": "text",
       "responsive": false,
       "defaults": {
-        "base": ""
+        "xs": ""
       },
       "visibleWhen": {
         "all": [
@@ -75,7 +75,7 @@
     },
     {
       "defaults": {
-        "base": "normal"
+        "xs": "normal"
       },
       "id": "backgroundState",
       "label": "State",
@@ -100,7 +100,7 @@
     },
     {
       "defaults": {
-        "base": "color"
+        "xs": "color"
       },
       "id": "backgroundStyle",
       "label": "Style",
@@ -152,7 +152,7 @@
     },
     {
       "defaults": {
-        "base": "framework.primary"
+        "xs": "framework.primary"
       },
       "id": "backgroundColor",
       "label": "Colour",
@@ -192,7 +192,7 @@
       "id": "backgroundColorVariant",
       "label": "Surface",
       "defaults": {
-        "base": "bg"
+        "xs": "bg"
       },
       "options": [
         {
@@ -247,7 +247,7 @@
       "label": "Opacity (%)",
       "step": 10,
       "defaults": {
-        "base": 100
+        "xs": 100
       },
       "visibleWhen": {
         "all": [
@@ -283,7 +283,7 @@
     },
     {
       "defaults": {
-        "base": ""
+        "xs": ""
       },
       "id": "backgroundImage",
       "label": "Image",
@@ -321,7 +321,7 @@
     },
     {
       "defaults": {
-        "base": "cover"
+        "xs": "cover"
       },
       "id": "backgroundSize",
       "label": "Size",
@@ -372,7 +372,7 @@
     },
     {
       "defaults": {
-        "base": "no-repeat"
+        "xs": "no-repeat"
       },
       "id": "backgroundRepeat",
       "label": "Repeat",
@@ -435,7 +435,7 @@
     },
     {
       "defaults": {
-        "base": "linear"
+        "xs": "linear"
       },
       "id": "backgroundGradientType",
       "label": "Type",
@@ -487,7 +487,7 @@
     },
     {
       "defaults": {
-        "base": "to bottom"
+        "xs": "to bottom"
       },
       "id": "backgroundGradientDirection",
       "label": "Direction",
@@ -562,7 +562,7 @@
     },
     {
       "defaults": {
-        "base": "framework.primary"
+        "xs": "framework.primary"
       },
       "id": "backgroundGradientFrom",
       "label": "From colour",
@@ -603,7 +603,7 @@
       "label": "Opacity (%)",
       "step": 10,
       "defaults": {
-        "base": 100
+        "xs": 100
       },
       "visibleWhen": {
         "all": [
@@ -639,7 +639,7 @@
     },
     {
       "defaults": {
-        "base": 0
+        "xs": 0
       },
       "id": "backgroundGradientFromPosition",
       "label": "From position",
@@ -680,7 +680,7 @@
     },
     {
       "defaults": {
-        "base": "framework.accent"
+        "xs": "framework.accent"
       },
       "id": "backgroundGradientTo",
       "label": "To colour",
@@ -721,7 +721,7 @@
       "label": "Opacity (%)",
       "step": 10,
       "defaults": {
-        "base": 100
+        "xs": 100
       },
       "visibleWhen": {
         "all": [
@@ -757,7 +757,7 @@
     },
     {
       "defaults": {
-        "base": 100
+        "xs": 100
       },
       "id": "backgroundGradientToPosition",
       "label": "To position",
@@ -798,7 +798,7 @@
     },
     {
       "defaults": {
-        "base": ""
+        "xs": ""
       },
       "id": "backgroundVideo",
       "label": "Video",
@@ -819,7 +819,7 @@
     },
     {
       "defaults": {
-        "base": true
+        "xs": true
       },
       "id": "backgroundVideoLoop",
       "label": "Loop",
@@ -841,7 +841,7 @@
     },
     {
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "id": "backgroundHoverStyle",
       "label": "Style",
@@ -880,7 +880,7 @@
     },
     {
       "defaults": {
-        "base": "framework.primary"
+        "xs": "framework.primary"
       },
       "id": "backgroundHoverColor",
       "label": "Colour",
@@ -908,7 +908,7 @@
       "id": "backgroundHoverColorVariant",
       "label": "Surface",
       "defaults": {
-        "base": "bg"
+        "xs": "bg"
       },
       "options": [
         {
@@ -951,7 +951,7 @@
       "label": "Opacity (%)",
       "step": 10,
       "defaults": {
-        "base": 100
+        "xs": 100
       },
       "visibleWhen": {
         "all": [
@@ -975,7 +975,7 @@
     },
     {
       "defaults": {
-        "base": ""
+        "xs": ""
       },
       "id": "backgroundHoverImage",
       "label": "Image",
@@ -1001,7 +1001,7 @@
     },
     {
       "defaults": {
-        "base": "cover"
+        "xs": "cover"
       },
       "id": "backgroundHoverSize",
       "label": "Size",
@@ -1040,7 +1040,7 @@
     },
     {
       "defaults": {
-        "base": "no-repeat"
+        "xs": "no-repeat"
       },
       "id": "backgroundHoverRepeat",
       "label": "Repeat",
@@ -1091,7 +1091,7 @@
     },
     {
       "defaults": {
-        "base": "linear"
+        "xs": "linear"
       },
       "id": "backgroundHoverGradientType",
       "label": "Type",
@@ -1131,7 +1131,7 @@
     },
     {
       "defaults": {
-        "base": "to bottom"
+        "xs": "to bottom"
       },
       "id": "backgroundHoverGradientDirection",
       "label": "Direction",
@@ -1194,7 +1194,7 @@
     },
     {
       "defaults": {
-        "base": "framework.primary"
+        "xs": "framework.primary"
       },
       "id": "backgroundHoverGradientFrom",
       "label": "From colour",
@@ -1223,7 +1223,7 @@
       "label": "Opacity (%)",
       "step": 10,
       "defaults": {
-        "base": 100
+        "xs": 100
       },
       "visibleWhen": {
         "all": [
@@ -1247,7 +1247,7 @@
     },
     {
       "defaults": {
-        "base": 0
+        "xs": 0
       },
       "id": "backgroundHoverGradientFromPosition",
       "label": "From position",
@@ -1276,7 +1276,7 @@
     },
     {
       "defaults": {
-        "base": "framework.accent"
+        "xs": "framework.accent"
       },
       "id": "backgroundHoverGradientTo",
       "label": "To colour",
@@ -1305,7 +1305,7 @@
       "label": "Opacity (%)",
       "step": 10,
       "defaults": {
-        "base": 100
+        "xs": 100
       },
       "visibleWhen": {
         "all": [
@@ -1329,7 +1329,7 @@
     },
     {
       "defaults": {
-        "base": 100
+        "xs": 100
       },
       "id": "backgroundHoverGradientToPosition",
       "label": "To position",
@@ -1363,7 +1363,7 @@
       "presentation": "switch",
       "responsive": true,
       "defaults": {
-        "base": false
+        "xs": false
       },
       "visibleWhen": {
         "any": [
@@ -1416,7 +1416,7 @@
       "label": "Overlay colour",
       "responsive": false,
       "defaults": {
-        "base": "token:black"
+        "xs": "token:black"
       },
       "visibleWhen": {
         "all": [
@@ -1477,7 +1477,7 @@
       "label": "Overlay opacity (%)",
       "step": 10,
       "defaults": {
-        "base": 20
+        "xs": 20
       },
       "visibleWhen": {
         "all": [

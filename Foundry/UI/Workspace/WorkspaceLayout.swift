@@ -49,7 +49,7 @@ nonisolated enum WorkspacePanel: String, Codable, CaseIterable, Identifiable, Se
         case .globalParts: "globe"
         case .structure: "list.bullet.indent"
         case .assets: "folder"
-        case .developer: "terminal"
+        case .developer: "ant"
         case .canvas: "macwindow"
         case .inspector: "info.circle"
         }

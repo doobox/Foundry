@@ -25,7 +25,7 @@ struct PaletteShadePickerTests {
     @Test(.timeLimit(.minutes(1)), arguments: [PartTemplateEnvironment.canvas, .preview, .published])
     func paletteSelectionsRenderThroughControls(environment: PartTemplateEnvironment) async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
-        let controls = #"[{"type":"backgroundColor","id":"paint","colourSections":["palettes"],"defaults":{"base":"token:blue-500"}},{"type":"foreground","id":"ink","colourSections":["palettes"]}]"#
+        let controls = #"[{"type":"backgroundColor","id":"paint","colourSections":["palettes"],"defaults":{"xs":"token:blue-500"}},{"type":"foreground","id":"ink","colourSections":["palettes"]}]"#
         let html = #"<p class="{{ part.class }} {{ control.ink.classes }}" {{ part.attributes }} data-selection="{{ control.paint }}">Palette</p>"#
         let compiled = HTMLPartPrototype.compile(html: html, css: "", javaScript: "", controls: controls)
         try #require(compiled.definition != nil, "\(compiled.diagnostics)")

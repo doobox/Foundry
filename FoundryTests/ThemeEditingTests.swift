@@ -152,7 +152,7 @@ struct ThemeEditingTests {
     }
 
     @Test
-    func newThemeStartsFromBundledSystemUI() throws {
+    func newThemeStartsFromBundledBootstrapBase() throws {
         let template = try #require(ThemeBundleStore.builtInThemes().first { $0.id == ThemeBundleStore.systemThemeID })
         let destination = FileManager.default.temporaryDirectory.appending(path: "\(UUID().uuidString).foundryframework")
         defer { try? FileManager.default.removeItem(at: destination) }
@@ -694,13 +694,13 @@ struct ThemeEditingTests {
     }
 
     @Test
-    func systemUIThemeLoadsFromTheBuiltInThemeBundle() throws {
+    func bootstrapBaseThemeLoadsFromTheBuiltInThemeBundle() throws {
         let systemTheme = try #require(
             ThemeBundleStore.builtInThemes().first(where: { $0.id == ThemeBundleStore.systemThemeID })
         )
 
         #expect(systemTheme.isBuiltIn)
-        #expect(systemTheme.metadata.name == "System UI")
+        #expect(systemTheme.metadata.name == "Bootstrap Base")
         #expect(systemTheme.theme == ThemeBundleStore.systemTheme)
     }
 

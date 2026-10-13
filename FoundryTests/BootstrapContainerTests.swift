@@ -5,74 +5,23 @@ import WebKit
 @MainActor
 struct BootstrapContainerTests {
     @Test(.timeLimit(.minutes(1)), arguments: ["canvas", "preview", "export"])
-    func spacingGroupUsesNativeResponsiveUtilities(destination: String) async throws {
-        await PartPackageCatalog.shared.waitUntilLoaded()
-        var node = PartNode.make(.container)
-        node.anchor = "spacing-test"
-        let horizontal = PartProperty.Key(rawValue: "spacing.padding")
-        var padding = ThemePaddingValue()
-        padding.setAll(.init(token: "3"))
-        padding.set(.init(token: "2"), for: .left)
-        padding.set(.init(token: "2"), for: .right)
-        node.setProperty(horizontal, value: .themePadding(padding))
-        padding.togglePair(using: .left)
-        padding.set(.init(token: "5"), for: .left)
-        #expect(padding.value(for: .right).token == "5")
-        node.setResponsiveProperty(horizontal, value: .themePadding(padding), at: .medium)
-        padding.set(.init(token: "12"), for: .left)
-        node.setResponsiveProperty(horizontal, value: .themePadding(padding), at: .extraLarge)
-        var margin = ThemeMarginValue()
-        margin.setAll(.init(token: "none"))
-        margin.set(.init(token: "hero"), for: .top)
-        margin.set(.init(token: "hero"), for: .bottom)
-        node.setProperty(.init(rawValue: "spacing.margin"), value: .themeMargin(margin))
-        var theme = Theme.standard
-        theme.spacing.custom = [.init(name: "hero", value: 6)]
-        #expect(BootstrapSpacingClasses.resolve(node: node.resolved(at: .medium), key: horizontal, screens: theme.screens) == "py-3 px-2 md:py-3 md:px-5")
-        var allScreens = theme.screens
-        allScreens.update(.extraLarge) { $0.isEnabled = true }
-        #expect(BootstrapSpacingClasses.resolve(node: node, key: horizontal, screens: allScreens)?.contains("xl:px-12") == true)
-        let page = Page(title: "Spacing", slug: "index", parts: [node])
-        let html: String
-        if destination == "canvas" {
-            html = HTMLPageRenderer().render(page: page, theme: theme)
-        } else {
-            var site = Site(name: "Spacing", pages: [page])
-            site.theme = theme
-            let bundle = StaticSiteRenderer(environment: destination == "preview" ? .preview : .published).render(site: site)
-            #expect(bundle.errors.isEmpty)
-            let output = try #require(bundle.file(at: "index.html"))
-            #expect(output.contents.contains("data-foundry-") == false)
-            let css = bundle.files.filter { $0.path.hasSuffix(".css") }.map(\.contents).joined(separator: "\n")
-            html = output.contents.replacingOccurrences(of: "</head>", with: "<style>\(css)</style></head>")
-        }
-        let view = WKWebView(frame: CGRect(x: 0, y: 0, width: 375, height: 600))
-        defer { view.stopLoading() }
-        view.loadHTMLString(html, baseURL: nil)
-        for _ in 0..<200 {
-            if (try? await view.evaluateJavaScript("document.readyState === 'complete' && !!document.getElementById('spacing-test')")) as? Bool == true { break }
-            try await Task.sleep(for: .milliseconds(25))
-        }
-        for width in [375, 768, 1400] {
-            view.setFrameSize(CGSize(width: width, height: 600))
-            for _ in 0..<100 {
-                if (try? await view.evaluateJavaScript("innerWidth === \(width)")) as? Bool == true { break }
-                try await Task.sleep(for: .milliseconds(10))
-            }
-            let values = try #require(try await view.evaluateJavaScript("(() => { const e=document.getElementById('spacing-test'), s=getComputedStyle(e), rem=parseFloat(getComputedStyle(document.documentElement).fontSize); return [parseFloat(s.paddingLeft)/rem,parseFloat(s.paddingTop)/rem,parseFloat(s.marginTop)/rem]; })()") as? [Double])
-            #expect(values == [(width < 768 ? 0.375 : 1), 0.5, 6], "\(destination) at \(width)")
-        }
-    }
-
-    @Test(.timeLimit(.minutes(1)), arguments: ["canvas", "preview", "export"])
     func nativeWidthsAndGuttersAtBreakpointBoundaries(destination: String) async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
+        let propertyIDs = PartNode.make(.container).definition.properties.map(\.key.rawValue)
+        #expect(propertyIDs.contains("background.backgroundMode"))
+        #expect(propertyIDs.contains("width"))
+        #expect(propertyIDs.contains("contentSpacing"))
+        #expect(propertyIDs.contains("theme") == false)
         let classes = ["container", "container-fluid", "sm:container", "md:container", "lg:container", "xl:container", "2xl:container"]
         let containers = classes.enumerated().map { index, value in
             var container = PartNode.make(.container)
             container.anchor = "sample-\(index)"
             container.setProperty(.init(rawValue: "width"), value: .choice(value))
-            container.children = [PartNode.make(.button)]
+            container.setProperty(.init(rawValue: "theme"), value: .choice("theme-danger"))
+            container.setProperty(.init(rawValue: "background.backgroundMode"), value: .choice("static"))
+            container.setProperty(.init(rawValue: "background.backgroundColor"), value: .choice("token:black"))
+            if index > 0 { container.setProperty(.init(rawValue: "contentSpacing"), value: .choice("space-y-24")) }
+            container.children = [PartNode.make(.container), PartNode.make(.button)]
             return container
         }
         let page = Page(title: "Containers", slug: "index", parts: containers)
@@ -86,6 +35,8 @@ struct BootstrapContainerTests {
             let bundle = StaticSiteRenderer(environment: destination == "preview" ? .preview : .published).render(site: site)
             #expect(bundle.errors.isEmpty)
             let output = try #require(bundle.file(at: "index.html"))
+            #expect(bundle.file(at: FoundryWebLibraryRegistry.bootstrapStylesheetPath) != nil)
+            #expect(output.contents.contains("bootstrap-extensions.css") == false)
             #expect(output.contents.contains("data-foundry-") == false)
             let css = bundle.files.filter { $0.path.hasSuffix(".css") }.map(\.contents).joined(separator: "\n")
             html = output.contents.replacingOccurrences(of: "</head>", with: "<style>\(css)</style></head>")
@@ -120,13 +71,24 @@ struct BootstrapContainerTests {
                         for (const direction of ['ltr','rtl']) {
                             document.documentElement.dir = direction;
                             classes.forEach((value,index) => {
-                                const element = document.getElementById('sample-'+index);
+                                const wrapper = document.getElementById('sample-'+index);
+                                const element = wrapper.firstElementChild;
+                                if (!wrapper.classList.contains('w-100')) errors.push('Missing full-width wrapper '+value);
+                                if (wrapper.classList.contains(value)) errors.push('Container width applied to wrapper '+value);
+                                if (Math.abs(wrapper.getBoundingClientRect().width-wrapper.parentElement.clientWidth)>1) errors.push('Wrapper not full width '+value);
                                 if (!element.classList.contains(value)) errors.push('Missing class '+value);
+                                if (Array.from(element.classList).some(name => /^space-y-[0-9a-f]{24}$/.test(name)) !== (index > 0)) errors.push('Wrong spacing class '+value);
+                                const spacing = parseFloat(getComputedStyle(element.firstElementChild).marginBottom);
+                                const expectedSpacing = index > 0 ? 16*parseFloat(getComputedStyle(document.documentElement).fontSize) : 0;
+                                if (Math.abs(spacing-expectedSpacing)>0.1) errors.push('Wrong child spacing '+value+': '+spacing);
                                 if (element.querySelectorAll('a.btn').length !== 1) errors.push('Missing child '+value);
                                 const reference = document.createElement('div');
                                 reference.className = value;
                                 element.parentElement.append(reference);
                                 const actual = getComputedStyle(element), expected = getComputedStyle(reference);
+                                if (getComputedStyle(wrapper).backgroundColor !== 'rgb(0, 0, 0)') errors.push('Background not on wrapper '+value);
+                                if (actual.backgroundColor !== 'rgba(0, 0, 0, 0)') errors.push('Inner container paints background '+value);
+                                if (wrapper.classList.contains('theme-danger')) errors.push('Removed theme control still applied '+value);
                                 for (const key of ['width','maxWidth','paddingLeft','paddingRight','marginLeft','marginRight']) {
                                     if (actual[key] !== expected[key]) errors.push(value+'/'+key+': '+actual[key]+' != '+expected[key]);
                                 }

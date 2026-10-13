@@ -53,8 +53,7 @@ nonisolated struct PartColourToken: Identifiable {
         guard let palette = palettes.first(where: { $0.origin == .custom && $0.colourTokens.contains(token) }) else {
             return linksOnly && token == "link-color" ? "Default links" : token
         }
-        if linksOnly { return palette.name }
-        let suffix = String(token.dropFirst(palette.customTokenPrefix.count))
-        return palette.name + " · " + (suffix == "link-color" ? "Link" : suffix == "link-hover-color" ? "Link hover" : suffix)
+        let source = palette.colourKind.sourceTokens.first { palette.colourToken($0) == token }
+        return source.flatMap { palette.publicUtilityClass(for: $0) } ?? palette.name
     }
 }

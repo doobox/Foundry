@@ -13,7 +13,7 @@ struct CanvasPasteLatencyTests {
         let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data("""
         {"minimumAPIVersion":1,"id":"test.paste.\(UUID().uuidString.lowercased())","title":"Paste",
          "version":"1.0.0","group":"Layout","description":"Test",
-         "inspector":[{"type":"number","id":"width","responsive":true,"defaults":{"base":100}}],
+         "inspector":[{"type":"number","id":"width","responsive":true,"defaults":{"xs":100}}],
          "templates":{"html":"part.html"}}
         """.utf8))
         return LoadedPartPackage(manifest: manifest, rootURL: URL(fileURLWithPath: "/tmp/paste-fixture"),

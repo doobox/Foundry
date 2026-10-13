@@ -7,8 +7,7 @@
   "description": "Arrange child parts in Bootstrap flex rows or columns.",
   "group": "Layout",
   "icon": {
-    "file": "flex.svg",
-    "background": { "light": "#007AFF", "dark": "#0A84FF" }
+    "file": "flex.svg"
   },
   "tags": [
     "Bootstrap",
@@ -16,12 +15,6 @@
     "flex"
   ],
   "assets": [],
-  "libraries": [
-    {
-      "id": "bootstrap",
-      "majorVersion": 6
-    }
-  ],
   "templates": {
     "html": "part.html"
   },

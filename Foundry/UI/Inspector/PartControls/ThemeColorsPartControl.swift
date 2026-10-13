@@ -14,7 +14,7 @@ struct ThemeColorsPartControl: View {
     private var selectionTitle: String {
         if selection == "inherit" { return "Inherit" }
         if let token = PartColourToken.parse(selection) { return PartColourToken.label(token.id, palettes: palettes, linksOnly: linksOnly) }
-        return palette?.name ?? "Missing Colour"
+        return palette?.pickerLabel ?? "Missing Colour"
     }
     private var previewCSS: String {
         BootstrapColorCSS.canvas(theme: theme, appearance: appearance) + BootstrapThemeCSS.render(theme: theme)

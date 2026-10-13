@@ -9,7 +9,7 @@
       "label": "Gap",
       "responsive": true,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       }
     },
     {
@@ -18,7 +18,7 @@
       "label": "Row gap",
       "responsive": true,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       }
     },
     {
@@ -27,7 +27,7 @@
       "label": "Column gap",
       "responsive": true,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       }
     }
   ]

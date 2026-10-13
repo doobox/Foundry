@@ -12,7 +12,11 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     /// template context per part instance, so they are memoized per page.
     private func navigationValues(for page: Page, in site: Site) -> [String: PartPackageValue] {
         navigationValuesCache.values(for: page.id) {
-            PartNavigationTemplateValues.values(site: site, currentPage: page)
+            let depth = Self.outputPath(for: page, in: site).split(separator: "/").count - 1
+            return PartNavigationTemplateValues.values(
+                site: site, currentPage: page,
+                rootPrefix: depth == 0 ? "./" : String(repeating: "../", count: depth)
+            )
         }
     }
 
@@ -61,6 +65,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         }
         var sitePackages: [LoadedPartPackage] = []
         var sitePackageIdentifiers = Set<String>()
+        // On-demand preview plans shared resources before it renders any page.
+        // These files are served only when a code page links to them.
+        var includesMarkdownCode = environment == .preview && pageIDs?.isEmpty == true
         stageTiming("setup", stageStart.duration(to: .now))
         stageStart = .now
         for page in site.pages {
@@ -72,6 +79,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             }
             if let pageIDs, !pageIDs.contains(page.id) { continue }
             if let files = reusingPages[page.id] {
+                if files.contains(where: { ($0.path.hasSuffix(".html") || $0.path.hasSuffix(".php")) && $0.contents.contains("class=\"fd-markdown-code\"") }) {
+                    includesMarkdownCode = true
+                }
                 for file in files { try emit(file) }
                 pageOutput(page.id, files.map(\.path))
                 continue
@@ -112,7 +122,8 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     page: page,
                     language: site.language,
                     theme: site.theme,
-                    stylesheetPaths: [rootPrefix + "files/site.css", "files/page.css"],
+                    stylesheetPaths: FoundryWebLibraryRegistry.exportStylesheets(for: pagePackages, prefix: libraryPrefix)
+                        + [rootPrefix + "files/site.css", "files/page.css"],
                     scripts: scriptsBefore + (includesPageJavaScript ? [FoundryWebScript(path: "files/page.js")] : []) + scriptsAfter,
                     assetPrefix: rootPrefix + "assets",
                     packageAssetPrefix: documentPackageAssetPrefix,
@@ -130,6 +141,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     assets: assets
                 )
             )]
+            if pageFiles[0].contents.contains("class=\"fd-markdown-code\"") {
+                includesMarkdownCode = true
+            }
             if includesPageJavaScript {
                 pageFiles.append(SiteExportFile(
                     path: Self.joinedPath(pageFilesDirectory, "page.js"),
@@ -157,6 +171,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         try emit(.init(path: "files/site.css", contents: stylesheet(for: site, assets: assets)))
         stageTiming("sharedCSS", stageStart.duration(to: .now))
         stageStart = .now
+        if includesMarkdownCode {
+            for file in FoundryWebLibraryRegistry.markdownCodeExportFiles() { try emit(file) }
+        }
         for file in FoundryWebLibraryRegistry.exportFiles(for: sitePackages) { try emit(file) }
         for file in partAssetFiles(
             for: sitePackages,
@@ -276,6 +293,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
     private func render(page: Page, language: String, theme: Theme, stylesheetPaths: [String], scripts: [FoundryWebScript], assetPrefix: String, packageAssetPrefix: String, assets: ProjectAssetContents, site: Site, webIconPlan: WebIconExportPlan) -> String {
         let outputHooks = PublishedPartHooks(page: page, site: site)
         let body = page.parts.map { render($0, page: page, theme: theme, assetPrefix: assetPrefix, packageAssetPrefix: packageAssetPrefix, assets: assets, site: site, outputHooks: outputHooks) }.joined(separator: "\n")
+        let hasMarkdownCode = body.contains("class=\"fd-markdown-code\"")
         let pageTitle = page.metadata.browserTitle.isEmpty ? page.title : page.metadata.browserTitle
         let browserTitle = pageTitle + site.titleSuffix
         let metadata = metadataHTML(for: page, browserTitle: browserTitle, assetPrefix: assetPrefix, assets: assets, site: site, webIconPlan: webIconPlan)
@@ -308,10 +326,16 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             site.appearanceMode.bootstrap(siteID: site.id, defaultMode: page.parts.flatMap(\.flattened)
                 .first(where: { $0.type == .appearanceSwitcher })?.property(.init(rawValue: "defaultAppearance")) ?? "system"),
             stylesheetPaths.map { "  <link rel=\"stylesheet\" href=\"\($0)\">" }.joined(separator: "\n"),
+            hasMarkdownCode ? "  <link rel=\"stylesheet\" href=\"\(rootPrefix)\(FoundryWebLibraryRegistry.markdownCodeStylesheetPath)\">" : "",
             headEnd,
-            customStyle
+            customStyle,
+            BootstrapPageColours.css(page: page, theme: theme).isEmpty ? "" : "<style>\(BootstrapPageColours.css(page: page, theme: theme))</style>"
         ]
-        let bodyLines = [customBodyStartCode, bodyStart, body, bodyEnd, scriptTags, customBodyEndCode, customScript]
+        let bodyLines = [
+            customBodyStartCode, bodyStart, body, bodyEnd, scriptTags,
+            hasMarkdownCode ? FoundryWebScript(path: rootPrefix + FoundryWebLibraryRegistry.markdownCodeScriptPath).htmlTag : "",
+            customBodyEndCode, customScript
+        ]
         func joined(_ lines: [String]) -> String {
             lines
                 .map { $0.trimmingCharacters(in: .newlines) }
@@ -324,7 +348,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         <head>
         \(joined(headLines))
         </head>
-        <body\(page.backgroundOverride == nil ? "" : " style=\"background-color: " + escapeAttribute(site.appearanceMode.colour(light: page.backgroundColour(theme: theme, appearance: .light), dark: page.backgroundColour(theme: theme, appearance: .dark))) + "\"")>
+        <body\(page.appearanceOverride.map { " data-bs-theme=\"\($0.rawValue)\"" } ?? "")\(page.themeClass(theme: theme).isEmpty ? "" : " class=\"" + escapeAttribute(page.themeClass(theme: theme)) + "\"")\(page.backgroundOverride == nil ? "" : " style=\"background-color: " + escapeAttribute(site.appearanceMode.colour(light: page.backgroundColour(theme: theme, appearance: .light), dark: page.backgroundColour(theme: theme, appearance: .dark))) + "\"")>
         \(joined(bodyLines))
         </body>
         </html>
@@ -507,6 +531,10 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         tags.append(contentsOf: webIconPlan.markup(
             rootPrefix: siteRootPrefix(from: assetPrefix)
         ))
+        if site.favicon.isEmpty, webIconPlan.files.isEmpty {
+            // Explicitly opt out of the browser's automatic /favicon.ico request.
+            tags.append("<link rel=\"icon\" href=\"data:,\">")
+        }
         if site.favicon.foundryAssetID == nil, !site.favicon.isEmpty {
             let source = exportSource(site.favicon, assetPrefix: assetPrefix, assets: assets, site: site)
             if !source.isEmpty {
@@ -628,7 +656,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
                     ),
                     richTextColourContext: .init(
                         palettes: theme.colourPalettes,
-                        mode: site.appearanceMode
+                        mode: page.appearanceOverride.map { $0 == .dark ? SiteAppearanceMode.dark : .light } ?? site.appearanceMode
                     ),
                     loopMaximums: package.loopMaximums
                 )
@@ -682,7 +710,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             destination: .export,
             exportedSource: { "../" + site.publishedPath(for: $0) }
         ))
-        \(FoundryWebLibraryRegistry.exportCSS(for: sitePackages))
+        \(FoundryWebLibraryRegistry.themeOverridesCSS(for: sitePackages))
         \(BootstrapThemeCSS.render(theme: theme))
         \(BootstrapColorCSS.export(theme: theme, mode: site.appearanceMode))
         \(sitePackageStyles(for: site))
@@ -943,9 +971,10 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         )
         // Derive and deduplicate only the current page's local themes. No registry
         // survives a render, so deleting the last user removes the rule.
-        let paletteStyles = Set(nodes.map { BootstrapPartUtilityCSS.render(node: $0, theme: site.theme) }).sorted().joined(separator: "\n")
+        let paletteStyles = Set(nodes.map { BootstrapPartUtilityCSS.render(node: $0, theme: site.theme, includeSpace: false) }).sorted().joined(separator: "\n")
+        let spaceStyles = PartSpaceControl.pageCSS(nodes: nodes, theme: site.theme)
         return CSSTidy.tidy(
-            [instanceStyles, paletteStyles, pagePackageStyles, responsiveStyles]
+            [instanceStyles, paletteStyles, spaceStyles, pagePackageStyles, responsiveStyles]
                 .filter { !$0.isEmpty }
                 .joined(separator: "\n")
         )
@@ -1005,6 +1034,9 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
         let manifestProperties = partDefinition.package?.renderDefinition.properties ?? []
         var values: [String: PartPackageValue] = Dictionary(uniqueKeysWithValues: definitions.map { definition in
             let value = node.storedPropertyValue(definition.key) ?? definition.defaultValue
+            if case .space(let axis) = definition.control {
+                return (definition.key.rawValue, .string(PartSpaceControl.className(node: node, key: definition.key, axis: axis, screens: theme.screens)))
+            }
             if let classes = BootstrapControlGroupClasses.resolve(node: node, key: definition.key, theme: theme) {
                 return (definition.key.rawValue, .string(classes))
             }

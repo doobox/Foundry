@@ -1,0 +1,118 @@
+{
+  "id": "foundry.content.heading",
+  "title": "Heading",
+  "author": "Foundry",
+  "version": "1.0.0",
+  "minimumAPIVersion": 1,
+  "description": "Editable semantic headings using Bootstrap typography.",
+  "group": "Content",
+  "icon": {
+    "symbol": "textformat.size"
+  },
+  "tags": [
+    "Bootstrap",
+    "text",
+    "heading",
+    "title"
+  ],
+  "assets": [],
+  "templates": {
+    "html": "part.html"
+  },
+  "inspector": [
+    {
+      "section": "Content",
+      "systemImage": "textformat",
+      "controls": [
+        {
+          "type": "select",
+          "id": "level",
+          "label": "Heading level",
+          "tooltip": "Choose the heading level for the document hierarchy. Visual size can be changed separately in Typography.",
+          "responsive": false,
+          "defaults": {
+            "xs": "h2"
+          },
+          "options": [
+            {
+              "title": "H1",
+              "value": "h1"
+            },
+            {
+              "title": "H2",
+              "value": "h2"
+            },
+            {
+              "title": "H3",
+              "value": "h3"
+            },
+            {
+              "title": "H4",
+              "value": "h4"
+            },
+            {
+              "title": "H5",
+              "value": "h5"
+            },
+            {
+              "title": "H6",
+              "value": "h6"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Spacing",
+      "systemImage": "arrow.up.left.and.arrow.down.right",
+      "controls": [
+        {
+          "type": "spacing",
+          "id": "spacing"
+        }
+      ]
+    },
+    {
+      "section": "Typography",
+      "systemImage": "textformat",
+      "controls": [
+        {
+          "type": "typography",
+          "id": "typography",
+          "excludeControls": [
+            "verticalAlignment"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Foreground",
+      "systemImage": "paintpalette",
+      "controls": [
+        {
+          "type": "foreground",
+          "id": "foreground",
+          "colourSections": [
+            "foregrounds",
+            "blackWhite",
+            "themes"
+          ]
+        }
+      ]
+    },
+    {
+      "section": "Links",
+      "systemImage": "link",
+      "controls": [
+        {
+          "type": "linkStyling",
+          "id": "links",
+          "targetSelector": "a[href]:not(.btn)"
+        }
+      ]
+    },
+    {
+      "type": "advanced"
+    }
+  ]
+}

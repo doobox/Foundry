@@ -89,8 +89,8 @@ struct ThemeWindowContent: View {
                 ThemeLibraryBrowser(document: document, undoManager: session.editor.undoManager)
             case .fontFamily:
                 ThemeFontSettings(theme: document.site.theme, assets: document.site.assets, session: session)
-            case .extensions:
-                ThemeExtensionsSettings(theme: document.site.theme, session: session)
+            case .prose:
+                ThemeProseSettings(theme: document.site.theme, session: session)
             default:
                 ThemeSettingsDetail(
                     section: selectedSection,
@@ -122,9 +122,8 @@ struct ThemeWindowContent: View {
     }
 }
 
-/// Theme editor pages. Colours and Fonts are the everyday settings. Extensions
-/// adds project-named values alongside Bootstrap's fixed utility scales.
-/// Component defaults stay with Bootstrap; parts own explicit overrides.
+/// Theme editor pages. Component defaults stay with Bootstrap; parts own
+/// explicit custom values when a Bootstrap utility does not fit.
 enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
     case themes = "frameworks"
     case screens
@@ -134,13 +133,13 @@ enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
     case borders
     case links
     case fontFamily
-    case extensions
+    case prose
 
     var id: String { rawValue }
 
     static let settings: [ThemeWindowSection] = [
         .fontFamily,
-        .extensions
+        .prose
     ]
 
     static let colourSections: [ThemeWindowSection] = [.colors, .foreground, .background, .borders, .links]
@@ -166,7 +165,7 @@ enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
         case .borders: "Borders"
         case .links: "Links"
         case .fontFamily: "Fonts"
-        case .extensions: "Extensions"
+        case .prose: "Prose"
         }
     }
 
@@ -176,14 +175,14 @@ enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
         case .screens: "ruler"
         case .colors, .foreground, .background, .borders, .links: "swatchpalette"
         case .fontFamily: "text.alignleft"
-        case .extensions: "plus.square.on.square"
+        case .prose: "text.document"
         }
     }
 
     var explanation: String {
         switch self {
         case .themes:
-            "Choose a saved theme or create one from System UI."
+            "Choose a saved theme or create one from Bootstrap Base."
         case .screens:
             "Choose which Bootstrap breakpoints the site uses. A disabled size keeps the previous container width."
         case .colors:
@@ -198,8 +197,8 @@ enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
             "Customize link and hover colours."
         case .fontFamily:
             "Choose the typefaces used for body text, headings and monospaced content."
-        case .extensions:
-            "Add project-named spacing, text sizes, corners, shadows and stacking values alongside Bootstrap's fixed scales."
+        case .prose:
+            "Set the defaults for long-form content."
         }
     }
 }
@@ -229,8 +228,6 @@ struct ThemeSettingsDetail: View {
         Group {
             if section == .fontFamily {
                 ThemeFontSettings(theme: theme, assets: assets, session: session)
-            } else if section == .extensions {
-                ThemeExtensionsSettings(theme: theme, session: session)
             } else if section == .screens {
                 ThemeBreakpointSettings(screens: theme.screens, editor: editor, canEdit: session.canEditTheme)
             } else if let kind = section.colourKind {
@@ -353,7 +350,7 @@ private struct ThemeLibraryBrowser: View {
             Button("Cancel", role: .cancel) { themePendingDeletion = nil }
         } message: {
             Text(themePendingDeletion?.id == document.site.themeSourceID
-                 ? "This removes the saved theme from your library and resets this project to System UI defaults. Project custom values are kept."
+                 ? "This removes the saved theme from your library and resets this project to Bootstrap Base defaults. Project custom values are kept."
                  : "This removes the saved theme from your library. This project’s active theme will not change.")
         }
         .alert("Theme Error", isPresented: errorBinding) {

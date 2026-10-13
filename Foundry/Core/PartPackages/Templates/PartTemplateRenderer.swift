@@ -180,6 +180,7 @@ nonisolated enum PartTemplateRenderer {
     private static let conditionBranchExpression = try! NSRegularExpression(pattern: #"\{\{\s*(elseif\s+([^{}]+?)|else)\s*\}\}"#)
     private static let keyedTextExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_text\s+key=\"([^\"]+)\"\s+default=\"([^\"]*)\"(?:\s+repeated=\"(true)\"\s+path=\"([0-9,]+)\")?\s*\}\}"#)
     private static let keyedHTMLExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_html\s+key=\"([^\"]+)\"\s+default=\"([^\"]*)\"(?:\s+repeated=\"(true)\"\s+path=\"([0-9,]+)\")?\s*\}\}"#)
+    private static let keyedMarkdownExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_markdown\s+key=\"([^\"]+)\"\s+default=\"([^\"]*)\"(?:\s+repeated=\"(true)\"\s+path=\"([0-9,]+)\")?\s*\}\}"#)
     private static let keyedImageExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_image\s+key=\"([^\"]+)\"(?:\s+repeated=\"(true)\"\s+path=\"([0-9,]+)\")?\s*\}\}"#)
     private static let keyedVideoExpression = try! NSRegularExpression(pattern: #"\{\{\s*__foundry_video\s+key=\"([^\"]+)\"(?:\s+repeated=\"(true)\"\s+path=\"([0-9,]+)\")?\s*\}\}"#)
     private static let controlledVideoElementExpression = try! NSRegularExpression(
@@ -213,13 +214,13 @@ nonisolated enum PartTemplateRenderer {
                   let expressionRange = Range(match.range(at: 1), in: result) else { continue }
             let templateExpression = String(result[expressionRange])
             let trimmedExpression = templateExpression.trimmingCharacters(in: .whitespacesAndNewlines)
-            if trimmedExpression.hasPrefix("__foundry_html ") {
+            if trimmedExpression.hasPrefix("__foundry_html ") || trimmedExpression.hasPrefix("__foundry_markdown ") {
                 continue
             }
             let replacement = value(forExpression: templateExpression, context: context)
             result.replaceSubrange(wholeRange, with: replacement)
         }
-        return renderHTML(in: result, context: context)
+        return renderMarkdown(in: renderHTML(in: result, context: context), context: context)
     }
 
     static func textPrimitives(in template: String) -> [PartTextPrimitive] {
@@ -228,8 +229,8 @@ nonisolated enum PartTemplateRenderer {
 
     static func textPrimitives(in template: String, loopMaximums: [String: Int]) -> [PartTextPrimitive] {
         (try? PartTemplateLoop.declarations(in: template))?.compactMap {
-            guard case .text = $0.kind else { return nil }
-            return .init(key: $0.key, defaultValue: $0.defaultValue ?? loremParagraph, isRepeated: $0.isRepeated)
+            guard $0.kind == .text || $0.kind == .markdown else { return nil }
+            return .init(key: $0.key, defaultValue: $0.defaultValue ?? ($0.kind == .markdown ? markdownDefault : loremParagraph), isRepeated: $0.isRepeated)
         } ?? []
     }
 
@@ -597,6 +598,35 @@ nonisolated enum PartTemplateRenderer {
                 wholeRange,
                 with: "<img\(before)src=\"\(escapeAttribute(resolvedSource))\"\(after)\(editorAttributes)>"
             )
+        }
+        return result
+    }
+
+    static let markdownDefault = "# Markdown\n\nDouble-click to edit this **Markdown** content."
+
+    static func isMarkdownPrimitive(_ key: String, in template: String) -> Bool {
+        (try? PartTemplateLoop.declarations(in: template))?.contains {
+            $0.kind == .markdown && $0.key == key
+        } == true
+    }
+
+    private static func renderMarkdown(in template: String, context: PartTemplateContext) -> String {
+        var result = template
+        let matches = keyedMarkdownExpression.matches(in: result, range: NSRange(result.startIndex..., in: result))
+        for match in matches.reversed() {
+            guard let wholeRange = Range(match.range(at: 0), in: result),
+                  let keyRange = Range(match.range(at: 1), in: result),
+                  let defaultRange = Range(match.range(at: 2), in: result) else { continue }
+            let key = String(result[keyRange])
+            let fallback = decodedDefault(String(result[defaultRange])) ?? markdownDefault
+            let path = indexPath(match, group: 4, in: result)
+            let source = stringValue(value(context.allProperties[key], at: path)) ?? fallback
+            result.replaceSubrange(wholeRange, with: FoundryMarkdown.html(from: source))
+            if context.enablesEditorMarkup {
+                addInlineEditingAttribute(for: key, atUTF16Offset: match.range.location,
+                    inlineSource: source, marksSelectablePrimitive: !path.isEmpty,
+                    indexPath: path, to: &result)
+            }
         }
         return result
     }

@@ -13,7 +13,7 @@
       "controls": [
         {
           "defaults": {
-            "base": "#D946EF"
+            "xs": "#D946EF"
           },
           "id": "foreground",
           "label": "Foreground",
@@ -22,7 +22,7 @@
         },
         {
           "defaults": {
-            "base": "#FFF1F2"
+            "xs": "#FFF1F2"
           },
           "id": "background",
           "label": "Background",
@@ -31,7 +31,7 @@
         },
         {
           "defaults": {
-            "base": "#5B5BD6"
+            "xs": "#5B5BD6"
           },
           "id": "topBorder",
           "label": "Top border",
@@ -40,7 +40,7 @@
         },
         {
           "defaults": {
-            "base": "#5B5BD6"
+            "xs": "#5B5BD6"
           },
           "id": "bottomBorder",
           "label": "Bottom border",

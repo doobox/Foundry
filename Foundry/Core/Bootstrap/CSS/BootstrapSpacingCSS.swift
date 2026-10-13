@@ -1,12 +1,15 @@
 import Foundation
 
 /// Bootstrap 6 alpha.1 spacing utility definitions, emitted without runtime Sass.
-/// Only sites with custom spacers need this. The complete family is re-emitted then,
-/// so a responsive Bootstrap step still beats a custom base value in the cascade
-/// (and vice versa); Bootstrap's own values are unchanged.
+/// Only previously saved project-specific custom spacers need runtime CSS.
+/// Native steps 0–12 come from the official Bootstrap stylesheet.
 nonisolated enum BootstrapSpacingCSS {
     static func render(_ spacing: SpacingTokens) -> String {
         guard !spacing.custom.isEmpty else { return "" }
+        return utilities(spacing)
+    }
+
+    private static func utilities(_ spacing: SpacingTokens) -> String {
         let families: [(String, String)] = [
             ("m", "margin"), ("mx", "margin-inline"), ("my", "margin-block"),
             ("mt", "margin-block-start"), ("me", "margin-inline-end"),
@@ -18,9 +21,9 @@ nonisolated enum BootstrapSpacingCSS {
             ("space-x", "margin-inline-end"), ("space-y", "margin-block-end")
         ]
         let breakpoints: [(String, Int)] = [("", 0), ("sm", 576), ("md", 768), ("lg", 1024), ("xl", 1280), ("2xl", 1536)]
-        var css = "\n@layer utilities {\n"
+        var css = "@layer utilities{"
         for (breakpoint, width) in breakpoints {
-            if width > 0 { css += "@media (min-width: \(width)px) {\n" }
+            if width > 0 { css += "@media(min-width:\(width)px){" }
             let prefix = breakpoint.isEmpty ? "" : (breakpoint == "2xl" ? "\\32 xl\\:" : breakpoint + "\\:")
             for (family, property) in families {
                 var values = spacing.choices.map { ($0.id, $0.css) }
@@ -30,12 +33,12 @@ nonisolated enum BootstrapSpacingCSS {
                 }
                 for (name, value) in values {
                     let selector = ".\(prefix)\(family)-\(name)"
-                    let target = family.hasPrefix("space-") ? ":where(\(selector) > :not(:last-child))" : selector
-                    css += "\(target){\(property):\(value)}\n"
+                    let target = family.hasPrefix("space-") ? ":where(\(selector)>:not(:last-child))" : selector
+                    css += "\(target){\(property):\(value)}"
                 }
             }
-            if width > 0 { css += "}\n" }
+            if width > 0 { css += "}" }
         }
-        return css + "}\n"
+        return css + "}"
     }
 }

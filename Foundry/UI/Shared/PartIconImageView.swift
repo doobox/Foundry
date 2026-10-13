@@ -1,8 +1,8 @@
 import AppKit
 import Observation
 
-/// An AppKit part-icon tile: a tint-filled backing behind a white stencil
-/// glyph, re-resolved whenever the view's effective appearance changes.
+/// An AppKit part icon using its group palette and a monochrome glyph.
+/// Tile colours resolve dynamically for the view's effective appearance.
 final class PartIconImageView: NSImageView {
     private var specification: PartIconSpecification?
     private var tileSize: NSSize?

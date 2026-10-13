@@ -231,7 +231,7 @@ struct DevLayoutPartsTests {
         // New Columns stack on phones and sit side by side from tablets up.
         let stackedDefault = try #require(package.manifest.resolvedProperties.first { $0.id == "stacked" })
         #expect(stackedDefault.defaultValue == .boolean(true))
-        #expect(stackedDefault.breakpointDefaults["medium"] == .boolean(false))
+        #expect(stackedDefault.breakpointDefaults["md"] == .boolean(false))
     }
 
     @Test(.enabled(if: FileManager.default.fileExists(atPath: root.appending(path: "Box/manifest.json").path)))

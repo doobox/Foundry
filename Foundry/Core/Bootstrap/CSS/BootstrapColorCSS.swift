@@ -3,6 +3,10 @@ import Foundation
 /// Retains Bootstrap's theme formulas, including inverse/secondary and nested
 /// light-dark() behaviour. Theme edits remap the underlying hue references.
 nonisolated enum BootstrapColorCSS {
+    static let sharedCSS = "@layer utilities{" + BootstrapColourCatalogue.themeRoles.map {
+        ".underline-\($0){--bs-underline-color:var(--bs-\($0)-fg)}:where(.underline-\($0)){text-decoration-color:var(--bs-underline-color)}"
+    }.joined() + "}"
+
     static func canvas(theme: Theme, appearance: SiteAppearance) -> String {
         build(theme: theme, colorScheme: appearance.rawValue)
     }
@@ -25,9 +29,10 @@ nonisolated enum BootstrapColorCSS {
             for sourceToken in sourceTokens {
                 let token = palette.colourToken(sourceToken)
                 let name = "--bs-" + token
-                guard var expression = BootstrapColourCatalogue.declarations["--bs-" + sourceToken] else {
+                guard let original = BootstrapColourCatalogue.declarations["--bs-" + sourceToken] else {
                     preconditionFailure("Bundled Bootstrap is missing \(name)")
                 }
+                var expression = original
                 if palette.origin == .custom, palette.colourKind == .link {
                     for property in ["base", "fg"] {
                         if let value = BootstrapColourCatalogue.declarations["--bs-primary-" + property] {
@@ -47,18 +52,37 @@ nonisolated enum BootstrapColorCSS {
                 if let override = palette.bootstrapTokens[token] {
                     expression = override.expression(default: expression)
                 }
-                declarations.append("\(name):\(expression)")
+                if palette.origin == .custom || expression != original {
+                    declarations.append("\(name):\(expression)")
+                }
             }
         }
-        return "/* Bootstrap 6 theme colours */\n:root,:host{\(declarations.joined(separator: ";"))}\n"
-            + ":root:not([data-bs-theme]),:host:not([data-bs-theme]){color-scheme:\(colorScheme); }"
+        return (declarations.isEmpty ? "" : "/* Bootstrap 6 theme colours */\n:root,:host{\(declarations.joined(separator: ";"))}\n")
+            + (colorScheme == "light dark" ? "" : ":root:not([data-bs-theme]),:host:not([data-bs-theme]){color-scheme:\(colorScheme); }")
             + palettes.filter { $0.origin == .custom }.map(customClasses).joined()
-            + "@layer utilities{" + BootstrapColourCatalogue.themeRoles.map {
-                ".underline-\($0){--bs-underline-color:var(--bs-\($0)-fg)}:where(.underline-\($0)){text-decoration-color:var(--bs-underline-color)}"
-            }.joined() + "}"
     }
 
     private static func customClasses(_ palette: ColourPalette) -> String {
+        if palette.colourKind != .theme {
+            let rules = palette.colourKind.sourceTokens.compactMap { source -> String? in
+                guard let name = palette.publicUtilityClass(for: source) else { return nil }
+                let token = "var(--bs-\(palette.colourToken(source)))"
+                switch palette.colourKind {
+                case .surface:
+                    return ".\(name){--bs-bg:\(token)}:where(.\(name)){background-color:var(--bs-bg)}"
+                case .foreground:
+                    return ".\(name){--bs-fg:\(token)}:where(.\(name)){color:var(--bs-fg)}"
+                case .border:
+                    return ".\(name){--bs-bc:\(token)}:where(.\(name)){border-color:var(--bs-bc)}"
+                case .link:
+                    if source == "link-hover-color" { return ".\(name){color:\(token)}" }
+                    let hover = "var(--bs-\(palette.colourToken("link-hover-color")))"
+                    return ".\(name){--bs-link-color:\(token);--bs-link-hover-color:\(hover);color:var(--bs-link-color)}.\(name):is(:hover,:focus-visible){color:var(--bs-link-hover-color)}"
+                case .theme: return nil
+                }
+            }.joined()
+            return rules.isEmpty ? "" : "@layer utilities{\(rules)}"
+        }
         guard let role = BootstrapPaletteTheme.nativeRole(palette) else { return "" }
         let mappings = BootstrapColourCatalogue.themeProperties.map {
             "--bs-theme-\($0):var(--bs-\(role)-\($0))"

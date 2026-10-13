@@ -34,15 +34,15 @@ struct DuplicateTextPrimitiveTests {
         ("", #"<ul class="{{ part.class }}" {{ part.attributes }}><li>{{ text("item", default: "Item Name") }}</li><li>{{ text("item", default: "Item Name") }}</li></ul>"#,
          "'item' is used more than once"),
         // Two controls sharing an id; this used to crash the validator itself.
-        (#"{"type":"text","id":"title","defaults":{"base":"A"}},{"type":"text","id":"title","defaults":{"base":"B"}}"#,
+        (#"{"type":"text","id":"title","defaults":{"xs":"A"}},{"type":"text","id":"title","defaults":{"xs":"B"}}"#,
          #"<p class="{{ part.class }}" {{ part.attributes }}>{{ control.title }}</p>"#,
          "Duplicate control identifier 'title'"),
         // Two number controls sharing an id; this used to crash while loading.
-        (#"{"type":"number","id":"count","maximum":5,"defaults":{"base":1}},{"type":"number","id":"count","maximum":9,"defaults":{"base":2}}"#,
+        (#"{"type":"number","id":"count","maximum":5,"defaults":{"xs":1}},{"type":"number","id":"count","maximum":9,"defaults":{"xs":2}}"#,
          #"<p class="{{ part.class }}" {{ part.attributes }}>{{ control.count }}</p>"#,
          "Duplicate control identifier 'count'"),
         // An editable macro named like a control.
-        (#"{"type":"text","id":"title","defaults":{"base":"A"}}"#,
+        (#"{"type":"text","id":"title","defaults":{"xs":"A"}}"#,
          #"<p class="{{ part.class }}" {{ part.attributes }}>{{ text("title", default: "B") }}</p>"#,
          "conflicts with a custom control id")
     ])

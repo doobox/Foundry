@@ -260,6 +260,7 @@ nonisolated struct PartNode: Codable, Equatable, Identifiable, Sendable {
         guard !keys.isEmpty else { return self }
         var copy = self
         for key in keys {
+            if case .space = definition.property(for: key)?.control { continue }
             // Native Bootstrap utilities retain all breakpoint classes in one
             // markup tree; do not overwrite their base values for canvas size.
             if definition.package?.manifest.resolvedProperties.first(where: { $0.id == key.rawValue })?.controlGroupSource?.type.generatesBootstrapClasses == true { continue }

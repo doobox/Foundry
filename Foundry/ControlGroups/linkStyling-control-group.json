@@ -8,7 +8,7 @@
       "id": "colour",
       "label": "Colour",
       "defaults": {
-        "base": "inherit"
+        "xs": "inherit"
       }
     },
     {
@@ -16,7 +16,7 @@
       "id": "decoration",
       "label": "Decoration",
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {

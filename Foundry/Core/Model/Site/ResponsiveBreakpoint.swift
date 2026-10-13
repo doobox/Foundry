@@ -10,6 +10,30 @@ nonisolated enum ResponsiveBreakpoint: String, Codable, CaseIterable, Identifiab
 
     var id: String { rawValue }
 
+    /// The names part authors use in manifest breakpoint defaults.
+    var manifestKey: String {
+        switch self {
+        case .mobile: "xs"
+        case .small: "sm"
+        case .medium: "md"
+        case .large: "lg"
+        case .extraLarge: "xl"
+        case .doubleExtraLarge: "2xl"
+        }
+    }
+
+    init?(manifestKey: String) {
+        switch manifestKey {
+        case "xs": self = .mobile
+        case "sm": self = .small
+        case "md": self = .medium
+        case "lg": self = .large
+        case "xl": self = .extraLarge
+        case "2xl": self = .doubleExtraLarge
+        default: return nil
+        }
+    }
+
     var displayName: String {
         switch self {
         case .mobile: "Extra Small"

@@ -8,14 +8,14 @@ struct EditorSheetSizingTests {
         let available = EditorSheetSizePersistence.Coordinator.availableFrame(
             parent: CGRect(x: 200, y: 150, width: 900, height: 650),
             screen: CGRect(x: 0, y: 0, width: 1920, height: 1080))
-        #expect(available == CGRect(x: 220, y: 170, width: 860, height: 610))
+        #expect(available == CGRect(x: 200, y: 150, width: 900, height: 650))
     }
 
     @Test func clipsParentWindowToSmallerScreen() {
         let available = EditorSheetSizePersistence.Coordinator.availableFrame(
             parent: CGRect(x: -200, y: -100, width: 1600, height: 1100),
             screen: CGRect(x: 0, y: 40, width: 1024, height: 700))
-        #expect(available == CGRect(x: 20, y: 60, width: 984, height: 660))
+        #expect(available == CGRect(x: 0, y: 40, width: 1024, height: 700))
     }
 
     @Test func preservesSavedSizeWhenItFits() {

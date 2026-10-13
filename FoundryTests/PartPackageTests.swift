@@ -5,11 +5,80 @@ import Testing
 @testable import Foundry
 
 struct PartPackageTests {
+    @Test @MainActor
+    func optionalLibraryStylesAreLinkedOnlyOnPagesThatUseThem() throws {
+        let identifier = "com.example.lightbox" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+        let source = manifest(withInspectorEntries: "")
+            .replacingOccurrences(of: "com.example.card", with: identifier)
+            .replacingOccurrences(of: "\"templates\"", with: "\"libraries\": [{\"id\":\"glightbox\",\"majorVersion\":3}], \"templates\"")
+        let url = try makePackage(manifest: source, template: #"<div class="{{ part.class }}" {{ part.attributes }}>{{ childArea("content") }}</div>"#)
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        PartRegistry.register(package)
+        defer { PartRegistry.unregisterPackage(identifier: identifier) }
+        let site = Site(name: "Library links", pages: [
+            Page(title: "Home", slug: "index"),
+            Page(title: "Gallery", slug: "gallery", parts: [
+                PartNode(type: .init(rawValue: identifier)), PartNode(type: .init(rawValue: identifier))
+            ])
+        ])
+        for environment in [PartTemplateEnvironment.preview, .published] {
+            let bundle = StaticSiteRenderer(environment: environment).render(site: site)
+            let cssPath = "files/libraries/glightbox/glightbox.min.css"
+            #expect(bundle.files.filter { $0.path == cssPath }.count == 1)
+            let home = try #require(bundle.file(at: "index.html")?.contents)
+            let gallery = try #require(bundle.file(at: "gallery/index.html")?.contents)
+            #expect(home.contains("glightbox.min.css") == false)
+            #expect(gallery.components(separatedBy: "../" + cssPath).count == 2)
+            for html in [home, gallery] {
+                #expect(html.components(separatedBy: "bootstrap-icons.css").count == 2)
+            }
+            let shared = try #require(bundle.file(at: "files/site.css")?.contents)
+            #expect(shared.contains(".glightbox-container") == false)
+            #expect(shared.contains(".bi-magic::before") == false)
+            #expect(shared.contains(".glightbox-clean .gslide-desc"))
+            let icons = try #require(bundle.file(at: "files/libraries/bootstrapIcons/bootstrap-icons.css")?.contents)
+            #expect(icons.contains("./bootstrap-icons.woff2"))
+            #expect(bundle.file(at: "files/libraries/bootstrapIcons/bootstrap-icons.woff2") != nil)
+        }
+    }
+
+    @Test @MainActor
+    func exportedNavigationStaysInsideDeploymentFolder() throws {
+        let identifier = "com.example.navigation" + UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased()
+        let packageURL = try makePackage(
+            manifest: manifest(withInspectorEntries: "").replacingOccurrences(of: "com.example.card", with: identifier),
+            template: #"<nav class="{{ part.class }}" {{ part.attributes }}>{{ loop pages.all as item }}<a href="{{ item.href }}">{{ item.title }}</a>{{ endloop }}{{ childArea("content") }}</nav>"#
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        PartRegistry.register(try PartPackageLoader.load(from: packageURL))
+        let part = PartNode(type: .init(rawValue: identifier))
+        let home = Page(title: "Home", slug: "index", parts: [part])
+        let about = Page(title: "About", slug: "about", parts: [part])
+        var detail = Page(title: "Detail", slug: "detail", parts: [part], parentPageID: about.id)
+        detail.filenameOverride = "details.html"
+        let site = Site(name: "Subfolder navigation", pages: [home, about, detail])
+        for environment in [PartTemplateEnvironment.preview, .published] {
+            let bundle = StaticSiteRenderer(environment: environment).render(site: site)
+            for (source, prefix) in [("index.html", "./"), ("about/index.html", "../"), ("about/detail/details.html", "../../")] {
+                let html = try #require(bundle.file(at: source)?.contents)
+                for target in ["", "about/", "about/detail/details.html"] {
+                    let href = prefix + target
+                    #expect(html.contains("href=\"\(href)\""))
+                    for deployment in ["https://example.com/", "https://example.com/delete-me/"] {
+                        let base = try #require(URL(string: deployment + source))
+                        #expect(URL(string: href, relativeTo: base)?.absoluteURL.absoluteString == deployment + target)
+                    }
+                }
+            }
+        }
+    }
+
     @Test(arguments: ["responsive", "count", "options", "opacity", "outputFormat", "buttonIcon", "renditions"])
     @MainActor
     func unsupportedControlSettingsWarnAndAreIgnored(key: String) throws {
         // Deliberately malformed values must not reach typed decoding either.
-        let control: [String: Any] = ["type": "themeColors", "id": "paint", "defaults": ["base": "inherit"], key: ["unexpected": true]]
+        let control: [String: Any] = ["type": "themeColors", "id": "paint", "defaults": ["xs": "inherit"], key: ["unexpected": true]]
         let source = manifest(withInspectorEntries: String(decoding: try JSONSerialization.data(withJSONObject: control), as: UTF8.self))
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(source.utf8))
         #expect(diagnostics.contains { $0.severity == .error } == false)
@@ -25,7 +94,7 @@ struct PartPackageTests {
 
     @Test
     func unsupportedSettingsAreFilteredInsideSectionsAndCollections() throws {
-        let source = manifest(withInspectorEntries: #"{"section":"Content","controls":[{"type":"collection","id":"items","defaults":{"base":[]},"responsive":true,"controls":[{"type":"text","id":"name","defaults":{"base":""},"colourSections":["themes"]}]}]}"#)
+        let source = manifest(withInspectorEntries: #"{"section":"Content","controls":[{"type":"collection","id":"items","defaults":{"xs":[]},"responsive":true,"controls":[{"type":"text","id":"name","defaults":{"xs":""},"colourSections":["themes"]}]}]}"#)
         let prepared = try PartPackageManifestSchema.preparingControls(in: Data(source.utf8))
         #expect(prepared.warnings.count == 2)
         #expect(try PartPackageManifestSchema.diagnostics(for: prepared.data).contains { $0.severity == .error } == false)
@@ -35,14 +104,14 @@ struct PartPackageTests {
 
     @Test(arguments: [#""responsive":"yes""#, #""responsive":1"#])
     func invalidSupportedSettingsStillFail(setting: String) throws {
-        let source = manifest(withInspectorEntries: #"{"type":"text","id":"title","defaults":{"base":""},"# + setting + "}")
+        let source = manifest(withInspectorEntries: #"{"type":"text","id":"title","defaults":{"xs":""},"# + setting + "}")
         #expect(try PartPackageManifestSchema.diagnostics(for: Data(source.utf8)).contains { $0.severity == .error })
     }
 
     @Test
     @MainActor
     func unknownSettingsWarnWithoutBlockingThePart() throws {
-        let source = manifest(withInspectorEntries: #"{"type":"text","id":"title","defaults":{"base":"Hello"},"responisve":true,"myMetadata":{"anything":[1,2,3]}}"#)
+        let source = manifest(withInspectorEntries: #"{"type":"text","id":"title","defaults":{"xs":"Hello"},"responisve":true,"myMetadata":{"anything":[1,2,3]}}"#)
         let url = try makePackage(manifest: source, template: #"<div class="{{ part.class }}" {{ part.attributes }}>{{ control.title }}{{ childArea("content") }}</div>"#)
         defer { try? FileManager.default.removeItem(at: url) }
         let result = try PartPackageLoader.loadWithDiagnostics(from: url)
@@ -54,12 +123,12 @@ struct PartPackageTests {
     @MainActor
     func outputWhenHiddenDefaultsAndRoundTrips(flag: Bool?) throws {
         var control: [String: Any] = [
-            "type": "text", "id": "detail", "defaults": ["base": "Saved"],
+            "type": "text", "id": "detail", "defaults": ["xs": "Saved"],
             "visibleWhen": ["id": "enabled", "value": true]
         ]
         if let flag { control["outputWhenHidden"] = flag }
         let source = manifest(withInspectorEntries:
-            #"{"type":"toggle","id":"enabled","defaults":{"base":false}},"# +
+            #"{"type":"toggle","id":"enabled","defaults":{"xs":false}},"# +
             String(decoding: try JSONSerialization.data(withJSONObject: control), as: UTF8.self))
         let data = Data(source.utf8)
         #expect(try PartPackageManifestSchema.diagnostics(for: data).filter { $0.severity == .error }.isEmpty)
@@ -85,7 +154,7 @@ struct PartPackageTests {
     @Test(arguments: [#""always""#, #""false""#, "1", "null", "[]"])
     func outputWhenHiddenRejectsNonBooleans(value: String) throws {
         let source = manifest(withInspectorEntries:
-            #"{"type":"text","id":"detail","defaults":{"base":""},"outputWhenHidden":"# + value + "}")
+            #"{"type":"text","id":"detail","defaults":{"xs":""},"outputWhenHidden":"# + value + "}")
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(source.utf8))
         #expect(diagnostics.contains {
             $0.severity == .error && $0.location.hasSuffix(":outputWhenHidden")
@@ -96,7 +165,7 @@ struct PartPackageTests {
     @Test
     func retiredValueAvailabilityKeyIsIgnoredWithWarning() throws {
         let source = manifest(withInspectorEntries:
-            #"{"type":"text","id":"detail","defaults":{"base":""},"valueAvailability":"always"}"#)
+            #"{"type":"text","id":"detail","defaults":{"xs":""},"valueAvailability":"always"}"#)
         #expect(try PartPackageManifestSchema.diagnostics(for: Data(source.utf8)).contains { $0.severity == .warning })
     }
 
@@ -105,10 +174,10 @@ struct PartPackageTests {
     func collectionFieldsRespectOutputWhenHidden(flag: Bool) throws {
         let source = manifest(withInspectorEntries: """
         {"type":"collection","id":"items","controls":[
-          {"type":"toggle","id":"enabled","defaults":{"base":false}},
-          {"type":"text","id":"detail","defaults":{"base":"Saved"},
+          {"type":"toggle","id":"enabled","defaults":{"xs":false}},
+          {"type":"text","id":"detail","defaults":{"xs":"Saved"},
            "visibleWhen":{"id":"enabled","value":true},"outputWhenHidden":\(flag)}
-        ],"defaults":{"base":[{"enabled":false,"detail":"Saved"}]}}
+        ],"defaults":{"xs":[{"enabled":false,"detail":"Saved"}]}}
         """)
         let url = try makePackage(manifest: source, template: #"<div class="{{ part.class }}" {{ part.attributes }}>{{ childArea("content") }}</div>"#)
         defer { try? FileManager.default.removeItem(at: url) }
@@ -134,9 +203,75 @@ struct PartPackageTests {
         #expect(decoded.colourSections.contains("themes") == sections.contains("themes"))
     }
 
+    @Test(arguments: ["", #","defaults":{}"#, #","defaults":{"md":"12"}"#])
+    func spaceDefaultsCanBeOmitted(defaults: String) throws {
+        let control = #"{"type":"space","id":"space","responsive":true"# + defaults + "}"
+        let source = manifest(withInspectorEntries: control)
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(source.utf8))
+        #expect(diagnostics.filter { $0.severity == .error }.isEmpty)
+        let url = try makePackage(manifest: source, template: "<div {{ part.attributes }}>{{ childArea(\"content\") }}</div>")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        let definition = try #require(PartPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "space" })
+        #expect(PartSpaceValue(definition.defaultValue).preset == "inherit")
+        if defaults.contains("md") {
+            #expect(PartSpaceValue(try #require(definition.breakpointDefaults[.medium])).preset == "12")
+        }
+        let property = try #require(package.manifest.resolvedProperties.first { $0.id == "space" })
+        let roundTrip = try JSONDecoder().decode(PartPackageProperty.self, from: JSONEncoder().encode(property))
+        #expect(roundTrip == property)
+    }
+
+    @Test func bootstrapBreakpointKeysWorkAcrossResponsiveControls() throws {
+        let choices: [(String, ResponsiveBreakpoint)] = [
+            ("sm", .small),
+            ("md", .medium),
+            ("lg", .large),
+            ("xl", .extraLarge),
+            ("2xl", .doubleExtraLarge)
+        ]
+        for (key, breakpoint) in choices {
+            let control = #"{"type":"number","id":"size","responsive":true,"defaults":{"xs":1,"\#(key)":2}}"#
+            let source = manifest(withInspectorEntries: control)
+            #expect(try PartPackageManifestSchema.diagnostics(for: Data(source.utf8)).filter { $0.severity == .error }.isEmpty)
+            let property = try JSONDecoder().decode(PartPackageProperty.self, from: Data(control.utf8))
+            #expect(property.breakpointDefaults[key] == .number(2))
+            let encoded = String(decoding: try JSONEncoder().encode(property), as: UTF8.self)
+            #expect(encoded.contains(#""\#(key)":2"#))
+            #expect(ResponsiveBreakpoint(manifestKey: key) == breakpoint)
+        }
+        for invalidKey in ["base", "small", "medium", "large", "extraLarge", "doubleExtraLarge"] {
+            let control = #"{"type":"number","id":"size","responsive":true,"defaults":{"xs":1,"\#(invalidKey)":2}}"#
+            let source = manifest(withInspectorEntries: control)
+            #expect(try PartPackageManifestSchema.diagnostics(for: Data(source.utf8)).contains { $0.severity == .error })
+            #expect(throws: DecodingError.self) {
+                try JSONDecoder().decode(PartPackageProperty.self, from: Data(control.utf8))
+            }
+        }
+    }
+
+    @Test func responsiveSpaceDefaultsReachTheInspectorDefinition() throws {
+        let control = #"{"type":"space","id":"space","axis":"x","responsive":true,"defaults":{"xs":"4","md":{"value":3.5,"unit":"rem"},"lg":"12"}}"#
+        let source = manifest(withInspectorEntries: control)
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(source.utf8))
+        #expect(diagnostics.filter { $0.severity == .error }.isEmpty)
+        let url = try makePackage(manifest: source, template: "<div {{ part.attributes }}>{{ childArea(\"content\") }}</div>")
+        defer { try? FileManager.default.removeItem(at: url) }
+        let package = try PartPackageLoader.load(from: url)
+        let definition = try #require(PartPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "space" })
+        #expect(definition.isResponsive)
+        #expect(PartSpaceValue(definition.defaultValue).preset == "4")
+        let medium = PartSpaceValue(try #require(definition.breakpointDefaults[.medium]))
+        #expect(medium.isCustom)
+        #expect(medium.cssLength == "3.5rem")
+        #expect(PartSpaceValue(try #require(definition.breakpointDefaults[.large])).preset == "12")
+        let nonresponsive = source.replacingOccurrences(of: "\"responsive\":true", with: "\"responsive\":false")
+        #expect(try PartPackageManifestSchema.diagnostics(for: Data(nonresponsive.utf8)).contains { $0.severity == .error })
+    }
+
     @Test(arguments: [nil, [], ["themes"], ["palettes"], ["foregrounds", "themes", "palettes"], ["foregrounds", "themes", "blackWhite"], ["foregrounds", "blackWhite"], ["surfaces", "links", "foregrounds", "surfaces"], ["borders", "shadow"]] as [[String]?])
     func standaloneColourSectionsRoundTrip(sections: [String]?) throws {
-        var control: [String: Any] = ["type": "foregroundColor", "id": "paint", "defaults": ["base": "inherit"]]
+        var control: [String: Any] = ["type": "foregroundColor", "id": "paint", "defaults": ["xs": "inherit"]]
         if let sections { control["colourSections"] = sections }
         let controlData = try JSONSerialization.data(withJSONObject: control)
         let source = manifest(withInspectorEntries: String(decoding: controlData, as: UTF8.self))
@@ -155,10 +290,10 @@ struct PartPackageTests {
     }
 
     @Test(arguments: [
-        #"{"type":"themeColors","id":"paint","defaults":{"base":"inherit"},"colourSections":["unknown"]}"#,
-        #"{"type":"themeColors","id":"paint","defaults":{"base":"inherit"},"colourSections":"foregrounds"}"#,
-        #"{"type":"themeColors","id":"paint","defaults":{"base":"inherit"},"colourSections":[1]}"#,
-        #"{"type":"text","id":"paint","defaults":{"base":""},"colourSections":["foregrounds"]}"#
+        #"{"type":"themeColors","id":"paint","defaults":{"xs":"inherit"},"colourSections":["unknown"]}"#,
+        #"{"type":"themeColors","id":"paint","defaults":{"xs":"inherit"},"colourSections":"foregrounds"}"#,
+        #"{"type":"themeColors","id":"paint","defaults":{"xs":"inherit"},"colourSections":[1]}"#,
+        #"{"type":"text","id":"paint","defaults":{"xs":""},"colourSections":["foregrounds"]}"#
     ])
     func invalidStandaloneColourSectionsAreRejected(control: String) throws {
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: control).utf8))
@@ -169,7 +304,7 @@ struct PartPackageTests {
     @Test(arguments: [nil, "inherit", "theme-primary", "token:fg-body"] as [String?])
     func colourPickerOptionalDefaults(value: String?) throws {
         var control: [String: Any] = ["type": "foregroundColor", "id": "paint", "colourSections": ["themes", "foregrounds"]]
-        if let value { control["defaults"] = ["base": value] }
+        if let value { control["defaults"] = ["xs": value] }
         let data = try JSONSerialization.data(withJSONObject: control)
         let source = manifest(withInspectorEntries: String(decoding: data, as: UTF8.self))
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(source.utf8))
@@ -185,7 +320,7 @@ struct PartPackageTests {
 
     @Test(arguments: [
         #"{"type":"themeColors","id":"paint","defaults":{}}"#,
-        #"{"type":"themeColors","id":"paint","defaults":{"base":"inherit","desktop":"theme-primary"}}"#,
+        #"{"type":"themeColors","id":"paint","defaults":{"xs":"inherit","desktop":"theme-primary"}}"#,
         #"{"type":"text","id":"paint"}"#
     ])
     func optionalThemeDefaultsDoNotRelaxOtherRequirements(control: String) throws {
@@ -195,7 +330,7 @@ struct PartPackageTests {
 
     @Test(arguments: ["themeColor", "bootstrapColors"])
     func obsoleteColourControlNamesAreRejected(type: String) throws {
-        let json = #"{"type":"\#(type)","id":"paint","defaults":{"base":"inherit"}}"#
+        let json = #"{"type":"\#(type)","id":"paint","defaults":{"xs":"inherit"}}"#
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: json).utf8))
         #expect(diagnostics.contains { $0.severity == .error })
         #expect(throws: DecodingError.self) {
@@ -206,11 +341,11 @@ struct PartPackageTests {
     @Test @MainActor func inspectorSectionResetRestoresHiddenAndResponsiveDefaultsWithOneUndo() throws {
         let controls = """
         {"section":"Layout","controls":[
-          {"type":"number","id":"width","responsive":true,"defaults":{"base":10,"large":20}},
-          {"type":"toggle","id":"enabled","defaults":{"base":false}},
-          {"type":"number","id":"hiddenValue","defaults":{"base":5},"visibleWhen":{"id":"enabled","value":true}}
+          {"type":"number","id":"width","responsive":true,"defaults":{"xs":10,"lg":20}},
+          {"type":"toggle","id":"enabled","defaults":{"xs":false}},
+          {"type":"number","id":"hiddenValue","defaults":{"xs":5},"visibleWhen":{"id":"enabled","value":true}}
         ]},
-        {"section":"Other","controls":[{"type":"number","id":"other","defaults":{"base":1}}]},
+        {"section":"Other","controls":[{"type":"number","id":"other","defaults":{"xs":1}}]},
         {"type":"advanced"}
         """
         let url = try makePackage(manifest: manifest(withInspectorEntries: controls), template: "<div {{ part.attributes }}>{{ childArea(\"content\") }}</div>")
@@ -446,11 +581,11 @@ struct PartPackageTests {
     @Test @MainActor func structuredAndArrayBreakpointDefaultsUseNormalConversion() throws {
         let controls = """
         {"type" : "number", "id" : "pair", "count" : 2, "responsive" : true,
-        "defaults" : {"base" : [1, 2], "large" : [3, 4]}},
+        "defaults" : {"xs" : [1, 2], "lg" : [3, 4]}},
         {"type" : "themeBorder", "id" : "border", "responsive" : true,
-        "defaults" : {"base" : {"width" : "none"}, "large" : {"width" : "sm", "style" : "dashed"}}},
+        "defaults" : {"xs" : {"width" : "none"}, "lg" : {"width" : "sm", "style" : "dashed"}}},
         {"type" : "themeFont", "id" : "font", "showsWeight" : true, "responsive" : true,
-        "defaults" : {"base" : {"family" : "body", "weight" : 400}, "large" : {"family" : "heading", "weight" : 700}}}
+        "defaults" : {"xs" : {"family" : "body", "weight" : 400}, "lg" : {"family" : "heading", "weight" : 700}}}
         """
         let url = try makePackage(manifest: manifest(withInspectorEntries: controls), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -469,13 +604,13 @@ struct PartPackageTests {
         #expect(node.propertyValue(.init(rawValue: "font.weight")) == .number(700))
         let encoded = try JSONEncoder().encode(package.manifest)
         let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: encoded)
-        #expect(decoded.resolvedProperties.first?.breakpointDefaults["large"] == .array([.number(3), .number(4)]))
+        #expect(decoded.resolvedProperties.first?.breakpointDefaults["lg"] == .array([.number(3), .number(4)]))
     }
 
     @Test @MainActor func developerBreakpointDefaultsCascadeAndExport() throws {
         let controls = """
         {"type" : "number", "id" : "gap", "responsive" : true,
-        "defaults" : {"base" : 4, "medium" : 12, "large" : 24}}
+        "defaults" : {"xs" : 4, "md" : 12, "lg" : 24}}
         """
         let url = try makePackage(manifest: manifest(withInspectorEntries: controls), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>", additionalFiles: ["part.css": ":instance { gap: {{ control.gap }}px; }"])
         defer { try? FileManager.default.removeItem(at: url) }
@@ -522,7 +657,7 @@ struct PartPackageTests {
     @Test @MainActor func editsTargetTheGoverningBreakpointNotTheViewedOne() throws {
         let controls = """
         {"type" : "number", "id" : "gap", "responsive" : true,
-        "defaults" : {"base" : 4, "medium" : 12}}
+        "defaults" : {"xs" : 4, "md" : 12}}
         """
         let url = try makePackage(manifest: manifest(withInspectorEntries: controls), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -556,9 +691,9 @@ struct PartPackageTests {
     @Test func defaultsSchemaRejectsInvalidContracts() throws {
         for fields in [
             "\"default\" : 1",
-            "\"defaults\" : {\"large\" : 1}",
-            "\"defaults\" : {\"base\" : 1, \"desktop\" : 2}",
-            "\"defaults\" : {\"base\" : 1, \"large\" : 2}"
+            "\"defaults\" : {\"lg\" : 1}",
+            "\"defaults\" : {\"xs\" : 1, \"desktop\" : 2}",
+            "\"defaults\" : {\"xs\" : 1, \"lg\" : 2}"
         ] {
             let item = "{\"type\" : \"number\", \"id\" : \"n\", \(fields)}"
             #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: item).utf8)).contains { $0.severity == .error })
@@ -569,16 +704,16 @@ struct PartPackageTests {
         let controls = """
         {"type" : "edges", "id" : "inset",
         "units" : ["px", "%"],
-        "defaults" : {"base" : {"value" : 10, "unit" : "px"}}},
+        "defaults" : {"xs" : {"value" : 10, "unit" : "px"}}},
         {"type" : "corners", "id" : "round",
-        "defaults" : {"base" : {
+        "defaults" : {"xs" : {
             "topLeft" : {"value" : 2, "unit" : "px"},
             "topRight" : {"value" : 4, "unit" : "px"},
             "bottomLeft" : {"value" : 6, "unit" : "px"},
             "bottomRight" : {"value" : 8, "unit" : "px"}
         }}},
         {"type" : "edges", "id" : "free", "linked" : false,
-        "defaults" : {"base" : {"value" : 10, "unit" : "px"}}}
+        "defaults" : {"xs" : {"value" : 10, "unit" : "px"}}}
         """
         let url = try makePackage(
             manifest: manifest(withInspectorEntries: controls),
@@ -645,39 +780,39 @@ struct PartPackageTests {
         // Theme tokens are not part of the generic contract.
         #expect(throws: (any Error).self) { try load("""
         {"type" : "edges", "id" : "inset",
-        "defaults" : {"base" : "sm"}}
+        "defaults" : {"xs" : "sm"}}
         """) }
         // A default must use a declared unit.
         #expect(throws: (any Error).self) { try load("""
         {"type" : "edges", "id" : "inset",
         "units" : ["px"],
-        "defaults" : {"base" : {"value" : 1, "unit" : "rem"}}}
+        "defaults" : {"xs" : {"value" : 1, "unit" : "rem"}}}
         """) }
         // Corners are nonnegative.
         #expect(throws: (any Error).self) { try load("""
         {"type" : "corners", "id" : "round",
-        "defaults" : {"base" : {"value" : -2, "unit" : "px"}}}
+        "defaults" : {"xs" : {"value" : -2, "unit" : "px"}}}
         """) }
         // Unknown units are rejected.
         #expect(throws: (any Error).self) { try load("""
         {"type" : "edges", "id" : "inset",
         "units" : ["pt"],
-        "defaults" : {"base" : {"value" : 1, "unit" : "px"}}}
+        "defaults" : {"xs" : {"value" : 1, "unit" : "px"}}}
         """) }
         // No multi variant.
         #expect(throws: Never.self) { try load("""
         {"type" : "edges", "id" : "inset", "count" : 2,
-        "defaults" : {"base" : {"value" : 1, "unit" : "px"}}}
+        "defaults" : {"xs" : {"value" : 1, "unit" : "px"}}}
         """) }
         // Negative edges are permitted, matching margin semantics.
         #expect(throws: Never.self) { try load("""
         {"type" : "edges", "id" : "inset",
-        "defaults" : {"base" : {"value" : -4, "unit" : "px"}}}
+        "defaults" : {"xs" : {"value" : -4, "unit" : "px"}}}
         """) }
         // linked: true contradicts differing defaults.
         #expect(throws: (any Error).self) { try load("""
         {"type" : "corners", "id" : "round", "linked" : true,
-        "defaults" : {"base" : {
+        "defaults" : {"xs" : {
             "topLeft" : {"value" : 2, "unit" : "px"},
             "topRight" : {"value" : 4, "unit" : "px"},
             "bottomLeft" : {"value" : 2, "unit" : "px"},
@@ -687,14 +822,14 @@ struct PartPackageTests {
         // linked belongs to edges/corners only.
         #expect(throws: Never.self) { try load("""
         {"type" : "number", "id" : "n", "linked" : true,
-        "defaults" : {"base" : 1}}
+        "defaults" : {"xs" : 1}}
         """) }
     }
 
     @Test @MainActor func themeSpacingLoadsPersistsAndRenders() throws {
         let control = """
         {"type" : "themeSpacing", "id" : "themeSpacing",
-        "responsive" : true, "defaults" : {"base" : "sm"}}
+        "responsive" : true, "defaults" : {"xs" : "sm"}}
         """
         let url = try makePackage(manifest: manifest(withInspectorEntries: control), template: "<section {{ part.attributes }} data-spacing=\"{{ control.themeSpacing.css }}\" data-top=\"{{ control.themeSpacing }}\">{{ childArea(\"content\") }}</section>",
                                   additionalFiles: ["part.css": ":instance { gap: {{ control.themeSpacing }}; --numeric-top: {{ control.themeSpacing.value }}{{ control.themeSpacing.unit }}; }"])
@@ -738,7 +873,7 @@ struct PartPackageTests {
             "{\"width\" : \"sm\", \"color\" : {\"palette\" : \"accent\", \"darkShade\" : 12}}"
         ]
         for value in invalid {
-            let url = try makePackage(manifest: manifest(withInspectorEntries: "{\"type\" : \"themeBorder\", \"id\" : \"border\", \"defaults\" : {\"base\" : \(value)}}"), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
+            let url = try makePackage(manifest: manifest(withInspectorEntries: "{\"type\" : \"themeBorder\", \"id\" : \"border\", \"defaults\" : {\"xs\" : \(value)}}"), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
             defer { try? FileManager.default.removeItem(at: url) }
             #expect(throws: (any Error).self) { try PartPackageLoader.load(from: url) }
         }
@@ -747,8 +882,8 @@ struct PartPackageTests {
     @Test @MainActor func themeBorderLoadsPersistsAndRenders() throws {
         let control = """
         {"type" : "themeBorder", "id" : "border",
-        "responsive" : true, "showsStyle" : true, "defaults" : {"base" : {"width" : "sm", "style" : "dashed"}}},
-        {"type" : "color", "id" : "borderColour", "defaults" : {"base" : "#123456"}}
+        "responsive" : true, "showsStyle" : true, "defaults" : {"xs" : {"width" : "sm", "style" : "dashed"}}},
+        {"type" : "color", "id" : "borderColour", "defaults" : {"xs" : "#123456"}}
         """
         let url = try makePackage(manifest: manifest(withInspectorEntries: control), template: "<section {{ part.attributes }} data-borderWidth=\"{{ control.border.width.css }}\" data-top=\"{{ control.border.width.top }}\">{{ childArea(\"content\") }}</section>",
                                   additionalFiles: ["part.css": ":instance { border-width: {{ control.border.width }}; border-style: {{ control.border.style }}; border-color: {{ control.borderColour }}; --numeric-top: {{ control.border.width.values.top }}{{ control.border.width.units.top }}; }"])
@@ -790,7 +925,7 @@ struct PartPackageTests {
     @Test @MainActor func themeRadiusLoadsPersistsAndRenders() throws {
         let control = """
         {"type" : "themeRadius", "id" : "themeRadius",
-        "responsive" : true, "defaults" : {"base" : "sm"}}
+        "responsive" : true, "defaults" : {"xs" : "sm"}}
         """
         let url = try makePackage(manifest: manifest(withInspectorEntries: control), template: "<section {{ part.attributes }} data-radius=\"{{ control.themeRadius.css }}\" data-top=\"{{ control.themeRadius.topLeft }}\">{{ childArea(\"content\") }}</section>",
                                   additionalFiles: ["part.css": ":instance { border-radius: {{ control.themeRadius }}; --numeric-top: {{ control.themeRadius.values.topLeft }}{{ control.themeRadius.units.topLeft }}; }"])
@@ -829,7 +964,7 @@ struct PartPackageTests {
     @Test @MainActor func themeMarginLoadsPersistsAndRenders() throws {
         let control = """
         {"type" : "themeMargin", "id" : "themeMargin",
-        "responsive" : true, "defaults" : {"base" : "auto"}}
+        "responsive" : true, "defaults" : {"xs" : "auto"}}
         """
         let url = try makePackage(manifest: manifest(withInspectorEntries: control), template: "<section {{ part.attributes }} data-margin=\"{{ control.themeMargin.css }}\" data-top=\"{{ control.themeMargin.top }}\">{{ childArea(\"content\") }}</section>",
                                   additionalFiles: ["part.css": ":instance { margin: {{ control.themeMargin }}; --numeric-top: {{ control.themeMargin.values.top }}{{ control.themeMargin.units.top }}; }"])
@@ -868,7 +1003,7 @@ struct PartPackageTests {
     @Test @MainActor func themePaddingLoadsPersistsAndRenders() throws {
         let control = """
         {"type" : "themePadding", "id" : "themePadding",
-        "responsive" : true, "defaults" : {"base" : "sm"}}
+        "responsive" : true, "defaults" : {"xs" : "sm"}}
         """
         let url = try makePackage(manifest: manifest(withInspectorEntries: control), template: "<section {{ part.attributes }} data-padding=\"{{ control.themePadding.css }}\" data-top=\"{{ control.themePadding.top }}\">{{ childArea(\"content\") }}</section>",
                                   additionalFiles: ["part.css": ":instance { padding: {{ control.themePadding }}; --numeric-top: {{ control.themePadding.values.top }}{{ control.themePadding.units.top }}; }"])
@@ -909,7 +1044,7 @@ struct PartPackageTests {
         for extra in ["\"count\" : 4", "\"allowsCustom\" : true",
                       "\"options\" : []", "\"themeValues\" : \"spacing\"",
                       "\"group\" : \"Spacing\""] {
-            let control = "{\"type\" : \"themePadding\", \"id\" : \"themePadding\", \"defaults\" : {\"base\" : \"sm\"}, \(extra)}"
+            let control = "{\"type\" : \"themePadding\", \"id\" : \"themePadding\", \"defaults\" : {\"xs\" : \"sm\"}, \(extra)}"
             #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: control).utf8)).contains { $0.severity == .warning })
         }
     }
@@ -933,8 +1068,8 @@ struct PartPackageTests {
     @Test(arguments: [0, 1, 2])
     func childPickersKeepTheirDeclaredInspectorPosition(_ position: Int) throws {
         var controls = [
-            #"{"type":"text","id":"before","defaults":{"base":""}}"#,
-            #"{"type":"themeFont","id":"font","defaults":{"base":"body"},"showsWeight":true,"showsStyle":true}"#
+            #"{"type":"text","id":"before","defaults":{"xs":""}}"#,
+            #"{"type":"themeFont","id":"font","defaults":{"xs":"body"},"showsWeight":true,"showsStyle":true}"#
         ]
         controls.insert(#"{"type":"childPicker","id":"items","pickerItems":["com.example.child"]}"#, at: position)
         let entries = """
@@ -970,7 +1105,7 @@ struct PartPackageTests {
     @Test func generatedFontRowsShareOneInspectorGrid() throws {
         let item = """
         {"type" : "themeFont", "id" : "font",
-        "defaults" : {"base" : "body"}, "showsWeight" : true, "showsStyle" : true}
+        "defaults" : {"xs" : "body"}, "showsWeight" : true, "showsStyle" : true}
         """
         let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withInspectorEntries: item).utf8))
         let property = try #require(decoded.resolvedProperties.first)
@@ -989,7 +1124,7 @@ struct PartPackageTests {
         let item = """
         {"type" : "select", "id" : "choice",
         "options" : [{"value" : "body", "title" : "Body"}],
-        "defaults" : {"base" : "body"}}
+        "defaults" : {"xs" : "body"}}
         """
         let url = try makePackage(manifest: manifest(withInspectorEntries: item),
             template: "<section {{ part.attributes }} data-choice=\"{{ control.choice }}\">{{ childArea(\"content\") }}</section>")
@@ -1016,7 +1151,7 @@ struct PartPackageTests {
 
     @Test func togglePresentationChoosesCheckboxOrSwitch() throws {
         func item(_ extra: String) -> String {
-            "{\"type\" : \"toggle\", \"id\" : \"flag\", \"label\" : \"Flag\"\(extra), \"defaults\" : {\"base\" : true}, \"responsive\" : false}"
+            "{\"type\" : \"toggle\", \"id\" : \"flag\", \"label\" : \"Flag\"\(extra), \"defaults\" : {\"xs\" : true}, \"responsive\" : false}"
         }
         for valid in ["checkbox", "switch"] {
             let data = Data(manifest(withInspectorEntries: item(", \"presentation\" : \"\(valid)\"")).utf8)
@@ -1032,7 +1167,7 @@ struct PartPackageTests {
         #expect(try PartPackageManifestSchema.diagnostics(for: invalid).contains {
             $0.message == "A toggle presentation must be checkbox or switch."
         })
-        let text = "{\"type\" : \"text\", \"id\" : \"t\", \"label\" : \"T\", \"presentation\" : \"switch\", \"defaults\" : {\"base\" : \"x\"}, \"responsive\" : false}"
+        let text = "{\"type\" : \"text\", \"id\" : \"t\", \"label\" : \"T\", \"presentation\" : \"switch\", \"defaults\" : {\"xs\" : \"x\"}, \"responsive\" : false}"
         #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: text).utf8)).contains {
             $0.severity == .warning && $0.message.contains("'presentation'")
         })
@@ -1042,7 +1177,7 @@ struct PartPackageTests {
         let item = """
         {"type" : "themeFontSize", "id" : "size",
         "label" : "Size", "responsive" : true,
-        "defaults" : {"base" : "xl"}}
+        "defaults" : {"xs" : "xl"}}
         """
         let url = try makePackage(manifest: manifest(withInspectorEntries: item),
             template: "<p {{ part.attributes }} style=\"font-size: {{ control.size }}; line-height: {{ control.size.lineHeight }}\">{{ childArea(\"content\") }}</p>")
@@ -1074,7 +1209,7 @@ struct PartPackageTests {
         let item = """
         {"type" : "themeStackingOrder", "id" : "layer",
         "label" : "Layer", "responsive" : true,
-        "defaults" : {"base" : "modal"}}
+        "defaults" : {"xs" : "modal"}}
         """
         let url = try makePackage(manifest: manifest(withInspectorEntries: item),
             template: "<div {{ part.attributes }} style=\"z-index: {{ control.layer }}\">{{ childArea(\"content\") }}</div>")
@@ -1116,7 +1251,7 @@ struct PartPackageTests {
         let item = """
         {"type" : "themeFont", "id" : "typography",
         "showsWeight" : true, "showsStyle" : true, "responsive" : true,
-        "defaults" : {"base" : {"family" : "body", "weight" : 650, "style" : "italic"}}}
+        "defaults" : {"xs" : {"family" : "body", "weight" : 650, "style" : "italic"}}}
         """
         let url = try makePackage(manifest: manifest(withInspectorEntries: item), template: "<section {{ part.attributes }} data-face=\"{{ control.typography.family }}|{{ control.typography.weight }}|{{ control.typography.style }}\">{{ childArea(\"content\") }}</section>")
         defer { try? FileManager.default.removeItem(at: url) }
@@ -1144,19 +1279,19 @@ struct PartPackageTests {
     @Test func unifiedFontControlValidatesCapabilities() throws {
         for extra in [
             "\"showsFamily\" : false",
-            "\"defaults\" : {\"base\" : {\"family\" : \"body\", \"weight\" : 500}}",
-            "\"showsWeight\" : true, \"defaults\" : {\"base\" : {\"family\" : \"body\", \"weight\" : 1001}}",
-            "\"showsStyle\" : true, \"defaults\" : {\"base\" : {\"family\" : \"body\", \"style\" : \"bold\"}}",
-            "\"defaults\" : {\"base\" : {\"family\" : \"body\", \"size\" : \"xl\"}}",
-            "\"showsSize\" : true, \"defaults\" : {\"base\" : {\"family\" : \"body\", \"size\" : \"huge\"}}"
+            "\"defaults\" : {\"xs\" : {\"family\" : \"body\", \"weight\" : 500}}",
+            "\"showsWeight\" : true, \"defaults\" : {\"xs\" : {\"family\" : \"body\", \"weight\" : 1001}}",
+            "\"showsStyle\" : true, \"defaults\" : {\"xs\" : {\"family\" : \"body\", \"style\" : \"bold\"}}",
+            "\"defaults\" : {\"xs\" : {\"family\" : \"body\", \"size\" : \"xl\"}}",
+            "\"showsSize\" : true, \"defaults\" : {\"xs\" : {\"family\" : \"body\", \"size\" : \"huge\"}}"
         ] {
-            let defaultJSON = extra.contains("\"defaults\"") ? "" : ", \"defaults\" : {\"base\" : \"body\"}"
+            let defaultJSON = extra.contains("\"defaults\"") ? "" : ", \"defaults\" : {\"xs\" : \"body\"}"
             let item = "{\"type\" : \"themeFont\", \"id\" : \"font\"\(defaultJSON), \(extra)}"
             let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withInspectorEntries: item).utf8))
             #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory).contains { $0.severity == .error && ($0.message.contains("default.") || $0.message.contains("at least one")) })
         }
         for kind in ["fontWeight", "fontStyle"] {
-            let item = "{\"type\" : \"\(kind)\", \"id\" : \"font\", \"defaults\" : {\"base\" : \"normal\"}}"
+            let item = "{\"type\" : \"\(kind)\", \"id\" : \"font\", \"defaults\" : {\"xs\" : \"normal\"}}"
             #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: item).utf8)).contains { $0.message.contains("Use one themeFont") })
         }
     }
@@ -1164,7 +1299,7 @@ struct PartPackageTests {
     @Test @MainActor func fontShowsSizeAddsAThemeFontSizeRow() throws {
         let item = """
         {"type" : "themeFont", "id" : "font", "showsSize" : true, "responsive" : true,
-        "defaults" : {"base" : {"family" : "body", "size" : "xl"}}}
+        "defaults" : {"xs" : {"family" : "body", "size" : "xl"}}}
         """
         let url = try makePackage(manifest: manifest(withInspectorEntries: item),
             template: "<p {{ part.attributes }} style=\"font-size: {{ control.font.size }}; line-height: {{ control.font.size.lineHeight }}\">{{ childArea(\"content\") }}</p>")
@@ -1185,7 +1320,7 @@ struct PartPackageTests {
     }
 
     @Test @MainActor func fixedFamilyCanExposeOnlyWeight() throws {
-        let item = "{\"type\" : \"themeFont\", \"id\" : \"font\", \"showsFamily\" : false, \"showsWeight\" : true, \"responsive\" : true, \"defaults\" : {\"base\" : \"body\"}}"
+        let item = "{\"type\" : \"themeFont\", \"id\" : \"font\", \"showsFamily\" : false, \"showsWeight\" : true, \"responsive\" : true, \"defaults\" : {\"xs\" : \"body\"}}"
         let url = try makePackage(manifest: manifest(withInspectorEntries: item), template: "<section {{ part.attributes }}>{{ childArea(\"content\") }}</section>")
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
@@ -1207,7 +1342,7 @@ struct PartPackageTests {
     @Test @MainActor
     func standaloneThemeFontLoadsAndRenders() throws {
         for role in ["body", "heading", "monospaced"] {
-            let item = "{\"type\" : \"themeFont\", \"id\" : \"family\", \"defaults\" : {\"base\" : \"\(role)\"}, \"responsive\" : true}"
+            let item = "{\"type\" : \"themeFont\", \"id\" : \"family\", \"defaults\" : {\"xs\" : \"\(role)\"}, \"responsive\" : true}"
             let url = try makePackage(manifest: manifest(withInspectorEntries: item), template: "<section {{ part.attributes }} style=\"font-family: {{ control.family.family }}\">{{ childArea(\"content\") }}</section>")
             defer { try? FileManager.default.removeItem(at: url) }
             let package = try PartPackageLoader.load(from: url)
@@ -1226,27 +1361,40 @@ struct PartPackageTests {
 
     @Test func standaloneThemeFontRejectsInvalidContracts() throws {
         for value in ["accent", "custom:anything", "Arial"] {
-            let item = "{\"type\" : \"themeFont\", \"id\" : \"family\", \"defaults\" : {\"base\" : \"\(value)\"}}"
+            let item = "{\"type\" : \"themeFont\", \"id\" : \"family\", \"defaults\" : {\"xs\" : \"\(value)\"}}"
             let decoded = try JSONDecoder().decode(PartPackageManifest.self, from: Data(manifest(withInspectorEntries: item).utf8))
             #expect(PartPackageValidator.validate(decoded, rootURL: FileManager.default.temporaryDirectory).contains { $0.message.contains("themeFont default") })
         }
         for extra in ["\"count\" : 2", "\"themeValues\" : \"fontFamilies\"", "\"options\" : []", "\"allowsCustom\" : false"] {
-            let item = "{\"type\" : \"themeFont\", \"id\" : \"family\", \"defaults\" : {\"base\" : \"body\"}, \(extra)}"
+            let item = "{\"type\" : \"themeFont\", \"id\" : \"family\", \"defaults\" : {\"xs\" : \"body\"}, \(extra)}"
             #expect(try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: item).utf8)).contains { $0.severity == .warning && $0.message.contains("themeFont does not support") })
         }
     }
 
     @Test
-    func partValidationModesSelectTheIntendedPackKinds() {
-        let releasePart = URL(filePath: "/Packs/Example.foundrypack/Parts/Card.foundrypart")
-        let developmentPart = URL(filePath: "/Packs/Example.foundrydevpack/Parts/Card.foundrypart")
+    func developmentPacksAlwaysValidate() throws {
+        let packageURL = try makePackage(
+            manifest: validManifest,
+            template: "<section {{ part.attributes }}>{{ control.missing }}</section>",
+            pathExtension: "foundrydevpack"
+        )
+        defer { try? FileManager.default.removeItem(at: packageURL) }
+        #expect(throws: PartPackageLoadingError.self) {
+            try PartPackageLoader.loadForCatalog(from: packageURL)
+        }
+        #expect(throws: PartPackageLoadingError.self) {
+            try PartPackageLoader.loadForCatalog(from: packageURL, validates: false)
+        }
+    }
 
-        #expect(!PartValidationMode.off.validates(releasePart))
-        #expect(!PartValidationMode.off.validates(developmentPart))
-        #expect(!PartValidationMode.developmentPacks.validates(releasePart))
-        #expect(PartValidationMode.developmentPacks.validates(developmentPart))
-        #expect(PartValidationMode.allPacks.validates(releasePart))
-        #expect(PartValidationMode.allPacks.validates(developmentPart))
+    @Test
+    func unknownPartGroupsAreErrors() throws {
+        var object = try #require(JSONSerialization.jsonObject(with: Data(validManifest.utf8)) as? [String: Any])
+        object["group"] = "Not a group"
+        let data = try JSONSerialization.data(withJSONObject: object)
+        #expect(try PartPackageManifestSchema.diagnostics(for: data).contains {
+            $0.severity == .error && $0.location == "manifest.json:group"
+        })
     }
 
     @Test
@@ -1409,7 +1557,7 @@ struct PartPackageTests {
                     "enabled": .boolean(true),
                     "score": .number(72),
                     "threshold": .number(60),
-                    "base": .number(10),
+                    "xs": .number(10),
                     "offset": .number(6),
                     "multiplier": .number(3),
                     "labels": .array([.string("Alpha"), .string("Beta")])
@@ -1852,19 +2000,19 @@ struct PartPackageTests {
         let controls = """
         {"type":"select","id":"direction","label":"Direction","responsive":true,
          "options":[{"value":"column","title":"Column"},{"value":"row","title":"Row"}],
-         "defaults":{"base":"column"}},
+         "defaults":{"xs":"column"}},
         {"type":"select","id":"wrap","label":"Wrap","responsive":true,
          "options":[{"value":"nowrap","title":"No wrap"},{"value":"wrap","title":"Wrap"}],
-         "defaults":{"base":"nowrap"}},
-        {"type":"themeSpacing","id":"columnGap","label":"H gap","responsive":true,"defaults":{"base":"md"}},
-        {"type":"themeSpacing","id":"rowGap","label":"V gap","responsive":true,"defaults":{"base":"md"}},
+         "defaults":{"xs":"nowrap"}},
+        {"type":"themeSpacing","id":"columnGap","label":"H gap","responsive":true,"defaults":{"xs":"md"}},
+        {"type":"themeSpacing","id":"rowGap","label":"V gap","responsive":true,"defaults":{"xs":"md"}},
         {"type":"select","id":"alignItems","label":"Align","responsive":true,
          "options":[{"value":"stretch","title":"Stretch"},{"value":"center","title":"Centre"}],
-         "defaults":{"base":"stretch"}},
+         "defaults":{"xs":"stretch"}},
         {"type":"select","id":"alignContent","label":"Align content","responsive":true,
-         "options":[{"value":"flex-start","title":"Start"}],"defaults":{"base":"flex-start"}},
+         "options":[{"value":"flex-start","title":"Start"}],"defaults":{"xs":"flex-start"}},
         {"type":"select","id":"justifyContent","label":"Justify","responsive":true,
-         "options":[{"value":"center","title":"Centre"}],"defaults":{"base":"center"}}
+         "options":[{"value":"center","title":"Centre"}],"defaults":{"xs":"center"}}
         """
         let json = """
         {
@@ -1978,7 +2126,7 @@ struct PartPackageTests {
     func namedGroupRejectsOmittedTemplateControlAndNamespaceCollision() throws {
         for (entries, template) in [
             (#"{"type":"sizing","id":"panel","excludeControls":["width"]}"#, "{{ control.panel.width }}"),
-            (#"{"type":"sizing","id":"panel"},{"type":"number","id":"panel","defaults":{"base":1}}"#, "")
+            (#"{"type":"sizing","id":"panel"},{"type":"number","id":"panel","defaults":{"xs":1}}"#, "")
         ] {
             let url = try makePackage(manifest: manifest(withInspectorEntries: entries), template: "<section class=\"{{ part.class }}\" {{ part.attributes }}>\(template){{ childArea(\"content\") }}</section>")
             defer { try? FileManager.default.removeItem(at: url) }
@@ -2127,7 +2275,7 @@ struct PartPackageTests {
         "inspector" : [
             {"type" : "select", "id" : "layout", "label" : "Layout",
              "options" : [{"value" : "block", "title" : "Block"}, {"value" : "flex", "title" : "Flex"}],
-             "defaults" : {"base" : "block"}},
+             "defaults" : {"xs" : "block"}},
             {"type" : "flexbox", "id": "flexbox", "visibleWhen" : {"id" : "layout", "value" : "flex"},
              "defaults" : {"wrap" : "flex-wrap"}},
             {"type" : "spacing", "id": "spacing", "visibleWhen" : {"id" : "layout", "value" : "flex"}}
@@ -2384,14 +2532,14 @@ struct PartPackageTests {
                 "id" : "before",
                 "label" : "Before",
                 "type" : "toggle",
-                "defaults" : {"base" : true}
+                "defaults" : {"xs" : true}
             },
             {"type" : "borders", "id": "borders"},
             {
                 "id" : "after",
                 "label" : "After",
                 "type" : "toggle",
-                "defaults" : {"base" : false}
+                "defaults" : {"xs" : false}
             }
         ],
         "templates" : {"html" : "part.html"}
@@ -2478,7 +2626,7 @@ struct PartPackageTests {
             "id" : "film",
             "label" : "Film",
             "type" : "video",
-            "defaults" : {"base" : ""}
+            "defaults" : {"xs" : ""}
         }
         """
         let data = Data(manifest(withInspectorEntries: control).utf8)
@@ -2487,8 +2635,8 @@ struct PartPackageTests {
         #expect(property.control.type == .video)
         #expect(!property.responsive)
         let responsiveControl = control.replacingOccurrences(
-            of: "\"defaults\" : {\"base\" : \"\"}",
-            with: "\"defaults\" : {\"base\" : \"\"}, \"responsive\" : true"
+            of: "\"defaults\" : {\"xs\" : \"\"}",
+            with: "\"defaults\" : {\"xs\" : \"\"}, \"responsive\" : true"
         )
         let responsiveDiagnostics = try PartPackageManifestSchema.diagnostics(
             for: Data(manifest(withInspectorEntries: responsiveControl).utf8)
@@ -2650,7 +2798,7 @@ struct PartPackageTests {
         "subtitle" : ["First", "Second", "Third", "Fourth"],
         "tooltip" : "Four colours",
         "type" : "color", "count" : 4,
-        "defaults" : {"base" : ["#111111", "#222222", "#333333", "#444444"]},
+        "defaults" : {"xs" : ["#111111", "#222222", "#333333", "#444444"]},
         "responsive" : true        }],
         "templates" : {"html" : "part.html"}
         }
@@ -2688,7 +2836,7 @@ struct PartPackageTests {
         "type" : "select", "themeValues" : "spacing",
         "allowsCustom" : true,
         "options" : [{"value" : "inherit", "title" : "Inherit"}],
-        "defaults" : {"base" : "md"}, "responsive" : false
+        "defaults" : {"xs" : "md"}, "responsive" : false
         }],
         "templates" : {"html" : "part.html"}
         }
@@ -2723,8 +2871,8 @@ struct PartPackageTests {
                 with: "\"themeValues\" : \"fontSizes\""
             )
             .replacingOccurrences(
-                of: "\"defaults\" : {\"base\" : \"md\"}, \"responsive\" : false",
-                with: "\"defaults\" : {\"base\" : \"base\"}, \"responsive\" : false, \"count\" : 2"
+                of: "\"defaults\" : {\"xs\" : \"md\"}, \"responsive\" : false",
+                with: "\"defaults\" : {\"xs\" : \"base\"}, \"responsive\" : false, \"count\" : 2"
             )
         let schemaDiagnostics = try PartPackageManifestSchema.diagnostics(
             for: Data(countedThemeSelect.utf8)
@@ -2763,7 +2911,7 @@ struct PartPackageTests {
             "type" : "select",
             "themeValues" : "fontFamilies",
             "allowsCustom" : true,
-            "defaults" : {"base" : "body"},
+            "defaults" : {"xs" : "body"},
             "responsive" : true
         }
         """
@@ -2789,7 +2937,7 @@ struct PartPackageTests {
             "label" : "Shadow",
             "type" : "themeShadow",
             "allowsCustom" : true,
-            "defaults" : {"base" : "md"},
+            "defaults" : {"xs" : "md"},
             "responsive" : false
         }
         """
@@ -2840,7 +2988,7 @@ struct PartPackageTests {
             "id" : "example",
             "label" : "Example",
             "type" : "text",
-            "defaults" : {"base" : "Hello"},
+            "defaults" : {"xs" : "Hello"},
             "responsive" : false
         }
         """
@@ -2872,8 +3020,8 @@ struct PartPackageTests {
                 ":responsive", "responsive must be a Boolean."
             ),
             (
-                validItem.replacingOccurrences(of: "\"defaults\" : {\"base\" : \"Hello\"}", with: "\"defaults\" : {\"base\" : {}}"),
-                ":defaults.base", "defaults.base must be a string, number, Boolean, or array of those values."
+                validItem.replacingOccurrences(of: "\"defaults\" : {\"xs\" : \"Hello\"}", with: "\"defaults\" : {\"xs\" : {}}"),
+                ":defaults.xs", "defaults.xs must be a string, number, Boolean, or array of those values."
             ),
             (
                 validItem.replacingOccurrences(of: "\"responsive\" : false", with: "\"responsive\" : false, \"minimum\" : \"zero\""),
@@ -2924,10 +3072,10 @@ struct PartPackageTests {
         "version" : "1.0.0", "group" : "Other",
         "assets" : [],
         "inspector" : [
-        {"id" : "mode", "label" : "Mode", "type" : "select", "options" : [{"value" : "featured", "title" : "Featured"}], "defaults" : {"base" : "featured"}, "responsive" : false},
-        {"id" : "titles", "label" : "Titles", "type" : "text", "count" : 3, "defaults" : {"base" : ["One", "Two", "Featured story"]}, "responsive" : false},
-        {"id" : "detail", "label" : "Detail", "type" : "text", "defaults" : {"base" : "Visible"}, "responsive" : false, "visibleWhen" : {"id" : "titles[2]", "operation" : "containsInsensitive", "value" : "featured"}, "outputWhenHidden" : false},
-        {"id" : "compoundDetail", "label" : "Compound detail", "type" : "text", "defaults" : {"base" : "Visible"}, "responsive" : false, "visibleWhen" : {"all" : [{"id" : "mode", "value" : "featured"}, {"any" : [{"id" : "titles[0]", "value" : "One"}, {"id" : "titles[1]", "value" : "Other"}]}]}}
+        {"id" : "mode", "label" : "Mode", "type" : "select", "options" : [{"value" : "featured", "title" : "Featured"}], "defaults" : {"xs" : "featured"}, "responsive" : false},
+        {"id" : "titles", "label" : "Titles", "type" : "text", "count" : 3, "defaults" : {"xs" : ["One", "Two", "Featured story"]}, "responsive" : false},
+        {"id" : "detail", "label" : "Detail", "type" : "text", "defaults" : {"xs" : "Visible"}, "responsive" : false, "visibleWhen" : {"id" : "titles[2]", "operation" : "containsInsensitive", "value" : "featured"}, "outputWhenHidden" : false},
+        {"id" : "compoundDetail", "label" : "Compound detail", "type" : "text", "defaults" : {"xs" : "Visible"}, "responsive" : false, "visibleWhen" : {"all" : [{"id" : "mode", "value" : "featured"}, {"any" : [{"id" : "titles[0]", "value" : "One"}, {"id" : "titles[1]", "value" : "Other"}]}]}}
         ], "templates" : {"html" : "part.html"}
         }
         """
@@ -2965,9 +3113,9 @@ struct PartPackageTests {
         "title" : "Hidden output",
         "version" : "1.0.0",
         "inspector" : [
-        {"id" : "mode", "label" : "Mode", "type" : "select", "options" : [{"value" : "preset", "title" : "Preset"}, {"value" : "custom", "title" : "Custom"}], "defaults" : {"base" : "preset"}, "responsive" : false},
-        {"id" : "presetSize", "label" : "Preset size", "type" : "text", "defaults" : {"base" : "1rem"}, "responsive" : false, "visibleWhen" : {"id" : "mode", "value" : "preset"}, "outputWhenHidden" : false},
-        {"id" : "customSize", "label" : "Custom size", "type" : "text", "defaults" : {"base" : "24px"}, "responsive" : false, "visibleWhen" : {"id" : "mode", "value" : "custom"}, "outputWhenHidden" : false}
+        {"id" : "mode", "label" : "Mode", "type" : "select", "options" : [{"value" : "preset", "title" : "Preset"}, {"value" : "custom", "title" : "Custom"}], "defaults" : {"xs" : "preset"}, "responsive" : false},
+        {"id" : "presetSize", "label" : "Preset size", "type" : "text", "defaults" : {"xs" : "1rem"}, "responsive" : false, "visibleWhen" : {"id" : "mode", "value" : "preset"}, "outputWhenHidden" : false},
+        {"id" : "customSize", "label" : "Custom size", "type" : "text", "defaults" : {"xs" : "24px"}, "responsive" : false, "visibleWhen" : {"id" : "mode", "value" : "custom"}, "outputWhenHidden" : false}
         ],
         "templates" : {"html" : "part.html"}
         }
@@ -3021,7 +3169,7 @@ struct PartPackageTests {
     @Test
     func disablingOutputWhenHiddenRequiresAVisibilityCondition() throws {
         let control = """
-        {"id" : "detail", "label" : "Detail", "type" : "text", "defaults" : {"base" : "Value"}, "responsive" : false, "outputWhenHidden" : false}
+        {"id" : "detail", "label" : "Detail", "type" : "text", "defaults" : {"xs" : "Value"}, "responsive" : false, "outputWhenHidden" : false}
         """
         let diagnostics = try PartPackageManifestSchema.diagnostics(
             for: Data(manifest(withInspectorEntries: control).utf8)
@@ -3042,8 +3190,8 @@ struct PartPackageTests {
         "version" : "1.0.0",
         "group" : "Other", "assets" : [],
         "inspector" : [
-        {"id" : "amount", "label" : "Amount", "type" : "number", "defaults" : {"base" : 21}, "responsive" : false},
-        {"id" : "action", "label" : "Action", "type" : "button", "trueValue" : "active", "falseValue" : "ready", "defaults" : {"base" : false}, "responsive" : false},
+        {"id" : "amount", "label" : "Amount", "type" : "number", "defaults" : {"xs" : 21}, "responsive" : false},
+        {"id" : "action", "label" : "Action", "type" : "button", "trueValue" : "active", "falseValue" : "ready", "defaults" : {"xs" : false}, "responsive" : false},
         {"id" : "doubled", "type" : "math", "argument1" : "amount", "argument2" : 2, "operation" : "*", "round" : false}
         ], "templates" : {"html" : "part.html"}
         }
@@ -3067,12 +3215,12 @@ struct PartPackageTests {
         "version" : "1.0.0",
         "group" : "Other", "assets" : [],
         "inspector" : [
-        {"id" : "plain", "subtitle" : "Optional help", "type" : "button", "defaults" : {"base" : false}},
-        {"id" : "mapped", "type" : "button", "buttonText" : "Apply", "buttonIcon" : "bolt.fill", "trueValue" : "active", "falseValue" : "idle", "defaults" : {"base" : true}},
-        {"id" : "multiple", "type" : "button", "count" : 2, "subtitle" : ["First", "Second"], "buttonText" : ["Previous", "Next"], "buttonIcon" : ["arrow.left", "arrow.right"], "activeButtonText" : ["Selected previous", "Selected next"], "activeButtonIcon" : ["checkmark", "checkmark"], "trueValue" : ["one", "two"], "falseValue" : "off", "defaults" : {"base" : [true, false]}},
-        {"id" : "singleChoice", "type" : "button", "count" : 2, "selectionMode" : "single", "trueValue" : ["first", "second"], "defaults" : {"base" : [false, true]}},
-        {"id" : "wrongDefault", "type" : "button", "defaults" : {"base" : "no"}},
-        {"id" : "wrongMapping", "type" : "button", "count" : 2, "selectionMode" : "single", "trueValue" : ["only-one"], "defaults" : {"base" : [true, true]}}
+        {"id" : "plain", "subtitle" : "Optional help", "type" : "button", "defaults" : {"xs" : false}},
+        {"id" : "mapped", "type" : "button", "buttonText" : "Apply", "buttonIcon" : "bolt.fill", "trueValue" : "active", "falseValue" : "idle", "defaults" : {"xs" : true}},
+        {"id" : "multiple", "type" : "button", "count" : 2, "subtitle" : ["First", "Second"], "buttonText" : ["Previous", "Next"], "buttonIcon" : ["arrow.left", "arrow.right"], "activeButtonText" : ["Selected previous", "Selected next"], "activeButtonIcon" : ["checkmark", "checkmark"], "trueValue" : ["one", "two"], "falseValue" : "off", "defaults" : {"xs" : [true, false]}},
+        {"id" : "singleChoice", "type" : "button", "count" : 2, "selectionMode" : "single", "trueValue" : ["first", "second"], "defaults" : {"xs" : [false, true]}},
+        {"id" : "wrongDefault", "type" : "button", "defaults" : {"xs" : "no"}},
+        {"id" : "wrongMapping", "type" : "button", "count" : 2, "selectionMode" : "single", "trueValue" : ["only-one"], "defaults" : {"xs" : [true, true]}}
         ], "templates" : {"html" : "part.html"}
         }
         """
@@ -3121,7 +3269,7 @@ struct PartPackageTests {
         ]
         let declarations = formats.map { format in
             """
-            {"id" : "\(format)", "type" : "color", "opacity" : true, "outputFormat" : "\(format)", "defaults" : {"base" : "#FF336680"}}
+            {"id" : "\(format)", "type" : "color", "opacity" : true, "outputFormat" : "\(format)", "defaults" : {"xs" : "#FF336680"}}
             """
         }.joined(separator: ",\n")
         let json = """
@@ -3133,9 +3281,9 @@ struct PartPackageTests {
         "group" : "Other", "assets" : [],
         "inspector" : [
         \(declarations),
-        {"id" : "defaultHex", "type" : "color", "defaults" : {"base" : "#FF3366"}},
-        {"id" : "opaqueRGBA", "type" : "color", "outputFormat" : "rgba", "defaults" : {"base" : "#FF3366"}},
-        {"id" : "array", "type" : "color", "count" : 2, "outputFormat" : "rgbValues", "defaults" : {"base" : ["#FF3366", "#3366CC"]}}
+        {"id" : "defaultHex", "type" : "color", "defaults" : {"xs" : "#FF3366"}},
+        {"id" : "opaqueRGBA", "type" : "color", "outputFormat" : "rgba", "defaults" : {"xs" : "#FF3366"}},
+        {"id" : "array", "type" : "color", "count" : 2, "outputFormat" : "rgbValues", "defaults" : {"xs" : ["#FF3366", "#3366CC"]}}
         ], "templates" : {"html" : "part.html"}
         }
         """
@@ -3218,8 +3366,8 @@ struct PartPackageTests {
         "version" : "1.0.0",
         "group" : "Other", "assets" : [],
         "inspector" : [
-        {"id" : "published", "type" : "date", "minimum" : "2026-01-01", "maximum" : "2026-12-31", "defaults" : {"base" : "2026-09-08"}},
-        {"id" : "schedule", "type" : "date", "count" : 2, "defaults" : {"base" : ["2026-10-01", "2026-10-20"]}}
+        {"id" : "published", "type" : "date", "minimum" : "2026-01-01", "maximum" : "2026-12-31", "defaults" : {"xs" : "2026-09-08"}},
+        {"id" : "schedule", "type" : "date", "count" : 2, "defaults" : {"xs" : ["2026-10-01", "2026-10-20"]}}
         ], "templates" : {"html" : "part.html"}
         }
         """
@@ -3628,8 +3776,8 @@ struct PartPackageTests {
                 .file(at: "hidden/current/index.html")?.contents
         )
 
-        #expect(html.contains("href=\"/\">Home</a>"))
-        #expect(html.contains("href=\"/hidden/current/\" aria-current=\"page\">Current &amp; Selected</a>"))
+        #expect(html.contains("href=\"../../\">Home</a>"))
+        #expect(html.contains("href=\"../../hidden/current/\" aria-current=\"page\">Current &amp; Selected</a>"))
         #expect(!html.contains(">Hidden</a>"))
         #expect(html.contains("data-foundry-part"))
         #expect(html.contains("data-foundry-package=\"\(identifier)\""))
@@ -3732,7 +3880,7 @@ struct PartPackageTests {
             "type" : "number",
             "minimum" : 0,
             "maximum" : 12,
-            "defaults" : {"base" : 4},
+            "defaults" : {"xs" : 4},
             "responsive" : false
         }
         """
@@ -4299,7 +4447,7 @@ struct PartPackageTests {
                 "id" : "title",
                 "label" : "Title",
                 "type" : "text",
-                "defaults" : {"base" : "Hello"},
+                "defaults" : {"xs" : "Hello"},
                 "responsive" : false
             }
             """)
@@ -4331,7 +4479,7 @@ struct PartPackageTests {
                 "id" : "source",
                 "label" : "Image",
                 "type" : "image",
-                "defaults" : {"base" : "images/icon.svg"}
+                "defaults" : {"xs" : "images/icon.svg"}
             }
             """)
         let packageURL = try makePackage(
@@ -4355,8 +4503,8 @@ struct PartPackageTests {
         #expect(rendered.contains("src=\"files/icon.svg\""))
 
         let invalidManifest = validImageManifest.replacingOccurrences(
-            of: "\"defaults\" : {\"base\" : \"images/icon.svg\"}",
-            with: "\"defaults\" : {\"base\" : \"images/missing.svg\"}"
+            of: "\"defaults\" : {\"xs\" : \"images/icon.svg\"}",
+            with: "\"defaults\" : {\"xs\" : \"images/missing.svg\"}"
         )
         let invalidPackage = try makePackage(
             manifest: invalidManifest,
@@ -4958,7 +5106,7 @@ struct PartPackageTests {
             "id" : "alignment",
             "label" : "Alignment",
             "type" : "textAlignment",
-            "defaults" : {"base" : "start"},
+            "defaults" : {"xs" : "start"},
             "responsive" : true
         }
         """
@@ -4999,7 +5147,7 @@ struct PartPackageTests {
             "type" : "select",
             "themeValues" : "fontSizes",
             "count" : 2,
-            "defaults" : {"base" : ["base", "base"]},
+            "defaults" : {"xs" : ["base", "base"]},
             "responsive" : false
         }
         """
@@ -5025,7 +5173,7 @@ struct PartPackageTests {
             "id" : "spacing",
             "label" : "Spacing",
             "type" : "number",
-            "defaults" : {"base" : 12},
+            "defaults" : {"xs" : 12},
             "responsive" : false
         }
         """
@@ -5064,7 +5212,7 @@ struct PartPackageTests {
             "maximum" : 100,
             "ticks" : 11,
             "units" : "%",
-            "defaults" : {"base" : 50},
+            "defaults" : {"xs" : 50},
             "responsive" : false
         }
         """
@@ -5098,7 +5246,7 @@ struct PartPackageTests {
             "type" : "slider",
             "count" : 3,
             "units" : ["px", "rem", "%"],
-            "defaults" : {"base" : [20, 4, 80]},
+            "defaults" : {"xs" : [20, 4, 80]},
             "responsive" : false
         }
         """
@@ -5154,7 +5302,7 @@ struct PartPackageTests {
             "label" : "Slider",
             "type" : "slider",
             "editableValue" : true,
-            "defaults" : {"base" : 0},
+            "defaults" : {"xs" : 0},
             "responsive" : false
         }
         """
@@ -5177,7 +5325,7 @@ struct PartPackageTests {
 
     @Test
     func sliderIgnoresRetiredShowsValueField() throws {
-        let entry = #"{"id":"slider","label":"Slider","type":"slider","showsValueField":true,"defaults":{"base":0},"responsive":false}"#
+        let entry = #"{"id":"slider","label":"Slider","type":"slider","showsValueField":true,"defaults":{"xs":0},"responsive":false}"#
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: entry).utf8))
         #expect(diagnostics.contains { $0.severity == .warning && $0.message.contains("showsValueField") })
     }
@@ -5202,7 +5350,7 @@ struct PartPackageTests {
             "step" : -1,
             "ticks" : 1,
             "units" : "pixels",
-            "defaults" : {"base" : 10},
+            "defaults" : {"xs" : 10},
             "responsive" : false
         }
         """
@@ -5239,7 +5387,7 @@ struct PartPackageTests {
             "minimumLabel" : {"systemImage" : "sun.min", "title" : "Dim"},
             "maximumLabel" : {"title" : "Bright"},
             "neutralValue" : 6,
-            "defaults" : {"base" : 0},
+            "defaults" : {"xs" : 0},
             "responsive" : false
         }
         """
@@ -5278,14 +5426,14 @@ struct PartPackageTests {
         #""valueLabels":{"0":"Auto"},"editableValue":true"#
     ])
     func sliderCustomisationsRejectMalformedValues(_ setting: String) throws {
-        let entry = #"{"id":"slider","label":"Slider","type":"slider",\#(setting),"defaults":{"base":0},"responsive":false}"#
+        let entry = #"{"id":"slider","label":"Slider","type":"slider",\#(setting),"defaults":{"xs":0},"responsive":false}"#
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: entry).utf8))
         #expect(diagnostics.contains { $0.severity == .error })
     }
 
     @Test
     func sliderOnlyKeysAreRejectedOnOtherControls() throws {
-        let entry = #"{"id":"size","label":"Size","type":"number","tickLabels":{"0":"None"},"defaults":{"base":0},"responsive":false}"#
+        let entry = #"{"id":"size","label":"Size","type":"number","tickLabels":{"0":"None"},"defaults":{"xs":0},"responsive":false}"#
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: entry).utf8))
         #expect(diagnostics.contains { $0.severity == .warning && $0.message.contains("'tickLabels'") })
     }
@@ -5302,7 +5450,7 @@ struct PartPackageTests {
             "tickLabels" : {"20" : "Far"},
             "valueLabels" : {"-1" : "Off"},
             "neutralValue" : 11,
-            "defaults" : {"base" : 0},
+            "defaults" : {"xs" : 0},
             "responsive" : false
         }
         """
@@ -5444,7 +5592,7 @@ struct PartPackageTests {
         #"{ "type" : "spacer", "height" : "10" }"#,
         #"{ "type" : "spacer", "height" : true }"#,
         #"{ "type" : "spacer", "label" : "Gap" }"#,
-        #"{ "id" : "size", "type" : "number", "height" : 10, "defaults" : { "base" : 1 } }"#
+        #"{ "id" : "size", "type" : "number", "height" : 10, "defaults" : { "xs" : 1 } }"#
     ])
     func spacerRejectsInvalidDeclarations(_ entry: String) throws {
         let diagnostics = try PartPackageManifestSchema.diagnostics(
@@ -5549,7 +5697,7 @@ struct PartPackageTests {
                 "id" : "destination",
                 "type" : "link",
                 "label" : "Destination",
-                "defaults" : {"base" : ""},
+                "defaults" : {"xs" : ""},
                 "\(key)" : \(value)
             }
             """
@@ -6113,7 +6261,6 @@ struct PartPackageTests {
 
         let clock = ContinuousClock()
         let start = clock.now
-        let validationMode = PartValidationPreference.mode
         catalog.reloadAllPacks()
         await catalog.waitUntilLoaded()
         let elapsed = start.duration(to: clock.now)
@@ -6123,15 +6270,8 @@ struct PartPackageTests {
         }.count
 
         print("Loaded and published \(loadedCount) stress parts in \(elapsed).")
-        print("Catalog validation mode: \(validationMode.rawValue).")
-        if validationMode == .allPacks {
-            let validationShare = estimatedValidationWallTime / seconds(elapsed) * 100
-            print("Estimated validation share of this catalog load: \(validationShare)% (\(estimatedValidationWallTime)s).")
-        } else {
-            let estimatedValidatedLoadTime = seconds(elapsed) + estimatedValidationWallTime
-            let potentialValidationShare = estimatedValidationWallTime / estimatedValidatedLoadTime * 100
-            print("Estimated validation cost avoided: \(estimatedValidationWallTime)s (\(potentialValidationShare)% of an estimated validated load).")
-        }
+        print("Installed release packs use the prepared catalog path; development packs always validate.")
+        print("Estimated full validation work: \(estimatedValidationWallTime)s.")
         #expect(loadedCount == expectedCount)
         #expect(elapsed < .seconds(20), "The installed stress catalog should reload within 20 seconds.")
     }
@@ -6568,7 +6708,7 @@ struct PartPackageTests {
     }
 
     @Test
-    func declaredBuiltInIconLibraryIsInjectedOnlyWhenRequested() throws {
+    func redundantIconLibraryRequestWarnsAndIsDeduplicated() throws {
         let identifier = "com.example.icons\(UUID().uuidString.replacingOccurrences(of: "-", with: "").lowercased())"
         let manifest = validManifest
             .replacingOccurrences(of: "com.example.card", with: identifier)
@@ -6587,7 +6727,9 @@ struct PartPackageTests {
             template: "<section {{ part.attributes }}><i class=\"bi bi-alarm\"></i>{{ childArea(\"content\") }}</section>"
         )
         defer { try? FileManager.default.removeItem(at: packageURL) }
-        let package = try PartPackageLoader.load(from: packageURL)
+        let loaded = try PartPackageLoader.loadWithDiagnostics(from: packageURL)
+        let package = loaded.package
+        #expect(loaded.diagnostics.contains { $0.severity == .warning && $0.message.contains("included automatically") })
         PartRegistry.register(package)
 
         let site = Site(
@@ -6598,7 +6740,8 @@ struct PartPackageTests {
         )
         let bundle = StaticSiteRenderer().render(site: site)
 
-        #expect(bundle.file(at: "files/site.css")?.contents.contains("bootstrap-icons") == true)
+        #expect(bundle.file(at: "files/site.css")?.contents.contains("bootstrap-icons") == false)
+        #expect(bundle.files.filter { $0.path == "files/libraries/bootstrapIcons/bootstrap-icons.css" }.count == 1)
         #expect(bundle.file(at: "files/libraries/bootstrapIcons/bootstrap-icons.woff2") != nil)
     }
 
@@ -6609,7 +6752,7 @@ struct PartPackageTests {
             "id" : "symbol",
             "label" : "Icon",
             "type" : "icon",
-            "defaults" : {"base" : "stars"},
+            "defaults" : {"xs" : "stars"},
             "responsive" : false
         }
         """
@@ -6699,7 +6842,8 @@ struct PartPackageTests {
     @Test
     func webLibrariesSupportPublishedRuntimeLibraries() {
         #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.alpineRequirement))
-        #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.bootstrapRequirement))
+        #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.bootstrapRequirement) == false)
+        #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.iconRequirement) == false)
         #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.gsapRequirement))
         #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.glightboxRequirement))
         #expect(FoundryWebLibraryRegistry.supports(FoundryWebLibraryRegistry.gsapScrollTriggerRequirement))
@@ -6755,7 +6899,7 @@ struct PartPackageTests {
             "id" : "symbol",
             "label" : "Icon",
             "type" : "icon",
-            "defaults" : {"base" : "not-a-real-foundry-icon"},
+            "defaults" : {"xs" : "not-a-real-foundry-icon"},
             "responsive" : false
         }
         """
@@ -6783,7 +6927,7 @@ struct PartPackageTests {
             "label" : "Icons",
             "count" : 2,
             "subtitle" : ["Previous", "Next"],
-            "defaults" : {"base" : ["arrow-left", "not-a-real-foundry-icon"]}
+            "defaults" : {"xs" : ["arrow-left", "not-a-real-foundry-icon"]}
         }
         """
         let manifestText = manifest(withInspectorEntries: item)
@@ -6851,7 +6995,7 @@ struct PartPackageTests {
             "title" : "Card",
             "version" : "1.0.0",
             "description" : "A test card.",
-            "group" : "Content part",
+            "group" : "Content",
             \(defaultCustomItemsDeclaration),
             "templates" : {
                 "html" : "part.html",
@@ -6872,7 +7016,7 @@ struct PartPackageTests {
                         "id" : "title",
                         "label" : "Title",
                         "type" : "text",
-                        "defaults" : {"base" : "Hello"},
+                        "defaults" : {"xs" : "Hello"},
                         "responsive" : false
                     }
                 ]
@@ -6895,7 +7039,7 @@ struct PartPackageTests {
             "id" : "cardShadow",
             "label" : "Shadow",
             "type" : "shadow",
-            "defaults" : {"base" : "md"},
+            "defaults" : {"xs" : "md"},
             "responsive" : false
         }
         """
@@ -6923,7 +7067,7 @@ struct PartPackageTests {
                     "id" : "galleryStyle",
                     "label" : "Style",
                     "type" : "toggle",
-                    "defaults" : {"base" : true},
+                    "defaults" : {"xs" : true},
                     "responsive" : false
                 },
                 {"type" : "spacing", "id": "spacing"}
@@ -7000,7 +7144,7 @@ struct PartPackageTests {
         // carrying its own group key fails as an unknown key.
         let strayGroup = try PartPackageManifestSchema.diagnostics(
             for: Data(manifest(withInspectorEntries: """
-            {"id" : "styled", "type" : "text", "group" : "Gallery", "defaults" : {"base" : ""}}
+            {"id" : "styled", "type" : "text", "group" : "Gallery", "defaults" : {"xs" : ""}}
             """).utf8)
         )
         #expect(strayGroup.contains { $0.message == "Unknown key 'group'; this setting was ignored. Check the spelling." })
@@ -7026,7 +7170,7 @@ struct PartPackageTests {
                 {"title" : "Below", "value" : "below"},
                 {"title" : "None", "value" : "hidden"}
             ],
-            "defaults" : {"base" : "below"}
+            "defaults" : {"xs" : "below"}
         },
         {
             "section" : "Caption Text",
@@ -7036,7 +7180,7 @@ struct PartPackageTests {
                 "value" : "hidden"
             },
             "controls" : [
-                {"id" : "caption", "type" : "text", "defaults" : {"base" : "Caption"}}
+                {"id" : "caption", "type" : "text", "defaults" : {"xs" : "Caption"}}
             ]
         }
         """
@@ -7160,168 +7304,34 @@ struct PartPackageTests {
     }
 
     @Test
-    func builtInIconColourManifestsLoad() throws {
+    func builtInImageLoadsWithCurrentBorderControls() throws {
+        let appRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
+        let root = appRoot.appending(path: "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts/Image")
+        let package = try PartPackageLoader.load(from: root)
+        let sides = try #require(package.manifest.resolvedProperties.first { $0.id == "borders.sides" })
+        #expect(sides.control.type == .borderSides)
+        let data = try Data(contentsOf: root.appending(path: "manifest.json"))
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: data)
+        #expect(diagnostics.filter { $0.severity == .error }.isEmpty)
+    }
+
+    @Test
+    func builtInIconManifestsUseOnlyGlyphKeys() throws {
         let appRoot = URL(fileURLWithPath: #filePath).deletingLastPathComponent().deletingLastPathComponent()
         let partsRoot = appRoot.appending(path: "Foundry/Resources/BuiltInParts.bundle/Contents/Resources/BuiltInParts.foundrypack/Parts")
         let folders = try FileManager.default.contentsOfDirectory(at: partsRoot, includingPropertiesForKeys: nil)
         let manifests = folders.map { $0.appending(path: "manifest.json") }.filter { FileManager.default.fileExists(atPath: $0.path) }
-        #expect(manifests.count == 12)
+        #expect(manifests.isEmpty == false)
         for url in manifests {
             let data = try Data(contentsOf: url)
             let diagnostics = try PartPackageManifestSchema.diagnostics(for: data)
             #expect(diagnostics.filter { $0.location.contains("icon") }.isEmpty, "\(url.path)")
+            let object = try #require(JSONSerialization.jsonObject(with: data) as? [String: Any])
+            let icon = try #require(object["icon"] as? [String: Any])
+            #expect(Set(icon.keys).isSubset(of: ["file", "symbol"]))
             let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
-            let icon = try #require(manifest.icon)
-            let background = try #require(icon.background)
-            #expect(PartIconColour.isValidHex(background.light))
-            #expect(PartIconColour.isValidHex(background.dark))
+            #expect(manifest.icon != nil)
         }
-    }
-
-    @Test
-    func iconColoursDecodeAndRoundTrip() throws {
-        for json in ["\"#7950F2\"", ##"{"light":"#7950F2"}"##, ##"{"dark":"#7950F2"}"##] {
-            let colour = try JSONDecoder().decode(PartIconColour.self, from: Data(json.utf8))
-            #expect(colour.light == "#7950F2")
-            #expect(colour.dark == "#7950F2")
-            let encoded = try JSONEncoder().encode(colour)
-            #expect(try JSONDecoder().decode(PartIconColour.self, from: encoded) == colour)
-        }
-        let pair = try JSONDecoder().decode(PartIconColour.self, from: Data(##"{"light":"#000000","dark":"#FFFFFF80"}"##.utf8))
-        #expect(pair.light == "#000000")
-        #expect(pair.dark == "#FFFFFF80")
-        #expect(try JSONDecoder().decode(PartIconColour.self, from: JSONEncoder().encode(pair)) == pair)
-        #expect(PartPackageIcon(rendering: "unknown").resolvedRendering == .monochrome)
-        #expect(PartPackageIcon(rendering: "original").resolvedRendering == .original)
-    }
-
-    @Test
-    func iconRenderingKeysValidateWithoutErrors() throws {
-        let item = #"{"type":"text","id":"note","defaults":{"base":""}}"#
-        var manifestObject = try #require(JSONSerialization.jsonObject(with: Data(manifest(withInspectorEntries: item).utf8)) as? [String: Any])
-        manifestObject["icon"] = ["symbol": "star", "background": ["light": "#7950F2", "dark": "#B197FC"], "foreground": "#FFFFFF", "structure": "#FF9500", "rendering": "original"] as [String: Any]
-        let diagnostics = try PartPackageManifestSchema.diagnostics(for: JSONSerialization.data(withJSONObject: manifestObject))
-        #expect(diagnostics.filter { $0.location.contains("icon") }.isEmpty)
-        for invalid: Any in ["blue", "#12345G", "#1234567", [:] as [String: String], ["light": "#000000", "dark": "bad"], 42] {
-            manifestObject["icon"] = ["background": invalid]
-            let diagnostics = try PartPackageManifestSchema.diagnostics(for: JSONSerialization.data(withJSONObject: manifestObject))
-            #expect(diagnostics.contains { $0.location == "manifest.json:icon.background" && $0.severity == .error })
-        }
-    }
-
-    @Test @MainActor
-    func iconColoursFollowAppearance() async throws {
-        let url = FileManager.default.temporaryDirectory.appending(path: "adaptive-icon-\(UUID()).svg")
-        defer { try? FileManager.default.removeItem(at: url) }
-        try Data(#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" fill="red"/></svg>"#.utf8).write(to: url)
-        _ = await PartIconLoader.shared.icon(at: url)
-        let specification = PartIconSpecification(
-            glyph: .svg(url),
-            background: .init(light: "#000000", dark: "#FFFFFF"),
-            foreground: .init(light: "#FFFFFF", dark: "#000000"),
-            structure: .init(light: "#FF0000", dark: "#00FF00")
-        )
-        let image = specification.tileImage(size: NSSize(width: 100, height: 100))
-        for name in [NSAppearance.Name.aqua, .darkAqua] {
-            let appearance = try #require(NSAppearance(named: name))
-            var edge: NSColor?
-            var center: NSColor?
-            var row: NSColor?
-            appearance.performAsCurrentDrawingAppearance {
-                // Explicitly draw the same image in each mode, as a view does.
-                let bitmap = NSBitmapImageRep(bitmapDataPlanes: nil, pixelsWide: 100, pixelsHigh: 100, bitsPerSample: 8, samplesPerPixel: 4, hasAlpha: true, isPlanar: false, colorSpaceName: .deviceRGB, bytesPerRow: 0, bitsPerPixel: 0)
-                if let bitmap, let context = NSGraphicsContext(bitmapImageRep: bitmap) {
-                    NSGraphicsContext.saveGraphicsState()
-                    NSGraphicsContext.current = context
-                    image.draw(in: NSRect(x: 0, y: 0, width: 100, height: 100))
-                    NSGraphicsContext.restoreGraphicsState()
-                    edge = bitmap.colorAt(x: 10, y: 50)?.usingColorSpace(.sRGB)
-                    center = bitmap.colorAt(x: 50, y: 50)?.usingColorSpace(.sRGB)
-                }
-                row = specification.rowImage().tint?.usingColorSpace(.sRGB)
-            }
-            let background = try #require(edge)
-            let foreground = try #require(center)
-            let structure = try #require(row)
-            if name == .aqua {
-                #expect(background.redComponent < 0.02)
-                #expect(foreground.redComponent > 0.98)
-                #expect(structure.redComponent > 0.98)
-            } else {
-                #expect(background.redComponent > 0.98)
-                #expect(foreground.redComponent < 0.02)
-                #expect(structure.greenComponent > 0.98)
-            }
-        }
-    }
-
-    @Test @MainActor
-    func originalIconRetainsTileGeometryAndUsesStructureColour() async throws {
-        let url = FileManager.default.temporaryDirectory.appending(path: "icon-\(UUID()).svg")
-        defer { try? FileManager.default.removeItem(at: url) }
-        try Data(#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><rect width="24" height="24" fill="red"/></svg>"#.utf8).write(to: url)
-        _ = await PartIconLoader.shared.icon(at: url)
-        let original = PartIconSpecification(glyph: .svg(url), background: .init(light: "#007AFF"), structure: .init(light: "#FF9500"), rendering: .original)
-        let mono = PartIconSpecification(glyph: .svg(url), background: .init(light: "#007AFF"), structure: .init(light: "#FF9500"))
-        func pixel(_ icon: PartIconSpecification, x: Int) throws -> NSColor {
-            let image = icon.tileImage(size: NSSize(width: 100, height: 100))
-            let data = try #require(image.tiffRepresentation)
-            let bitmap = try #require(NSBitmapImageRep(data: data))
-            return try #require(bitmap.colorAt(x: x * bitmap.pixelsWide / 100, y: bitmap.pixelsHigh / 2)?.usingColorSpace(.sRGB))
-        }
-        let edge = try pixel(original, x: 10)
-        let monoEdge = try pixel(mono, x: 10)
-        #expect(edge.alphaComponent > 0.99)
-        #expect(abs(edge.blueComponent - monoEdge.blueComponent) < 0.01)
-        let center = try pixel(original, x: 50)
-        // Compare against AppKit's colour-managed SVG, not an assumed device RGB red.
-        let source = try #require(NSImage(contentsOf: url))
-        let sourceData = try #require(source.tiffRepresentation)
-        let sourceBitmap = try #require(NSBitmapImageRep(data: sourceData))
-        let sourceColor = try #require(sourceBitmap.colorAt(x: sourceBitmap.pixelsWide / 2, y: sourceBitmap.pixelsHigh / 2)?.usingColorSpace(.sRGB))
-        #expect(abs(center.redComponent - sourceColor.redComponent) < 0.02)
-        #expect(abs(center.greenComponent - sourceColor.greenComponent) < 0.02)
-        let originalEverywhere = PartIconSpecification(glyph: .svg(url), rendering: .original)
-        let originalRow = originalEverywhere.rowImage()
-        #expect(originalRow.tint == nil)
-        let originalRowImage = try #require(originalRow.image)
-        #expect(originalRowImage.isTemplate == false)
-        #expect(originalRowImage.size == NSSize(width: 18, height: 18))
-        let originalRowData = try #require(originalRowImage.tiffRepresentation)
-        let originalRowBitmap = try #require(NSBitmapImageRep(data: originalRowData))
-        let rowColor = try #require(originalRowBitmap.colorAt(x: originalRowBitmap.pixelsWide / 2, y: originalRowBitmap.pixelsHigh / 2)?.usingColorSpace(.sRGB))
-        #expect(abs(rowColor.redComponent - sourceColor.redComponent) < 0.02)
-        #expect(abs(rowColor.greenComponent - sourceColor.greenComponent) < 0.02)
-        #expect(PartIconLoader.cachedIcon(at: url)?.image.isTemplate == true)
-        let defaultMono = PartIconSpecification(glyph: .svg(url), background: .init(light: "#FF0000"))
-        #expect(defaultMono.rowImage().image?.isTemplate == true)
-        #expect(defaultMono.rowImage().tint?.usingColorSpace(.sRGB)?.redComponent == 1)
-        #expect(try pixel(mono, x: 50).greenComponent > 0.95)
-        // Tight SVG artwork occupies half the tile height, compensating
-        // for the optical padding already present in SF Symbol bounds.
-        for specification in [original, mono] {
-            let outside = try pixel(specification, x: 22)
-            let inside = try pixel(specification, x: 27)
-            #expect(abs(outside.redComponent - edge.redComponent) < 0.02)
-            #expect(inside.redComponent > 0.95)
-        }
-        #expect(original.rowImage().tint?.usingColorSpace(.sRGB)?.redComponent == 1)
-        #expect(original.rowImage().image?.isTemplate == true)
-        for specification in [original, mono, originalEverywhere] {
-            let row = try #require(specification.rowImage().image)
-            #expect(row.size == NSSize(width: 18, height: 18))
-            let rowData = try #require(row.tiffRepresentation)
-            let bitmap = try #require(NSBitmapImageRep(data: rowData))
-            func alpha(at point: Int) throws -> CGFloat {
-                let pixel = try #require(bitmap.colorAt(x: point * bitmap.pixelsWide / 18, y: bitmap.pixelsHigh / 2))
-                return pixel.alphaComponent
-            }
-            #expect(try alpha(at: 0) < 0.01)
-            #expect(try alpha(at: 3) > 0.99)
-            #expect(try alpha(at: 14) > 0.99)
-            #expect(try alpha(at: 17) < 0.01)
-        }
-        #expect(original.cacheKey != PartIconSpecification(glyph: .svg(url), background: .init(light: "#007AFF"), structure: .init(light: "#00FF00"), rendering: .original).cacheKey)
     }
 
     @Test @MainActor

@@ -7,8 +7,7 @@
   "description": "A ready-made Bootstrap card with an image, title, text and button.",
   "group": "Content",
   "icon": {
-    "symbol": "rectangle.portrait.topthird.inset.filled",
-    "background": { "light": "#007AFF", "dark": "#0A84FF" }
+    "symbol": "rectangle.portrait.topthird.inset.filled"
   },
   "tags": [
     "Bootstrap",
@@ -16,12 +15,6 @@
     "component"
   ],
   "assets": [],
-  "libraries": [
-    {
-      "id": "bootstrap",
-      "majorVersion": 6
-    }
-  ],
   "templates": {
     "html": "part.html"
   },
@@ -56,7 +49,7 @@
           "label": "Image position",
           "tooltip": "Start and End place the image beside the text using Bootstrap's horizontal card layout. In body shows it inside the padded area above the title.",
           "defaults": {
-            "base": "top"
+            "xs": "top"
           },
           "options": [
             {
@@ -87,7 +80,7 @@
           "label": "Header",
           "tooltip": "Adds a header strip above the card. A theme colour fills the header.",
           "defaults": {
-            "base": false
+            "xs": false
           }
         },
         {
@@ -95,7 +88,7 @@
           "id": "showButton",
           "label": "Button",
           "defaults": {
-            "base": true
+            "xs": true
           }
         }
       ]
@@ -115,7 +108,7 @@
           "label": "Destination",
           "absoluteURL": false,
           "defaults": {
-            "base": "#"
+            "xs": "#"
           }
         },
         {
@@ -123,7 +116,7 @@
           "id": "buttonTheme",
           "label": "Theme",
           "defaults": {
-            "base": "framework.primary"
+            "xs": "framework.primary"
           }
         },
         {
@@ -131,7 +124,7 @@
           "id": "buttonVariant",
           "label": "Variant",
           "defaults": {
-            "base": "btn-solid"
+            "xs": "btn-solid"
           },
           "options": [
             {
@@ -164,7 +157,7 @@
           "label": "Style",
           "tooltip": "Subtle uses tinted theme surfaces. Translucent blurs whatever sits behind the card.",
           "defaults": {
-            "base": ""
+            "xs": ""
           },
           "options": [
             {
@@ -187,7 +180,7 @@
           "label": "Theme colour",
           "tooltip": "Colours the border and header with a Bootstrap theme. Off keeps the neutral card.",
           "defaults": {
-            "base": false
+            "xs": false
           }
         },
         {
@@ -195,7 +188,7 @@
           "id": "theme",
           "label": "Theme",
           "defaults": {
-            "base": "framework.primary"
+            "xs": "framework.primary"
           },
           "visibleWhen": {
             "id": "useTheme",

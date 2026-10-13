@@ -32,8 +32,11 @@ nonisolated enum BootstrapUtilityExtensionsCSS {
     ]
 
     static func render(theme: Theme) -> String {
-        containerCSS(theme.screens) + typographyCSS(customSizes: theme.bootstrapTokens.custom["fontSize"] ?? [])
+        containerCSS(theme.screens) + typographyCSS(customSizes: theme.bootstrapTokens.custom["fontSize"] ?? [], includeStandard: false)
     }
+
+    /// Shared across projects; only custom size variants belong in theme CSS.
+    static let sharedCSS = typographyCSS(customSizes: [], includeStandard: true)
 
     /// Bootstrap grows `.container` at every breakpoint. When a theme disables a
     /// breakpoint, the container keeps the previous enabled width instead.
@@ -58,9 +61,10 @@ nonisolated enum BootstrapUtilityExtensionsCSS {
 
     /// Responsive text size, weight and wrapping. Values read Bootstrap's root tokens, so
     /// the breakpoint variants always match the base utilities Bootstrap ships.
-    static func typographyCSS(customSizes: [String]) -> String {
-        let sizes = BootstrapEditorSection.sizes + customSizes
-        var css = wrapping.map { ".text-\($0.name){\($0.declarations)}" }.joined()
+    static func typographyCSS(customSizes: [String], includeStandard: Bool = true) -> String {
+        let sizes = (includeStandard ? BootstrapEditorSection.sizes : []) + customSizes
+        guard includeStandard || !sizes.isEmpty else { return "" }
+        var css = includeStandard ? wrapping.map { ".text-\($0.name){\($0.declarations)}" }.joined() : ""
         for breakpoint in breakpoints {
             let prefix = "." + breakpoint.escapedPrefix
             var rules: [String] = []
@@ -68,10 +72,10 @@ nonisolated enum BootstrapUtilityExtensionsCSS {
                 rules.append("\(prefix)fs-\(size){font-size:var(--bs-font-size-\(size))}")
                 rules.append("\(prefix)text-\(size){font-size:var(--bs-font-size-\(size));line-height:var(--bs-line-height-\(size))}")
             }
-            for weight in BootstrapEditorSection.weights {
+            for weight in includeStandard ? BootstrapEditorSection.weights : [] {
                 rules.append("\(prefix)fw-\(weight){font-weight:var(--bs-font-weight-\(weight))}")
             }
-            for wrap in wrapping {
+            for wrap in includeStandard ? wrapping : [] {
                 rules.append("\(prefix)text-\(wrap.name){\(wrap.declarations)}")
             }
             css += "@media (width >= \(breakpoint.minimumWidth)px){\(rules.joined())}"

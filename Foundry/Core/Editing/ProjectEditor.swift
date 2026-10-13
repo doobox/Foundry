@@ -488,7 +488,7 @@ struct ProjectEditor {
 
     func addCustomSpacing() {
         let used = Set(document.site.theme.spacing.custom.map(\.name))
-        var number = 13
+        var number = 25
         while used.contains(String(number)) { number += 1 }
         mutate(actionName: "Add Spacing Size", impact: .theme) { site in
             site.theme.spacing.custom.append(.init(name: String(number), value: 4))

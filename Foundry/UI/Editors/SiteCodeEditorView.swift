@@ -1,12 +1,12 @@
 import SwiftUI
 
 struct SiteCodeEditorView: View {
-    @State private var snippets: [AttributedString]
+    @State private var snippets: [String]
     @State private var isEnabled: Bool
     private let originalSnippets: [String]
     private let originallyEnabled: Bool
     @State private var closeRequested = false
-    @State private var selection: SiteCodeSection = .head
+    @AppStorage("siteCodeEditorSection") private var selection: SiteCodeSection = .head
     @AppStorage("htmlSourceEditorTextSize") private var textSize = 13.0
 
     let cancel: () -> Void
@@ -15,10 +15,7 @@ struct SiteCodeEditorView: View {
     init(site: Site, cancel: @escaping () -> Void, save: @escaping (Bool, String, String, String, String, String) -> Void) {
         originalSnippets = [site.headCode, site.bodyStartCode, site.bodyEndCode, site.cssCode, site.javaScriptCode]
         originallyEnabled = site.customCodeEnabled
-        let size = UserDefaults.standard.object(forKey: "htmlSourceEditorTextSize") as? Double ?? 13
-        _snippets = State(initialValue: [site.headCode, site.bodyStartCode, site.bodyEndCode, site.cssCode, site.javaScriptCode].enumerated().map { index, source in
-            SourceSyntaxHighlighter.highlight(source, language: SiteCodeSection.allCases[index].language, fontSize: CGFloat(size))
-        })
+        _snippets = State(initialValue: originalSnippets)
         _isEnabled = State(initialValue: site.customCodeEnabled)
         self.cancel = cancel
         self.save = save
@@ -54,23 +51,9 @@ struct SiteCodeEditorView: View {
                 }
                 .frame(width: 180)
                 Divider()
-                VStack(alignment: .leading, spacing: 0) {
-                    Text(selection.subtitle)
-                        .font(.callout)
-                        .foregroundStyle(.secondary)
-                        .padding(16)
-                    Divider()
-                    HighlightedCodeEditor(text: $snippets[selection.rawValue], language: selection.language, fontSize: CGFloat(textSize))
-                        .id(selection)
-                        .accessibilityLabel("\(selection.title) code")
-                        .padding(8)
-                    if let warning = markupWarning {
-                        Label(warning, systemImage: "exclamationmark.triangle")
-                            .font(.caption)
-                            .foregroundStyle(.orange)
-                            .padding(12)
-                    }
-                }
+                FoundryCodeEditor(text: $snippets[selection.rawValue], language: selection.codeLanguage, fontSize: CGFloat(textSize))
+                    .id(selection)
+                    .accessibilityLabel("\(selection.title) code")
             }
             Divider()
             HStack {
@@ -88,7 +71,20 @@ struct SiteCodeEditorView: View {
                     .toggleStyle(.switch)
                     .controlSize(.small)
                     .help("Disabled code stays saved but is not included in pages.")
-                Spacer()
+                if let warning = markupWarning {
+                    Label(warning, systemImage: "exclamationmark.triangle")
+                        .font(.caption)
+                        .foregroundStyle(.orange)
+                        .lineLimit(1)
+                        .help(warning)
+                } else {
+                    Text(selection.subtitle)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .lineLimit(1)
+                        .help(selection.subtitle)
+                }
+                Spacer(minLength: 8)
                 Button("Cancel", role: .cancel) { closeRequested = true }
                     .keyboardShortcut(.cancelAction)
                 Button("Save", action: saveChanges)
@@ -97,22 +93,16 @@ struct SiteCodeEditorView: View {
             .padding(16)
         }
         .rememberedEditorSize("siteCode", minimum: CGSize(width: 820, height: 560), defaultSize: CGSize(width: 980, height: 700))
-        .editorCloseHandling(requested: $closeRequested, hasChanges: isEnabled != originallyEnabled || snippets.map { String($0.characters) } != originalSnippets, close: cancel)
-        .onChange(of: textSize) { _, size in
-            snippets = snippets.enumerated().map { index, snippet in
-                SourceSyntaxHighlighter.highlight(String(snippet.characters), language: SiteCodeSection.allCases[index].language, fontSize: CGFloat(size))
-            }
-        }
+        .editorCloseHandling(requested: $closeRequested, hasChanges: isEnabled != originallyEnabled || snippets != originalSnippets, close: cancel)
     }
 
     private func saveChanges() {
-        let values = snippets.map { String($0.characters) }
-        save(isEnabled, values[0], values[1], values[2], values[3], values[4])
+        save(isEnabled, snippets[0], snippets[1], snippets[2], snippets[3], snippets[4])
     }
 
     private var markupWarning: String? {
         guard selection != .css, selection != .javaScript else { return nil }
-        let code = String(snippets[selection.rawValue].characters).lowercased()
+        let code = snippets[selection.rawValue].lowercased()
         if ["<html", "<head", "<body"].contains(where: code.contains) {
             return "Paste only this location’s contents, without html, head or body wrapper tags."
         }

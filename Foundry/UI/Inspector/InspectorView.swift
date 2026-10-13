@@ -820,23 +820,64 @@ private struct PageInspector: View {
 
 
         Section {
-            VStack(spacing: 12) {
-                VStack(alignment: .leading) {
-                    Text("Page Background").font(.callout)
-                    if page.backgroundOverride == nil {
-                        Text("Using Bootstrap body background. Choosing a colour below creates a page override.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
+            InspectorGrid(contentInsets: EdgeInsets()) {
+                Text("Bootstrap Page Overrides")
+                    .font(.headline)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .gridCellColumns(2)
+                    .accessibilityAddTraits(.isHeader)
+
+                InspectorRow(title: "Appearance") {
+                    Picker("Appearance", selection: Binding(
+                        get: { page.appearanceOverride?.rawValue ?? "inherit" },
+                        set: { editor.setPageAppearance(id: page.id, value: SiteAppearance(rawValue: $0)) }
+                    )) {
+                        Text("Inherit").tag("inherit")
+                        Text("Light").tag("light")
+                        Text("Dark").tag("dark")
                     }
-                    ThemeColorsPartControl(
-                        label: "Background", theme: theme,
-                        tokenSections: ["surfaces", "blackWhite"], allowsInherit: true,
-                        selection: Binding(
-                            get: { page.backgroundOverride ?? "inherit" },
-                            set: { editor.setPageBackground(id: page.id, value: $0 == "inherit" ? nil : $0) }
-                        )
-                    )
+                    .labelsHidden()
                 }
+                ThemeColorsPartControl(
+                    label: "Theme", theme: theme,
+                    tokenSections: ["themes"], allowsInherit: true,
+                    selection: Binding(
+                        get: { page.themeOverride ?? "inherit" },
+                        set: { editor.setPageTheme(id: page.id, value: $0) }
+                    )
+                )
+                ThemeColorsPartControl(
+                    label: "Background", theme: theme,
+                    tokenSections: ["surfaces", "blackWhite"], allowsInherit: true,
+                    selection: Binding(
+                        get: { page.backgroundOverride ?? "inherit" },
+                        set: { editor.setPageBackground(id: page.id, value: $0 == "inherit" ? nil : $0) }
+                    )
+                )
+                ThemeColorsPartControl(
+                    label: "Foreground", theme: theme,
+                    tokenSections: ["foregrounds", "blackWhite"], allowsInherit: true,
+                    selection: Binding(
+                        get: { page.foregroundOverride ?? "inherit" },
+                        set: { editor.setPageColour(id: page.id, key: \.foregroundOverride, value: $0, label: "Foreground") }
+                    )
+                )
+                ThemeColorsPartControl(
+                    label: "Border", theme: theme,
+                    tokenSections: ["borders", "blackWhite"], allowsInherit: true,
+                    selection: Binding(
+                        get: { page.borderOverride ?? "inherit" },
+                        set: { editor.setPageColour(id: page.id, key: \.borderOverride, value: $0, label: "Border") }
+                    )
+                )
+                ThemeColorsPartControl(
+                    label: "Links", theme: theme,
+                    tokenSections: ["links"], linksOnly: true, allowsInherit: true,
+                    selection: Binding(
+                        get: { page.linksOverride ?? "inherit" },
+                        set: { editor.setPageColour(id: page.id, key: \.linksOverride, value: $0, label: "Links") }
+                    )
+                )
             }
             .listRowSeparator(.hidden)
         }

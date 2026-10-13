@@ -282,7 +282,7 @@ nonisolated enum ThemeBundleStore {
 
     static var systemTheme: Theme {
         guard let theme = builtInThemes().first(where: { $0.metadata.id == systemThemeID })?.theme else {
-            preconditionFailure("The System UI theme is missing.")
+            preconditionFailure("The Bootstrap Base theme is missing.")
         }
         return theme
     }

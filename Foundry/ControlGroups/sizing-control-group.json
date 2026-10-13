@@ -9,7 +9,7 @@
       "label": "Width",
       "responsive": false,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -112,7 +112,7 @@
       "label": "Height",
       "responsive": false,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -167,7 +167,7 @@
       "label": "Min width",
       "responsive": false,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -198,7 +198,7 @@
       "label": "Max width",
       "responsive": false,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -217,7 +217,7 @@
       "label": "Min height",
       "responsive": false,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -248,7 +248,7 @@
       "label": "Max height",
       "responsive": false,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -267,7 +267,7 @@
       "label": "Aspect ratio",
       "responsive": false,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {

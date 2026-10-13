@@ -5,4 +5,7 @@ nonisolated struct HTMLPartSource: Equatable, Hashable, Sendable {
     var css: String
     var javaScript: String
     var controls: String? = nil
+    var pageCSS: String = ""
+    var siteCSS: String = ""
+    var pageJavaScript: String = ""
 }

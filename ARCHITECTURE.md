@@ -47,7 +47,10 @@ palettes, body/heading/monospace fonts and supported built-in colour overrides o
 `ProjectThemeValues` owns breakpoint switches and custom additions across theme
 selection, reset, update and deletion. Preset comparison drives the Modified badge.
 Legacy full-model bundles are read through the preset boundary, but new writes and
-exports omit obsolete scales and project-owned settings. Bootstrap stays untouched.
+exports omit obsolete scales and project-owned settings. The official Bootstrap
+stylesheet supplies native spacing steps 0–12. Space supports explicit custom
+lengths; runtime theme changes do not compile Bootstrap. The sibling Bootstrap
+checkout is retained for experiments and is not part of the application build.
 
 A project is a document package with the `.foundry` extension. Its JSON model remains pretty-printed with sorted keys for inspection, source control, and useful diffs, while managed project assets live alongside it in the package.
 

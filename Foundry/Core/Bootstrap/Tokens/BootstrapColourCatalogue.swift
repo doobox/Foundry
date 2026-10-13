@@ -7,7 +7,7 @@ nonisolated enum BootstrapColourCatalogue {
                        "yellow", "lime", "green", "teal", "cyan", "brown", "gray", "pewter"]
     static let themeRoles = ["primary", "accent", "success", "danger", "warning", "info", "inverse", "secondary"]
     static let themeProperties = ["base", "fg", "fg-emphasis", "bg", "bg-subtle", "bg-muted", "border", "focus-ring", "contrast"]
-    static let sourceCSS = FoundryWebLibraryRegistry.canvasCSS(for: [])
+    static let sourceCSS = FoundryWebLibraryRegistry.bootstrapSourceCSS
     static let declarations: [String: String] = {
         let pattern = try! NSRegularExpression(pattern: #"(--bs-[\w-]+):([^;}]+)"#)
         var values: [String: String] = [:]

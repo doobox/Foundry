@@ -17,49 +17,6 @@ nonisolated enum AppPreferenceKey {
     static let partLibraryIconSize = "parts.library.iconSize"
     static let partLibraryArrangement = "parts.library.arrangement"
     static let partLibrarySource = "parts.library.source"
-    static let validatesPartsOnLoad = "parts.validation.onLoad"
-    static let partValidationMode = "parts.validation.mode"
-}
-
-nonisolated enum PartValidationMode: String, CaseIterable, Identifiable {
-    case off
-    case developmentPacks
-    case allPacks
-
-    var id: String { rawValue }
-
-    var title: LocalizedStringResource {
-        switch self {
-        case .off: "Off"
-        case .developmentPacks: "Dev Packs"
-        case .allPacks: "All Packs"
-        }
-    }
-
-    func validates(_ url: URL) -> Bool {
-        switch self {
-        case .off:
-            return false
-        case .developmentPacks:
-            return url.pathComponents.contains {
-                ($0 as NSString).pathExtension.caseInsensitiveCompare("foundrydevpack") == .orderedSame
-            }
-        case .allPacks:
-            return true
-        }
-    }
-}
-
-nonisolated enum PartValidationPreference {
-    static var mode: PartValidationMode {
-        let defaults = UserDefaults.standard
-        if let rawValue = defaults.string(forKey: AppPreferenceKey.partValidationMode),
-           let mode = PartValidationMode(rawValue: rawValue) {
-            return mode
-        }
-        // Preserve the former Boolean preference when upgrading.
-        return defaults.bool(forKey: AppPreferenceKey.validatesPartsOnLoad) ? .allPacks : .off
-    }
 }
 
 nonisolated enum AppAppearance: String, CaseIterable, Identifiable {

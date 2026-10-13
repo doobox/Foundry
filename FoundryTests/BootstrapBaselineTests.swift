@@ -38,7 +38,8 @@ struct BootstrapBaselineTests {
             "foundry.content.button", "foundry.layout.container", "foundry.content.paragraph",
             "foundry.layout.flex", "foundry.layout.grid", "foundry.content.html",
             "foundry.media.svg", "foundry.media.image", "foundry.content.card", "foundry.layout.background",
-            "foundry.layout.element"
+            "foundry.layout.element", "foundry.content.heading", "foundry.content.markdown",
+            "foundry.utility.appearance-switcher"
         ]))
         let container = try #require(PartType.container.definition.package)
         #expect(container.css.isEmpty)

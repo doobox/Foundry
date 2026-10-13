@@ -6,6 +6,12 @@
 	objectVersion = 110;
 	objects = {
 
+/* Begin PBXBuildFile section */
+		A10000000000000000000001 /* Markdown in Frameworks */ = {isa = PBXBuildFile; productRef = A10000000000000000000002 /* Markdown */; };
+		A10000000000000000000009 /* CodeEditSourceEditor in Frameworks */ = {isa = PBXBuildFile; productRef = A1000000000000000000000B /* CodeEditSourceEditor */; };
+		A1000000000000000000000A /* CodeEditLanguages in Frameworks */ = {isa = PBXBuildFile; productRef = A1000000000000000000000D /* CodeEditLanguages */; };
+/* End PBXBuildFile section */
+
 /* Begin PBXContainerItemProxy section */
 		E357BE053040F1AD001258F5 /* PBXContainerItemProxy */ = {
 			isa = PBXContainerItemProxy;
@@ -67,6 +73,9 @@
 		E357BDF13040F1AB001258F5 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			files = (
+				A10000000000000000000001 /* Markdown in Frameworks */,
+				A10000000000000000000009 /* CodeEditSourceEditor in Frameworks */,
+				A1000000000000000000000A /* CodeEditLanguages in Frameworks */,
 			);
 		};
 		E357BE013040F1AD001258F5 /* Frameworks */ = {
@@ -121,6 +130,11 @@
 				E357BDF63040F1AB001258F5 /* Foundry */,
 			);
 			name = Foundry;
+			packageProductDependencies = (
+				A10000000000000000000002 /* Markdown */,
+				A1000000000000000000000B /* CodeEditSourceEditor */,
+				A1000000000000000000000D /* CodeEditLanguages */,
+			);
 			productName = Foundry;
 			productReference = E357BDF43040F1AB001258F5 /* Foundry.app */;
 			productType = "com.apple.product-type.application";
@@ -199,6 +213,11 @@
 			);
 			mainGroup = E357BDEB3040F1AB001258F5;
 			minimizedProjectReferenceProxies = 1;
+			packageReferences = (
+				A10000000000000000000003 /* XCRemoteSwiftPackageReference "swift-markdown" */,
+				A1000000000000000000000C /* XCLocalSwiftPackageReference "Vendor/CodeEditSourceEditor" */,
+				A1000000000000000000000E /* XCLocalSwiftPackageReference "Vendor/CodeEditLanguages" */,
+			);
 			preferredProjectObjectVersion = 77;
 			productRefGroup = E357BDF53040F1AB001258F5 /* Products */;
 			projectDirPath = "";
@@ -626,6 +645,46 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCLocalSwiftPackageReference section */
+		A1000000000000000000000C /* XCLocalSwiftPackageReference "Vendor/CodeEditSourceEditor" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Vendor/CodeEditSourceEditor;
+		};
+		A1000000000000000000000E /* XCLocalSwiftPackageReference "Vendor/CodeEditLanguages" */ = {
+			isa = XCLocalSwiftPackageReference;
+			relativePath = Vendor/CodeEditLanguages;
+		};
+/* End XCLocalSwiftPackageReference section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		A10000000000000000000003 /* XCRemoteSwiftPackageReference "swift-markdown" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/swiftlang/swift-markdown.git";
+			requirement = {
+				kind = exactVersion;
+				version = 0.9.0;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		A10000000000000000000002 /* Markdown */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A10000000000000000000003 /* XCRemoteSwiftPackageReference "swift-markdown" */;
+			productName = Markdown;
+		};
+		A1000000000000000000000B /* CodeEditSourceEditor */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1000000000000000000000C /* XCLocalSwiftPackageReference "Vendor/CodeEditSourceEditor" */;
+			productName = CodeEditSourceEditor;
+		};
+		A1000000000000000000000D /* CodeEditLanguages */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = A1000000000000000000000E /* XCLocalSwiftPackageReference "Vendor/CodeEditLanguages" */;
+			productName = CodeEditLanguages;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = E357BDEC3040F1AB001258F5 /* Project object */;
 	validationLevel = 1;

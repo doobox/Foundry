@@ -9,7 +9,7 @@
       "label": "Sides",
       "responsive": false,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       }
     },
     {
@@ -18,7 +18,7 @@
       "label": "Width",
       "responsive": false,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -57,7 +57,7 @@
       "label": "Style",
       "responsive": false,
       "defaults": {
-        "base": "inherit"
+        "xs": "inherit"
       },
       "options": [
         {
@@ -112,7 +112,7 @@
       "label": "Radius",
       "responsive": false,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -178,7 +178,7 @@
       "id": "colourEnabled",
       "label": "Border colour",
       "defaults": {
-        "base": false
+        "xs": false
       }
     },
     {
@@ -186,7 +186,7 @@
       "id": "theme",
       "label": "Colour",
       "defaults": {
-        "base": "framework.primary"
+        "xs": "framework.primary"
       },
       "visibleWhen": {
         "id": "colourEnabled",
@@ -198,7 +198,7 @@
       "id": "subtle",
       "label": "Subtle colour",
       "defaults": {
-        "base": false
+        "xs": false
       },
       "visibleWhen": {
         "id": "colourEnabled",

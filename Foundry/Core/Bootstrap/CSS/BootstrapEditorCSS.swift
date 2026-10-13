@@ -6,11 +6,14 @@ import Foundation
 /// only tokens its components read are editable, so an edit is a variable override
 /// and an addition is a new class such as `text-hero` or `rounded-soft`.
 nonisolated enum BootstrapEditorCSS {
+    static let sharedCSS = "@layer utilities{.font-heading{font-family:var(--bs-font-heading,inherit)}}"
+
     static func render(_ theme: Theme) -> String {
         let settings = theme.bootstrapTokens
         var declarations: [String] = []
         var utilities: [String] = []
         for section in BootstrapEditorSection.allCases {
+            guard section != .prose else { continue }
             let custom = settings.custom[section.rawValue] ?? []
             guard settings.isChanged(section) || !custom.isEmpty else { continue }
             for token in settings.tokens(in: section) {
@@ -52,15 +55,16 @@ nonisolated enum BootstrapEditorCSS {
         if fonts.bodyFont != defaults.bodyFont { declarations.append("--bs-body-font-family:\(fonts.bodyFont.cssFamily)") }
         if fonts.monospacedFont != defaults.monospacedFont { declarations.append("--bs-font-mono:\(fonts.monospacedFont.cssFamily)") }
         var css = declarations.isEmpty ? "" : ":root,:host{\(declarations.joined(separator: ";"))}"
-        css += ":root,:host{--bs-font-heading:\(fonts.headingFont.cssFamily)}"
-        css += "@layer content{h1,h2,h3,h4,h5,h6,.h1,.h2,.h3,.h4,.h5,.h6{font-family:var(--bs-font-heading)}}"
-        utilities.append(".font-heading{font-family:var(--bs-font-heading)}")
+        if fonts.headingFont != defaults.headingFont {
+            css += ":root,:host{--bs-font-heading:\(fonts.headingFont.cssFamily)}"
+            css += "@layer content{h1,h2,h3,h4,h5,h6,.h1,.h2,.h3,.h4,.h5,.h6{font-family:var(--bs-font-heading)}}"
+        }
         let fontClasses = BootstrapCustomTokenClasses.fontClasses(theme: theme)
         for font in fonts.customFonts {
             guard let name = fontClasses["font-custom-" + font.id.uuidString.lowercased()] else { continue }
             css += ":root,:host{--bs-\(name):\(font.font.cssFamily)}"
             utilities.append(".\(name){font-family:var(--bs-\(name))}")
         }
-        return css + (utilities.isEmpty ? "" : "@layer utilities{\(utilities.joined())}")
+        return css + BootstrapProseCSS.render(settings) + (utilities.isEmpty ? "" : "@layer utilities{\(utilities.joined())}")
     }
 }

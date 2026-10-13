@@ -6,7 +6,7 @@
       "type": "toggle",
       "presentation": "switch",
       "defaults": {
-        "base": false
+        "xs": false
       },
       "responsive": true
     },
@@ -15,7 +15,7 @@
       "label": "Apply to",
       "type": "select",
       "defaults": {
-        "base": "all"
+        "xs": "all"
       },
       "options": [
         {
@@ -62,7 +62,7 @@
       "label": "Function",
       "type": "select",
       "defaults": {
-        "base": "ease-in-out"
+        "xs": "ease-in-out"
       },
       "options": [
         {
@@ -101,7 +101,7 @@
       "maximum": 10000,
       "step": 10,
       "defaults": {
-        "base": 300
+        "xs": 300
       },
       "responsive": true,
       "visibleWhen": {
@@ -118,7 +118,7 @@
       "maximum": 10000,
       "step": 10,
       "defaults": {
-        "base": 0
+        "xs": 0
       },
       "responsive": true,
       "visibleWhen": {

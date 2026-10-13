@@ -15,7 +15,7 @@ enum SiteCodeSection: Int, CaseIterable, Identifiable {
         }
     }
 
-    var language: SourceCodeLanguage {
+    var codeLanguage: FoundryCodeLanguage {
         switch self {
         case .css: .css
         case .javaScript: .javaScript

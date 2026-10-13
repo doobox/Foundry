@@ -9,7 +9,7 @@
       "label": "Direction",
       "responsive": true,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -40,7 +40,7 @@
       "label": "Wrap",
       "responsive": true,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {

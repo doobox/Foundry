@@ -9,7 +9,7 @@
       "label": "Display",
       "responsive": true,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -76,7 +76,7 @@
       "label": "Visibility",
       "responsive": false,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {

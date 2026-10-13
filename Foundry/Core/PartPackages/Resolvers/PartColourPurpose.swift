@@ -49,6 +49,13 @@ nonisolated enum PartColourPurpose: String, Sendable {
             hover = role + "-fg-emphasis"
         }
         let color = "var(--bs-\(token))"
+        if let palette = theme.colourPalettes.first(where: {
+            $0.origin == .custom && $0.colourTokens.contains(token)
+        }), let source = palette.colourKind.sourceTokens.first(where: { palette.colourToken($0) == token }),
+           let name = palette.publicUtilityClass(for: source),
+           name.hasPrefix(prefix + "-") {
+            return (name, color, "")
+        }
         if self != .link, BootstrapPaletteTheme.hasBundledClass(candidate) {
             return (candidate, color, "")
         }

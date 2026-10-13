@@ -24,7 +24,7 @@ struct InspectorPaletteMenu: View {
     }
 
     private var filtered: [ColourPalette] {
-        palettes.filter { search.isEmpty || $0.name.localizedCaseInsensitiveContains(search) }
+        palettes.filter { search.isEmpty || $0.pickerLabel.localizedCaseInsensitiveContains(search) }
     }
 
     private func menuColour(_ palette: ColourPalette) -> String {
@@ -75,7 +75,7 @@ struct InspectorPaletteMenu: View {
                                             .fill(Color(hex: menuColour(palette)) ?? .clear)
                                             .overlay { RoundedRectangle(cornerRadius: 4).strokeBorder(.secondary.opacity(0.3)) }
                                             .frame(width: 20, height: 20)
-                                        Text(palette.name).lineLimit(1)
+                                        Text(palette.pickerLabel).lineLimit(1)
                                         Spacer(minLength: 4)
                                         if selectedID == palette.id { Image(systemName: "checkmark") }
                                     }
@@ -84,7 +84,7 @@ struct InspectorPaletteMenu: View {
                                     .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
-                                .help(palette.name)
+                                .help(palette.pickerLabel)
                                 .accessibilityAddTraits(selectedID == palette.id ? .isSelected : [])
                             }
                         }

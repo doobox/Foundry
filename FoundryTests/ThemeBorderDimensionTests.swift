@@ -6,7 +6,7 @@ import Testing
 @MainActor
 struct ThemeBorderDimensionTests {
     @Test func borderRowsPreserveHiddenStyleDefault() throws {
-        let data = Data(#"{"type":"themeBorder","id":"border","responsive":true,"defaults":{"base":{"width":"sm","style":"dotted"}}}"#.utf8)
+        let data = Data(#"{"type":"themeBorder","id":"border","responsive":true,"defaults":{"xs":{"width":"sm","style":"dotted"}}}"#.utf8)
         let property = try JSONDecoder().decode(PartPackageProperty.self, from: data)
         let rows = PartPackageThemeBorderControl.properties(property)
         #expect(rows.map(\.key.rawValue) == ["border.width", "border.style"])
@@ -14,7 +14,7 @@ struct ThemeBorderDimensionTests {
         #expect(rows.map(\.isResponsive) == [true, true])
         #expect(rows.allSatisfy { $0.inspectorControlID == "border" })
         #expect(rows[1].defaultValue == .choice("dotted"))
-        let defaults = try JSONDecoder().decode(PartPackageProperty.self, from: Data(#"{"type":"themeBorder","id":"border","defaults":{"base":{"width":"none"}}}"#.utf8))
+        let defaults = try JSONDecoder().decode(PartPackageProperty.self, from: Data(#"{"type":"themeBorder","id":"border","defaults":{"xs":{"width":"none"}}}"#.utf8))
         let defaultRows = PartPackageThemeBorderControl.properties(defaults)
         #expect(defaultRows.map(\.isInspectorVisible) == [true, false])
         #expect(defaultRows[1].defaultValue == .choice("solid"))

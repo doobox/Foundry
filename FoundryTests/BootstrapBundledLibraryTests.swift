@@ -3,7 +3,7 @@ import Foundation
 import Testing
 @testable import Foundry
 
-/// Bootstrap ships untouched; every Foundry addition is separate CSS emitted by Swift.
+/// Pin the official Bootstrap CSS and JavaScript.
 struct BootstrapBundledLibraryTests {
     private static let version = "6.0.0-alpha.1"
     private static let cssChecksum = "678508b198d9b1b8877e338f419fdada00024be2bcc638a539dd724856095112"
@@ -14,8 +14,8 @@ struct BootstrapBundledLibraryTests {
     }
 
     @Test func bundledBootstrapIsTheOfficialBuildWithoutAdditions() throws {
-        let css = FoundryWebLibraryRegistry.canvasCSS(for: [])
-        #expect(css == FoundryWebLibraryRegistry.exportCSS(for: []))
+        let cssData = try #require(FoundryWebLibraryRegistry.resourceData(at: "bootstrap-\(Self.version).min.css"))
+        let css = String(decoding: cssData, as: UTF8.self)
         #expect(sha256(Data(css.utf8)) == Self.cssChecksum)
         #expect(css.hasPrefix(":root,:host{--bs-blue-025:"))
         #expect(css.contains("foundry") == false)
@@ -26,10 +26,51 @@ struct BootstrapBundledLibraryTests {
                          "--bs-font-size-lg:", "--bs-line-height-lg:", "--bs-font-weight-bold:", "--bs-radius-7:"] {
             #expect(css.contains(selector), "Bootstrap \(Self.version) no longer ships \(selector)")
         }
+        let script = try #require(FoundryWebLibraryRegistry.resourceData(at: "bootstrap-\(Self.version).bundle.min.js"))
+        #expect(sha256(script) == Self.javaScriptChecksum)
+    }
+
+    @Test func generatedBootstrapOmitsOnlyUnavailableSourceMapReferences() throws {
+        let originalCSS = String(decoding: try #require(FoundryWebLibraryRegistry.resourceData(at: "bootstrap-\(Self.version).min.css")), as: UTF8.self)
+        let originalJS = String(decoding: try #require(FoundryWebLibraryRegistry.resourceData(at: "bootstrap-\(Self.version).bundle.min.js")), as: UTF8.self)
+        let css = try #require(FoundryWebLibraryRegistry.exportFiles(for: []).first {
+            $0.path == FoundryWebLibraryRegistry.bootstrapStylesheetPath
+        }).contents
         let script = try #require(FoundryWebLibraryRegistry.exportFiles(for: []).first {
             $0.path.hasSuffix("bootstrap-\(Self.version).bundle.min.js")
         })
-        #expect(sha256(script.data) == Self.javaScriptChecksum)
+        #expect(sha256(Data(originalCSS.utf8)) == Self.cssChecksum)
+        #expect(originalCSS.contains("sourceMappingURL="))
+        #expect(originalCSS.contains(".p-13{") == false)
+        #expect(originalJS.contains("sourceMappingURL="))
+        #expect(css.contains("sourceMappingURL=") == false)
+        #expect(script.contents.contains("sourceMappingURL=") == false)
+        #expect(css == originalCSS.replacingOccurrences(of: "/*# sourceMappingURL=bootstrap.min.css.map */", with: ""))
+        #expect(script.contents == originalJS.replacingOccurrences(of: "//# sourceMappingURL=bootstrap.bundle.min.js.map", with: ""))
+    }
+
+    @Test @MainActor func bootstrapIsLinkedBeforeSiteAndPageStylesAtEveryDepth() throws {
+        let site = Site(name: "Linked Bootstrap", pages: [
+            Page(title: "Home", slug: "index"), Page(title: "About", slug: "about")
+        ])
+        for environment in [PartTemplateEnvironment.preview, .published] {
+            let bundle = StaticSiteRenderer(environment: environment).render(site: site)
+            #expect(bundle.errors.isEmpty)
+            let vendorPath = FoundryWebLibraryRegistry.bootstrapStylesheetPath
+            #expect(bundle.files.filter { $0.path == vendorPath }.count == 1)
+            let vendor = try #require(bundle.file(at: vendorPath)?.contents)
+            #expect(vendor.contains(".btn-solid{"))
+            let siteCSS = try #require(bundle.file(at: "files/site.css")?.contents)
+            #expect(siteCSS.contains(vendor) == false)
+            for (path, prefix) in [("index.html", ""), ("about/index.html", "../")] {
+                let html = try #require(bundle.file(at: path)?.contents)
+                let bootstrap = try #require(html.range(of: "href=\"" + prefix + vendorPath))
+                let shared = try #require(html.range(of: "href=\"" + prefix + "files/site.css"))
+                let page = try #require(html.range(of: "href=\"files/page.css"))
+                #expect(bootstrap.lowerBound < shared.lowerBound)
+                #expect(shared.lowerBound < page.lowerBound)
+            }
+        }
     }
 
     @Test func foundryAdditionsAreEmittedSeparately() {

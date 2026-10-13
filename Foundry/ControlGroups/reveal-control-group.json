@@ -2,7 +2,7 @@
   "controls": [
     {
       "defaults": {
-        "base": false
+        "xs": false
       },
       "id": "revealEnabled",
       "label": "Enable",
@@ -12,7 +12,7 @@
     },
     {
       "defaults": {
-        "base": "fade-up"
+        "xs": "fade-up"
       },
       "id": "revealEffect",
       "label": "Effect",
@@ -55,7 +55,7 @@
     },
     {
       "defaults": {
-        "base": 32
+        "xs": 32
       },
       "id": "revealDistance",
       "label": "Distance",
@@ -73,7 +73,7 @@
     },
     {
       "defaults": {
-        "base": 600
+        "xs": 600
       },
       "id": "revealDuration",
       "label": "Duration",
@@ -91,7 +91,7 @@
     },
     {
       "defaults": {
-        "base": 0
+        "xs": 0
       },
       "id": "revealDelay",
       "label": "Delay",
@@ -109,7 +109,7 @@
     },
     {
       "defaults": {
-        "base": "power2.out"
+        "xs": "power2.out"
       },
       "id": "revealEase",
       "label": "Easing",
@@ -152,7 +152,7 @@
     },
     {
       "defaults": {
-        "base": 0
+        "xs": 0
       },
       "id": "revealStagger",
       "label": "Child stagger",
@@ -171,7 +171,7 @@
     },
     {
       "defaults": {
-        "base": 85
+        "xs": 85
       },
       "id": "revealTrigger",
       "label": "Trigger position",
@@ -189,7 +189,7 @@
     },
     {
       "defaults": {
-        "base": true
+        "xs": true
       },
       "id": "revealOnce",
       "label": "Play once",

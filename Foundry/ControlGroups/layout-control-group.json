@@ -2,7 +2,7 @@
   "controls": [
     {
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "id": "position",
       "label": "Position",
@@ -37,7 +37,7 @@
     },
     {
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "id": "zIndexMode",
       "label": "Z-Index",
@@ -61,7 +61,7 @@
     },
     {
       "defaults": {
-        "base": 0
+        "xs": 0
       },
       "id": "zIndex",
       "label": "Value",
@@ -78,7 +78,7 @@
     },
     {
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "id": "offsets",
       "label": "Offsets",
@@ -102,7 +102,7 @@
     },
     {
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "id": "offset",
       "label": "Offset",
@@ -116,7 +116,7 @@
     },
     {
       "defaults": {
-        "base": {
+        "xs": {
           "unit": "px",
           "value": 0
         }
@@ -139,7 +139,7 @@
     },
     {
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "id": "overflow",
       "label": "Overflow",

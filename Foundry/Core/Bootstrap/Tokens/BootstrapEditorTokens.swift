@@ -97,7 +97,7 @@ nonisolated struct BootstrapEditorToken: Identifiable, Sendable {
 /// spacing steps, numbered radii and borders, numeric z-index) are not editable;
 /// their sections carry only project-named additions.
 nonisolated enum BootstrapEditorSection: String, CaseIterable, Sendable {
-    case fontSize, borderWidth, borderRadius, shadows, shadowColours, blackWhite, colourScales, zIndex, linkColours
+    case fontSize, borderWidth, borderRadius, shadows, shadowColours, blackWhite, colourScales, zIndex, linkColours, prose
 
     var title: String {
         switch self {
@@ -110,6 +110,7 @@ nonisolated enum BootstrapEditorSection: String, CaseIterable, Sendable {
         case .colourScales: "Colour Scales"
         case .zIndex: "Z-index"
         case .linkColours: "Link Colours"
+        case .prose: "Prose"
         }
     }
 
@@ -122,6 +123,16 @@ nonisolated enum BootstrapEditorSection: String, CaseIterable, Sendable {
 
     var tokens: [BootstrapEditorToken] {
         switch self {
+        case .prose:
+            return [
+                .init("prose-font-size", "Text size", fallback: "1rem", range: 0.5...3),
+                .init("prose-line-height", "Line height", fallback: "1.5", range: 1...3),
+                .init("prose-wide-font-size", "Text size", fallback: "var(--bs-font-size-md)", range: 0.5...3),
+                .init("prose-wide-line-height", "Line height", fallback: "1.625", range: 1...3),
+                .init("prose-gap", "Content spacing", fallback: "calc(var(--bs-content-font-size) * var(--bs-content-line-height))"),
+                .init("prose-heading-color-light", "Light", fallback: "var(--bs-gray-900)"),
+                .init("prose-heading-color-dark", "Dark", fallback: "var(--bs-white)")
+            ]
         case .fontSize, .borderWidth, .borderRadius, .shadows, .zIndex:
             return []
         case .shadowColours:

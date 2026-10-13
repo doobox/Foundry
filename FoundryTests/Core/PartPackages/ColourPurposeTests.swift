@@ -44,7 +44,7 @@ struct ColourPurposeTests {
     @Test(.timeLimit(.minutes(1)), arguments: [PartTemplateEnvironment.canvas, .preview, .published])
     func htmlPartRendersClassesAndColor(environment: PartTemplateEnvironment) async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
-        let controls = #"[{"type":"backgroundColor","id":"paint","colourSections":["surfaces","themes","palettes"],"defaults":{"base":"theme-primary"}},{"type":"foregroundColor","id":"ink"},{"type":"borderColor","id":"edge"},{"type":"linkColor","id":"links"}]"#
+        let controls = #"[{"type":"backgroundColor","id":"paint","colourSections":["surfaces","themes","palettes"],"defaults":{"xs":"theme-primary"}},{"type":"foregroundColor","id":"ink"},{"type":"borderColor","id":"edge"},{"type":"linkColor","id":"links"}]"#
         let html = #"<nav class="{{ part.class }} {{ control.paint }}" style="--chosen:{{ control.paint.color }}" {{ part.attributes }}>Colour</nav>"#
         let compiled = HTMLPartPrototype.compile(html: html, css: "", javaScript: "", controls: controls)
         try #require(compiled.definition != nil, "\(compiled.diagnostics)")
@@ -73,7 +73,7 @@ struct ColourPurposeTests {
     @Test(.timeLimit(.minutes(1)))
     func hiddenOutputAndCollectionFields() async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
-        let controls = #"[{"type":"toggle","id":"enabled","defaults":{"base":false}},{"type":"backgroundColor","id":"paint","defaults":{"base":"theme-primary"},"visibleWhen":{"id":"enabled","value":true},"outputWhenHidden":false},{"type":"collection","id":"items","controls":[{"type":"foregroundColor","id":"ink","colourSections":["palettes"],"defaults":{"base":"token:blue-500"}}],"defaults":{"base":[{}]}}]"#
+        let controls = #"[{"type":"toggle","id":"enabled","defaults":{"xs":false}},{"type":"backgroundColor","id":"paint","defaults":{"xs":"theme-primary"},"visibleWhen":{"id":"enabled","value":true},"outputWhenHidden":false},{"type":"collection","id":"items","controls":[{"type":"foregroundColor","id":"ink","colourSections":["palettes"],"defaults":{"xs":"token:blue-500"}}],"defaults":{"xs":[{}]}}]"#
         let html = #"<div class="{{ part.class }}" {{ part.attributes }} data-hidden="{{ control.paint }}|{{ control.paint.color }}">{{ loop control.items as item }}<span class="{{ item.ink }}" style="--ink:{{ item.ink.color }}">Item</span>{{ endloop }}</div>"#
         let compiled = HTMLPartPrototype.compile(html: html, css: "", javaScript: "", controls: controls)
         try #require(compiled.definition != nil, "\(compiled.diagnostics)")
@@ -90,7 +90,7 @@ struct ColourPurposeTests {
 
     @Test(.timeLimit(.minutes(1)), arguments: [
         #"[{"type":"themeColors","id":"paint","colourSections":["surfaces"]}]"#,
-        #"[{"type":"backgroundColor","id":"paint","colourSections":["surfaces"],"defaults":{"base":"theme-primary"}}]"#
+        #"[{"type":"backgroundColor","id":"paint","colourSections":["surfaces"],"defaults":{"xs":"theme-primary"}}]"#
     ])
     func wrongColourFamilyDefaultsAreRejected(controls: String) async {
         await PartPackageCatalog.shared.waitUntilLoaded()

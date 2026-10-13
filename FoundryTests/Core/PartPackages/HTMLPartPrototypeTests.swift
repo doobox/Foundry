@@ -4,7 +4,47 @@ import Testing
 
 @MainActor
 struct HTMLPartPrototypeTests {
-    private let controls = #"[{"section":"Prototype","controls":[{"type":"text","id":"headline","label":"Headline","defaults":{"base":"Hello"}},{"type":"toggle","id":"show","defaults":{"base":true}},{"type":"spacing","id":"spacing"}]}]"#
+    @Test(.timeLimit(.minutes(1)))
+    func allSourceScopesPersistAndUsePackageEmissionRules() async throws {
+        await PartPackageCatalog.shared.waitUntilLoaded()
+        let source = HTMLPartSource(
+            html: #"<section class="{{ part.class }} prototype" {{ part.attributes }}>Scoped prototype</section>"#,
+            css: ":instance { --instance-probe: 1; }",
+            javaScript: "console.log('instance-probe');", controls: "[]",
+            pageCSS: ".prototype { --page-probe: 1; }",
+            siteCSS: ".prototype { --site-probe: 1; }",
+            pageJavaScript: "window.__pageProbe = true;"
+        )
+        let compiled = HTMLPartPrototype.compile(source: source)
+        try #require(compiled.definition != nil, "\(compiled.diagnostics)")
+        var first = PartNode.make(.html)
+        first.applyHTMLPrototype(source)
+        var second = PartNode.make(.html)
+        second.applyHTMLPrototype(source)
+        let restored = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(first))
+        #expect(restored.definition.package?.pageCSS == source.pageCSS)
+        #expect(restored.definition.package?.siteCSS == source.siteCSS)
+        #expect(restored.definition.package?.pageJavaScript == source.pageJavaScript)
+        let site = Site(name: "Scopes", pages: [Page(title: "Home", slug: "index", parts: [restored, second])])
+        for environment in [PartTemplateEnvironment.preview, .published] {
+            let bundle = StaticSiteRenderer(environment: environment).render(site: site)
+            let pageCSS = try #require(bundle.file(at: "files/page.css")?.contents)
+            let siteCSS = try #require(bundle.file(at: "files/site.css")?.contents)
+            let javaScript = try #require(bundle.file(at: "files/page.js")?.contents)
+            #expect(pageCSS.components(separatedBy: "--instance-probe").count == 3)
+            #expect(pageCSS.components(separatedBy: "--page-probe").count == 2)
+            #expect(siteCSS.components(separatedBy: "--site-probe").count == 2)
+            #expect(javaScript.components(separatedBy: "instance-probe").count == 3)
+            #expect(javaScript.components(separatedBy: "window.__pageProbe").count == 2)
+        }
+        var edited = source
+        edited.pageCSS += " .prototype { color: red; }"
+        #expect(HTMLPartPrototype.compile(source: edited).definition?.package?.manifest.identifier != compiled.definition?.package?.manifest.identifier)
+        edited.pageCSS = "{{ control.example }}"
+        #expect(HTMLPartPrototype.compile(source: edited).definition == nil)
+    }
+
+    private let controls = #"[{"section":"Prototype","controls":[{"type":"text","id":"headline","label":"Headline","defaults":{"xs":"Hello"}},{"type":"toggle","id":"show","defaults":{"xs":true}},{"type":"spacing","id":"spacing"}]}]"#
     private let markup = #"<section class="{{ part.class }} {{ control.spacing.classes }}" {{ part.attributes }}>{{ if control.show }}<h2>{{ control.headline }}</h2>{{ endif }}<p>{{ pages.current.title }}</p></section>"#
 
     @Test(.timeLimit(.minutes(1)), arguments: [PartTemplateEnvironment.canvas, .preview, .published])
@@ -55,7 +95,7 @@ struct HTMLPartPrototypeTests {
         #expect(first.storedPropertyValue(.init(rawValue: "headline")) == nil)
     }
 
-    @Test(.timeLimit(.minutes(1)), arguments: ["{", "{}", #"[{"type":"unknown","id":"x"}]"#, #"[{"type":"text","id":"content","defaults":{"base":"bad"}}]"#])
+    @Test(.timeLimit(.minutes(1)), arguments: ["{", "{}", #"[{"type":"unknown","id":"x"}]"#, #"[{"type":"text","id":"content","defaults":{"xs":"bad"}}]"#])
     func invalidControlsDoNotCompile(declarations: String) async {
         await PartPackageCatalog.shared.waitUntilLoaded()
         let result = HTMLPartPrototype.compile(html: "<p>Test</p>", css: "", javaScript: "", controls: declarations)
@@ -66,7 +106,7 @@ struct HTMLPartPrototypeTests {
     @Test(.timeLimit(.minutes(1)))
     func unsupportedOptionsWarnWithoutBlocking() async {
         await PartPackageCatalog.shared.waitUntilLoaded()
-        let result = HTMLPartPrototype.compile(html: "<p>Test</p>", css: "", javaScript: "", controls: #"[{"type":"themeColors","id":"paint","defaults":{"base":"inherit"},"responsive":true}]"#)
+        let result = HTMLPartPrototype.compile(html: "<p>Test</p>", css: "", javaScript: "", controls: #"[{"type":"themeColors","id":"paint","defaults":{"xs":"inherit"},"responsive":true}]"#)
         #expect(result.definition != nil, "\(result.diagnostics)")
         #expect(result.diagnostics.contains { $0.severity == .warning })
         #expect(result.definition?.package?.manifest.resolvedProperties.first?.responsive == false)
@@ -75,7 +115,7 @@ struct HTMLPartPrototypeTests {
     @Test(.timeLimit(.minutes(1)))
     func responsiveDefaultsAndExistingValuesSurviveSourceEdits() async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
-        let declaration = #"[{"type":"text","id":"headline","responsive":true,"defaults":{"base":"Small","medium":"Medium"}}]"#
+        let declaration = #"[{"type":"text","id":"headline","responsive":true,"defaults":{"xs":"Small","md":"Medium"}}]"#
         var part = PartNode.make(.html)
         let source = HTMLPartSource(html: "<p>{{ control.headline }}</p>", css: "", javaScript: "", controls: declaration)
         let compiled = HTMLPartPrototype.compile(html: source.html, css: "", javaScript: "", controls: declaration)
@@ -108,7 +148,7 @@ struct HTMLPartPrototypeTests {
     @Test(.timeLimit(.minutes(1)))
     func loopsPrimitivesAndChildAreasUseInstanceDefinition() async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
-        let declarations = #"[{"type":"collection","id":"cards","controls":[{"type":"text","id":"title","defaults":{"base":""}}],"defaults":{"base":[{"title":"One"},{"title":"Two"}]}}]"#
+        let declarations = #"[{"type":"collection","id":"cards","controls":[{"type":"text","id":"title","defaults":{"xs":""}}],"defaults":{"xs":[{"title":"One"},{"title":"Two"}]}}]"#
         let html = #"<article class="{{ part.class }}" {{ part.attributes }}>{{ text("intro", default: "Intro") }}{{ loop control.cards as card }}<h3>{{ card.title }}</h3>{{ endloop }}{{ dropZone("children") }}</article>"#
         let compiled = HTMLPartPrototype.compile(html: html, css: "", javaScript: "", controls: declarations)
         let definition = try #require(compiled.definition, "\(compiled.diagnostics)")
@@ -132,8 +172,8 @@ struct HTMLPartPrototypeTests {
     func changingControlTypeResetsIncompatibleValues() async {
         await PartPackageCatalog.shared.waitUntilLoaded()
         var node = PartNode.make(.html)
-        node.applyHTMLPrototype(.init(html: "<p>Example</p>", css: "", javaScript: "", controls: #"[{"type":"text","id":"value","defaults":{"base":"Old"}}]"#))
-        node.applyHTMLPrototype(.init(html: "<p>Example</p>", css: "", javaScript: "", controls: #"[{"type":"toggle","id":"value","defaults":{"base":true}}]"#))
+        node.applyHTMLPrototype(.init(html: "<p>Example</p>", css: "", javaScript: "", controls: #"[{"type":"text","id":"value","defaults":{"xs":"Old"}}]"#))
+        node.applyHTMLPrototype(.init(html: "<p>Example</p>", css: "", javaScript: "", controls: #"[{"type":"toggle","id":"value","defaults":{"xs":true}}]"#))
         #expect(node.propertyValue(.init(rawValue: "value")) == .boolean(true))
     }
 

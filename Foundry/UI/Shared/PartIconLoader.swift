@@ -6,27 +6,12 @@ struct LoadedPartIcon {
     let image: NSImage
 }
 
-extension PartIconColour {
-    var nsColor: NSColor {
-        NSColor(name: nil) { appearance in
-            let hex = appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light
-            let value = UInt32(hex.dropFirst(), radix: 16) ?? 0
-            let rgba = hex.count == 9 ? value : (value << 8) | 255
-            return NSColor(srgbRed: CGFloat((rgba >> 24) & 255) / 255,
-                           green: CGFloat((rgba >> 16) & 255) / 255,
-                           blue: CGFloat((rgba >> 8) & 255) / 255,
-                           alpha: CGFloat(rgba & 255) / 255)
-        }
-    }
-}
-
 extension PartType {
     /// The icon recipe for any part type: package parts resolve their
-    /// manifest's `icon`; everything else stencils its system symbol in the
-    /// neutral tint.
+    /// manifest's `icon`; everything else uses its symbol and group palette.
     var iconSpecification: PartIconSpecification {
         definition.package?.iconSpecification
-            ?? .init(glyph: .symbol(systemImage))
+            ?? .init(glyph: .symbol(systemImage), group: definition.category.rawValue)
     }
 }
 
@@ -44,16 +29,14 @@ extension PartIconSpecification {
     }
 
     /// The glyph for a structure-tree row, which has no tile behind it.
-    /// Original SVG colours survive unless an explicit Structure colour
-    /// requests a tinted silhouette. Both use the same padded geometry.
+    /// Always uses the base group colour.
     func rowImage() -> (image: NSImage?, tint: NSColor?) {
-        let tint = (structure ?? background).nsColor
+        let tint = groupColour
         guard let source = resolvedGlyphImage() else { return (nil, tint) }
         guard case .svg = glyph else { return (source, tint) }
-        let usesOriginal = rendering == .original && structure == nil
         // Copy before changing the template flag; the cache is shared.
         guard let artwork = source.copy() as? NSImage else { return (nil, tint) }
-        if usesOriginal { artwork.isTemplate = false }
+        artwork.isTemplate = false
         // Match the row's 14-point symbol configuration without filling its
         // entire 18-point image slot. Preserve the SVG's aspect ratio.
         let image = NSImage(size: NSSize(width: 18, height: 18), flipped: false) { rect in
@@ -62,19 +45,18 @@ extension PartIconSpecification {
             artwork.draw(in: Self.fitted(source.size, in: box), from: .zero, operation: .sourceOver, fraction: 1)
             return true
         }
-        image.isTemplate = !usesOriginal
-        return (image, usesOriginal ? nil : tint)
+        image.isTemplate = true
+        return (image, tint)
     }
 
     /// The complete tile. Monochrome draws the foreground over the background
-    /// rounded rectangle; original SVG artwork keeps its authored colours.
+    /// rounded rectangle; every SVG is a monochrome stencil.
     /// SVG viewBoxes are tight artwork bounds; SF Symbols include optical
     /// padding. Give SVGs a smaller box to match their visible size.
     /// The drawing handler resolves colours for each appearance.
     func tileImage(size: NSSize) -> NSImage {
-        let backgroundColor = background.nsColor
-        let foregroundColor = foreground.nsColor
-        let rendering = rendering
+        let backgroundColor = tileBackgroundColour
+        let foregroundColor = tileForegroundColour
         let insetFraction: CGFloat
         switch glyph {
         case .svg: insetFraction = 0.25
@@ -95,11 +77,6 @@ extension PartIconSpecification {
         // recolour the backdrop as well as the stencil.
         let glyphImage: NSImage? = glyphSource.flatMap { source in
             guard source.size.width > 0, source.size.height > 0 else { return nil }
-            if rendering == .original {
-                let original = source.copy() as? NSImage
-                original?.isTemplate = false
-                return original
-            }
             return NSImage(size: source.size, flipped: false) { rect in
                 source.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1)
                 foregroundColor.setFill()

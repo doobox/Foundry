@@ -23,17 +23,26 @@ final class TemplatePreviewRenderer {
         site: Site,
         assetContents: ProjectAssetContents,
         pageBackground: String? = nil,
+        pageTheme: String? = nil,
+        pageForeground: String? = nil,
+        pageBorder: String? = nil,
+        pageLinks: String? = nil,
+        pageAppearance: SiteAppearance? = nil,
         completion: @escaping @MainActor (Data?) -> Void
     ) {
         let page = Page(
             title: definition.name,
             slug: "template-preview",
             parts: [definition.root],
-            backgroundOverride: pageBackground
+            backgroundOverride: pageBackground,
+            themeOverride: pageTheme,
+            foregroundOverride: pageForeground,
+            borderOverride: pageBorder,
+            linksOverride: pageLinks,
+            appearanceOverride: pageAppearance
         )
-        // Previews are always light mode: baked template previews cannot track
-        // the canvas appearance, so globals match them rather than diverging.
-        let html = HTMLPageRenderer(site: site, appearance: .light).render(
+        // Baked previews use light unless the source page explicitly fixes its mode.
+        let html = HTMLPageRenderer(site: site, appearance: pageAppearance ?? .light).render(
             page: page,
             language: site.language,
             theme: site.theme,

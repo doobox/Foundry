@@ -30,9 +30,9 @@ nonisolated enum PartPackageManifestSchema {
         "tags", "showsInPartLibrary", "allowedParents", "icon", "inspector", "templates", "assets", "helpURL",
         "requiresPHP", "libraries"
     ]
-    private static let iconKeys: Set<String> = ["file", "symbol", "background", "foreground", "structure", "rendering"]
+    private static let iconKeys: Set<String> = ["file", "symbol"]
     private static let propertyKeys: Set<String> = [
-        "id", "label", "title", "body", "systemImage", "defaults", "responsive", "subtitle", "buttonText", "units", "noneValue", "tooltip", "linked",
+        "id", "label", "title", "body", "systemImage", "defaults", "responsive", "subtitle", "buttonText", "units", "noneValue", "tooltip", "linked", "axis",
         "type", "font", "showsFamily", "showsWeight", "showsStyle", "showsSize", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "opacity", "outputFormat",
         "count", "ticks", "editableValue", "tickLabels", "valueLabels", "minimumLabel", "maximumLabel", "neutralValue", "trueValue", "falseValue", "colourSections",
         "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "presentation", "visibleWhen", "outputWhenHidden", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment", "height", "controls", "itemLabel"
@@ -120,6 +120,7 @@ nonisolated enum PartPackageManifestSchema {
         case .collection:
             return common.subtracting(["responsive"]).union(["controls", "itemLabel"]).contains(key)
         case .themeSpacing: return common.union(["noneValue"]).contains(key)
+        case .space: return common.union(["axis"]).contains(key)
         case .themePadding, .themeMargin, .themeRadius, .borderSides: return common.contains(key)
         case .edges, .corners: return common.union(["units", "linked"]).contains(key)
         case .themeBorder: return common.union(["showsStyle"]).contains(key)
@@ -138,6 +139,7 @@ nonisolated enum PartPackageManifestSchema {
         case "font": return type == .fontWeight || type == .fontStyle
         case "showsFamily", "showsWeight", "showsStyle", "showsSize": return type == .themeFont
         case "linked": return false // edges/corners handled above
+        case "axis": return false // space handled above
         case "noneValue": return false // themeSpacing handled above
         case "title", "body", "systemImage", "height", "controls", "itemLabel", "accepts", "pickerItems", "initial", "containment": return false
         case "alt": return type == .image || type == .svg
@@ -286,6 +288,14 @@ nonisolated enum PartPackageManifestSchema {
         optionalString("description", in: dictionary, location: "manifest.json", into: &diagnostics)
         optionalString("author", in: dictionary, location: "manifest.json", into: &diagnostics)
         optionalString("group", in: dictionary, location: "manifest.json", into: &diagnostics)
+        if let group = dictionary["group"] as? String,
+           !PartPackageGroup.allCases.contains(where: { $0.rawValue.caseInsensitiveCompare(group) == .orderedSame }) {
+            diagnostics.append(.init(
+                severity: .error,
+                location: "manifest.json:group",
+                message: "Unknown part group '\(group)'. Use one of the documented part groups."
+            ))
+        }
         optionalString("helpURL", in: dictionary, location: "manifest.json", into: &diagnostics)
         optionalBoolean("requiresPHP", in: dictionary, location: "manifest.json", into: &diagnostics)
         optionalBoolean("showsInPartLibrary", in: dictionary, location: "manifest.json", into: &diagnostics)
@@ -295,28 +305,13 @@ nonisolated enum PartPackageManifestSchema {
             if let icon = iconValue as? [String: Any] {
                 for key in icon.keys.sorted() where !iconKeys.contains(key) {
                     diagnostics.append(.init(
-                        severity: .error,
+                        severity: .warning,
                         location: "manifest.json:icon",
-                        message: "Unknown key '\(key)'. Supported keys: file, symbol, background, foreground, structure, rendering."
+                        message: "Unknown key '\(key)' is ignored. Supported keys: file, symbol."
                     ))
                 }
                 optionalString("file", in: icon, location: "manifest.json:icon", into: &diagnostics)
                 optionalString("symbol", in: icon, location: "manifest.json:icon", into: &diagnostics)
-                for key in ["background", "foreground", "structure"] {
-                    guard let value = icon[key] else { continue }
-                    if let pair = value as? [String: Any] {
-                        for unknown in pair.keys.sorted() where unknown != "light" && unknown != "dark" {
-                            diagnostics.append(.init(severity: .warning, location: "manifest.json:icon.\(key)", message: "Unknown key '\(unknown)' is ignored; use light and dark."))
-                        }
-                    }
-                    do {
-                        let data = try JSONSerialization.data(withJSONObject: value, options: [.fragmentsAllowed])
-                        _ = try JSONDecoder().decode(PartIconColour.self, from: data)
-                    } catch {
-                        diagnostics.append(.init(severity: .error, location: "manifest.json:icon.\(key)", message: "Use #RRGGBB or #RRGGBBAA, or a dictionary with light and/or dark hex colours."))
-                    }
-                }
-                optionalString("rendering", in: icon, location: "manifest.json:icon", into: &diagnostics)
                 if icon["file"] is String, icon["symbol"] is String {
                     diagnostics.append(.init(
                         severity: .warning,
@@ -328,7 +323,7 @@ nonisolated enum PartPackageManifestSchema {
                 diagnostics.append(.init(
                     severity: .error,
                     location: "manifest.json:icon",
-                    message: "icon must be a dictionary with file, symbol, background, foreground, structure, or rendering keys."
+                    message: "icon must be a dictionary with file or symbol keys."
                 ))
             }
         }
@@ -727,7 +722,7 @@ nonisolated enum PartPackageManifestSchema {
 
     private static func validateProperty(_ property: [String: Any], location: String, into diagnostics: inout [PartPackageDiagnostic]) {
         if property["default"] != nil {
-            diagnostics.append(.init(severity: .error, location: location, message: "default is no longer supported; use defaults with a base entry."))
+            diagnostics.append(.init(severity: .error, location: location, message: "default is no longer supported; use defaults with an xs entry."))
             return
         }
         if property["showsValueField"] != nil {
@@ -737,39 +732,47 @@ nonisolated enum PartPackageManifestSchema {
         var normalized = property
         normalized.removeValue(forKey: "defaults")
         guard let raw = property["defaults"] else {
-            if let name = property["type"] as? String, PartPackageControl.Kind(rawValue: name)?.isColourPicker == true {
+            if let name = property["type"] as? String, name == "space" || PartPackageControl.Kind(rawValue: name)?.isColourPicker == true {
                 normalized["default"] = "inherit"
             }
             var result: [PartPackageDiagnostic] = []
             validateResolvedProperty(normalized, location: location, into: &result)
-            diagnostics += result.map { .init(severity: $0.severity, location: $0.location.replacingOccurrences(of: ":default", with: ":defaults"), message: $0.message.replacingOccurrences(of: "A default value", with: "A defaults dictionary with base")) }
+            diagnostics += result.map { .init(severity: $0.severity, location: $0.location.replacingOccurrences(of: ":default", with: ":defaults"), message: $0.message.replacingOccurrences(of: "A default value", with: "A defaults dictionary with xs")) }
             return
         }
         if ["divider", "note", "math", "childPicker"].contains(property["type"] as? String ?? "") {
             diagnostics.append(.init(severity: .error, location: location + ":defaults", message: "This control does not support defaults."))
             return
         }
-        guard let defaults = raw as? [String: Any], defaults["base"] != nil else {
-            diagnostics.append(.init(severity: .error, location: location + ".defaults", message: "defaults requires a dictionary containing base."))
+        guard var defaults = raw as? [String: Any] else {
+            diagnostics.append(.init(severity: .error, location: location + ".defaults", message: "defaults requires a dictionary."))
             return
         }
-        let names = Set(ResponsiveBreakpoint.allCases.filter { $0 != .mobile }.map(\.rawValue))
+        if property["type"] as? String == "space", defaults["xs"] == nil { defaults["xs"] = "inherit" }
+        guard defaults["xs"] != nil else {
+            diagnostics.append(.init(severity: .error, location: location + ".defaults", message: "defaults requires an xs value."))
+            return
+        }
+        var seenBreakpoints: Set<ResponsiveBreakpoint> = []
         for (name, value) in defaults {
-            guard name == "base" || names.contains(name) else {
+            guard name == "xs" || ResponsiveBreakpoint(manifestKey: name) != nil else {
                 diagnostics.append(.init(severity: .error, location: location + ".defaults." + name, message: "Unknown breakpoint name."))
                 continue
             }
-            if name != "base" && property["responsive"] as? Bool != true {
+            if let breakpoint = ResponsiveBreakpoint(manifestKey: name), !seenBreakpoints.insert(breakpoint).inserted {
+                diagnostics.append(.init(severity: .error, location: location + ".defaults." + name, message: "Only one default may be declared for each breakpoint."))
+            }
+            if name != "xs" && property["responsive"] as? Bool != true {
                 diagnostics.append(.init(severity: .error, location: location + ".defaults." + name, message: "Breakpoint defaults require responsive: true."))
             }
-            if name != "base" && property["type"] as? String == "image" {
-                diagnostics.append(.init(severity: .error, location: location + ".defaults." + name, message: "Image asset defaults support base only; responsive applies to focal points."))
+            if name != "xs" && property["type"] as? String == "image" {
+                diagnostics.append(.init(severity: .error, location: location + ".defaults." + name, message: "Image asset defaults support xs only; responsive applies to focal points."))
             }
-            if name != "base", property["type"] as? String == "themeFont", property["showsFamily"] as? Bool == false {
-                let baseFamily = (defaults["base"] as? [String: Any])?["family"] as? String ?? defaults["base"] as? String
+            if name != "xs", property["type"] as? String == "themeFont", property["showsFamily"] as? Bool == false {
+                let baseFamily = (defaults["xs"] as? [String: Any])?["family"] as? String ?? defaults["xs"] as? String
                 let family = (value as? [String: Any])?["family"] as? String ?? value as? String
                 if family != baseFamily {
-                    diagnostics.append(.init(severity: .error, location: location + ".defaults." + name, message: "A hidden font family is fixed; use the same family as base."))
+                    diagnostics.append(.init(severity: .error, location: location + ".defaults." + name, message: "A hidden font family is fixed; use the same family as xs."))
                 }
             }
             normalized["default"] = value
@@ -886,6 +889,11 @@ nonisolated enum PartPackageManifestSchema {
                 ))
             }
             return
+        }
+        if type == .space {
+            if let axis = property["axis"], !(axis is String) || !["x", "y"].contains(axis as? String ?? "") {
+                diagnostics.append(.init(severity: .error, location: location + ":axis", message: "Space axis must be x or y."))
+            }
         }
         if (type == .themeSpacing || type == .themePadding || type == .themeMargin || type == .themeRadius || type == .borderSides) {
             var allowed: Set<String> = ["type", "id", "label", "subtitle", "default", "responsive", "tooltip", "visibleWhen", "outputWhenHidden"]
@@ -1258,7 +1266,7 @@ nonisolated enum PartPackageManifestSchema {
             into: &diagnostics
         )
         for key in ["default", "trueValue", "falseValue", "argument1", "argument2"] {
-            if key == "default" && (type == .themeSpacing || type == .themePadding || type == .themeMargin || type == .themeBorder || type == .borderSides || type == .themeRadius || type == .edges || type == .corners) { continue }
+            if key == "default" && (type == .space || type == .themeSpacing || type == .themePadding || type == .themeMargin || type == .themeBorder || type == .borderSides || type == .themeRadius || type == .edges || type == .corners) { continue }
             if key == "default" && type == .themeFont && property[key] is [String: Any] { continue }
             optionalPartValue(key, in: property, location: location, into: &diagnostics)
         }

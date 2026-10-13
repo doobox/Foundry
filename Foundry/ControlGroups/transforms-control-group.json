@@ -7,7 +7,7 @@
       "presentation": "segmented",
       "responsive": false,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {
@@ -30,7 +30,7 @@
       "type": "select",
       "responsive": false,
       "defaults": {
-        "base": "self"
+        "xs": "self"
       },
       "options": [
         {
@@ -57,7 +57,7 @@
       "type": "text",
       "responsive": false,
       "defaults": {
-        "base": ""
+        "xs": ""
       },
       "visibleWhen": {
         "all": [
@@ -80,7 +80,7 @@
       "presentation": "segmented",
       "responsive": false,
       "defaults": {
-        "base": "normal"
+        "xs": "normal"
       },
       "options": [
         {
@@ -102,7 +102,7 @@
       "label": "Origin",
       "type": "select",
       "defaults": {
-        "base": "center"
+        "xs": "center"
       },
       "responsive": true,
       "visibleWhen": {
@@ -169,7 +169,7 @@
       "label": "Scale",
       "type": "number",
       "defaults": {
-        "base": 100
+        "xs": 100
       },
       "responsive": true,
       "visibleWhen": {
@@ -202,7 +202,7 @@
       "label": "Rotate",
       "type": "number",
       "defaults": {
-        "base": 0
+        "xs": 0
       },
       "responsive": true,
       "visibleWhen": {
@@ -235,7 +235,7 @@
       "label": "Translate horizontal",
       "type": "text",
       "defaults": {
-        "base": "0px"
+        "xs": "0px"
       },
       "responsive": true,
       "visibleWhen": {
@@ -265,7 +265,7 @@
       "label": "Translate vertical",
       "type": "text",
       "defaults": {
-        "base": "0px"
+        "xs": "0px"
       },
       "responsive": true,
       "visibleWhen": {
@@ -295,7 +295,7 @@
       "label": "Skew horizontal",
       "type": "number",
       "defaults": {
-        "base": 0
+        "xs": 0
       },
       "responsive": true,
       "visibleWhen": {
@@ -328,7 +328,7 @@
       "label": "Skew vertical",
       "type": "number",
       "defaults": {
-        "base": 0
+        "xs": 0
       },
       "responsive": true,
       "visibleWhen": {
@@ -361,7 +361,7 @@
       "label": "Origin",
       "type": "select",
       "defaults": {
-        "base": "center"
+        "xs": "center"
       },
       "responsive": true,
       "visibleWhen": {
@@ -420,7 +420,7 @@
       "label": "Scale",
       "type": "number",
       "defaults": {
-        "base": 100
+        "xs": 100
       },
       "responsive": true,
       "visibleWhen": {
@@ -445,7 +445,7 @@
       "label": "Rotate",
       "type": "number",
       "defaults": {
-        "base": 0
+        "xs": 0
       },
       "responsive": true,
       "visibleWhen": {
@@ -470,7 +470,7 @@
       "label": "Translate horizontal",
       "type": "text",
       "defaults": {
-        "base": "0px"
+        "xs": "0px"
       },
       "responsive": true,
       "visibleWhen": {
@@ -492,7 +492,7 @@
       "label": "Translate vertical",
       "type": "text",
       "defaults": {
-        "base": "0px"
+        "xs": "0px"
       },
       "responsive": true,
       "visibleWhen": {
@@ -514,7 +514,7 @@
       "label": "Skew horizontal",
       "type": "number",
       "defaults": {
-        "base": 0
+        "xs": 0
       },
       "responsive": true,
       "visibleWhen": {
@@ -539,7 +539,7 @@
       "label": "Skew vertical",
       "type": "number",
       "defaults": {
-        "base": 0
+        "xs": 0
       },
       "responsive": true,
       "visibleWhen": {

@@ -8,7 +8,7 @@
       "controls": [
         {
           "defaults": {
-            "base": "#ff375f"
+            "xs": "#ff375f"
           },
           "id": "pageColour",
           "label": "Diagnostic Colour",

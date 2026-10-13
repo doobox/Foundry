@@ -38,6 +38,7 @@ nonisolated enum FoundryWebLibraryRegistry {
     static let iconsIdentifier = "bootstrapIcons"
     static let iconsMajorVersion = 1
     static let nativeIconFontName = "bootstrap-icons"
+    static let bootstrapSourceCSS = resourceString(at: "bootstrap-6.0.0-alpha.1.min.css") ?? ""
 
     static let alpineRequirement = PartPackageLibraryRequirement(identifier: "alpine", majorVersion: 3)
     static let bootstrapRequirement = PartPackageLibraryRequirement(identifier: "bootstrap", majorVersion: 6)
@@ -91,7 +92,7 @@ nonisolated enum FoundryWebLibraryRegistry {
     }()
 
     static func supports(_ requirement: PartPackageLibraryRequirement) -> Bool {
-        [iconRequirement, alpineRequirement, bootstrapRequirement, gsapRequirement, glightboxRequirement, gsapScrollTriggerRequirement]
+        [alpineRequirement, gsapRequirement, glightboxRequirement, gsapScrollTriggerRequirement]
             .contains(requirement)
     }
 
@@ -120,7 +121,7 @@ nonisolated enum FoundryWebLibraryRegistry {
     }
 
     static func canvasCSS(for packages: [LoadedPartPackage]) -> String {
-        uniqueRequirements(in: packages).compactMap { requirement in
+        let libraryCSS = uniqueRequirements(in: packages).compactMap { requirement in
             if requirement == iconRequirement,
                let css = resourceString(at: "bootstrap-icons.css"),
                let font = resourceData(at: "bootstrap-icons.woff2") {
@@ -131,29 +132,47 @@ nonisolated enum FoundryWebLibraryRegistry {
                   let resource = stylesheetResource(for: requirement) else { return nil }
             return resourceString(at: resource)
         }.joined(separator: "\n")
+        return libraryCSS + "\n" + sharedUtilityCSS
     }
 
-    static func exportCSS(for packages: [LoadedPartPackage]) -> String {
+    static let sharedUtilityPath = "files/libraries/foundry/foundry-utilities.css"
+    private static let sharedUtilityCSS = BootstrapUtilityExtensionsCSS.sharedCSS
+        + BootstrapEditorCSS.sharedCSS + BootstrapColorCSS.sharedCSS
+    static let markdownCodeStylesheetPath = "files/libraries/foundry/foundry-markdown-code.css"
+
+    static let markdownCodeScriptPath = "files/libraries/foundry/foundry-markdown-code.js"
+
+    static let markdownCodeCSS = resourceString(at: "FOUNDRY-MARKDOWN-CODE.css") ?? ""
+
+    private static let markdownCodeFiles: [SiteExportFile] = {
+        [
+            ("FOUNDRY-MARKDOWN-CODE.css", markdownCodeStylesheetPath),
+            ("FOUNDRY-MARKDOWN-CODE.js", markdownCodeScriptPath)
+        ].compactMap { source, destination in
+            guard let data = resourceData(at: source) else { return nil }
+            return SiteExportFile(path: destination, data: data)
+        }
+    }()
+
+    static func markdownCodeExportFiles() -> [SiteExportFile] {
+        markdownCodeFiles
+    }
+    static func themeOverridesCSS(for packages: [LoadedPartPackage]) -> String {
+        uniqueRequirements(in: packages).contains(glightboxRequirement) ? glightboxThemeCSS : ""
+    }
+
+    static func exportStylesheets(for packages: [LoadedPartPackage], prefix: String) -> [String] {
         uniqueRequirements(in: packages).compactMap { requirement in
-            if requirement == iconRequirement,
-               let css = resourceString(at: "bootstrap-icons.css") {
-                return rewrittenIconCSS(
-                    css,
-                    fontURL: #"./libraries/bootstrapIcons/bootstrap-icons.woff2"#
-                )
-            }
             guard let resource = stylesheetResource(for: requirement) else { return nil }
-            guard let stylesheet = resourceString(at: resource) else { return nil }
-            if requirement == glightboxRequirement {
-                return stylesheet + "\n" + glightboxThemeCSS
-            }
-            return stylesheet
-        }.joined(separator: "\n")
+            return "\(prefix)/\(requirement.identifier)/\(resource)"
+        } + ["\(prefix)/foundry/foundry-utilities.css"]
     }
 
     static func exportFiles(for packages: [LoadedPartPackage]) -> [SiteExportFile] {
         let requirements = uniqueRequirements(in: packages)
         var files: [SiteExportFile] = []
+        files.append(contentsOf: requirements.compactMap { libraryStylesheets[$0] })
+        files.append(SiteExportFile(path: sharedUtilityPath, contents: sharedUtilityCSS))
         if requirements.contains(iconRequirement),
            let font = resourceData(at: "bootstrap-icons.woff2") {
             files.append(SiteExportFile(
@@ -164,13 +183,37 @@ nonisolated enum FoundryWebLibraryRegistry {
         for requirement in requirements {
             guard let resource = scriptResource(for: requirement),
                   let data = resourceData(at: resource) else { continue }
+            // Keep the bundled original intact, but don't advertise a map
+            // that preview and published sites deliberately do not ship.
+            let output = requirement == bootstrapRequirement
+                ? Data(String(decoding: data, as: UTF8.self)
+                    .replacingOccurrences(of: "//# sourceMappingURL=bootstrap.bundle.min.js.map", with: "").utf8)
+                : data
             files.append(SiteExportFile(
                 path: "files/libraries/\(requirement.identifier)/\(resource)",
-                data: data
+                data: output
             ))
         }
         return files
     }
+
+    static let bootstrapStylesheetPath = "files/libraries/bootstrap/bootstrap-6.0.0-alpha.1.min.css"
+
+    // Immutable vendor CSS is prepared once, independently of site/theme edits.
+    private static let libraryStylesheets: [PartPackageLibraryRequirement: SiteExportFile] = {
+        Dictionary(uniqueKeysWithValues: [bootstrapRequirement, iconRequirement, glightboxRequirement].compactMap { requirement in
+            guard let resource = stylesheetResource(for: requirement),
+                  var css = resourceString(at: resource) else { return nil }
+            if requirement == bootstrapRequirement {
+                css = css.replacingOccurrences(of: "/*# sourceMappingURL=bootstrap.min.css.map */", with: "")
+            } else if requirement == iconRequirement {
+                css = rewrittenIconCSS(css, fontURL: "./bootstrap-icons.woff2")
+            }
+            return (requirement, SiteExportFile(
+                path: "files/libraries/\(requirement.identifier)/\(resource)", contents: css
+            ))
+        })
+    }()
 
     static func exportScripts(
         for packages: [LoadedPartPackage],
@@ -201,6 +244,7 @@ nonisolated enum FoundryWebLibraryRegistry {
     private static func stylesheetResource(for requirement: PartPackageLibraryRequirement) -> String? {
         switch requirement {
         case bootstrapRequirement: "bootstrap-6.0.0-alpha.1.min.css"
+        case iconRequirement: "bootstrap-icons.css"
         case glightboxRequirement: "glightbox.min.css"
         default: nil
         }

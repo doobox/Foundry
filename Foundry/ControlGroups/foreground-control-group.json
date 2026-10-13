@@ -8,7 +8,7 @@
       "id": "theme",
       "label": "Colour",
       "defaults": {
-        "base": "inherit"
+        "xs": "inherit"
       }
     },
     {
@@ -16,7 +16,7 @@
       "id": "variant",
       "label": "Variant",
       "responsive": false,
-      "defaults": { "base": "normal" },
+      "defaults": { "xs": "normal" },
       "options": [
         { "title": "Normal", "value": "normal" },
         { "title": "Emphasis", "value": "emphasis" },
@@ -36,7 +36,7 @@
       "maximum": 100,
       "step": 10,
       "editableValue": true,
-      "defaults": { "base": 100 },
+      "defaults": { "xs": 100 },
       "visibleWhen": { "id": "theme", "operation": "!=", "value": "inherit" }
     }
   ]

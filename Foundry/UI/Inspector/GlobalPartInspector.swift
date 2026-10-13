@@ -169,7 +169,12 @@ struct GlobalPartInspector: View {
                 definition: definition,
                 site: site,
                 assetContents: contents,
-                pageBackground: currentPage?.backgroundOverride
+                pageBackground: currentPage?.backgroundOverride,
+                pageTheme: currentPage?.themeOverride,
+                pageForeground: currentPage?.foregroundOverride,
+                pageBorder: currentPage?.borderOverride,
+                pageLinks: currentPage?.linksOverride,
+                pageAppearance: currentPage?.appearanceOverride
             ) { data in
                 continuation.resume(returning: data)
             }

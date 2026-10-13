@@ -7,20 +7,13 @@
   "description": "Responsive images with native Bootstrap sizing and styling.",
   "group": "Media",
   "icon": {
-    "symbol": "photo",
-    "background": { "light": "#007AFF", "dark": "#0A84FF" }
+    "symbol": "photo"
   },
   "tags": [
     "Bootstrap",
     "Image"
   ],
   "assets": [],
-  "libraries": [
-    {
-      "id": "bootstrap",
-      "majorVersion": 6
-    }
-  ],
   "templates": {
     "html": "part.html"
   },
@@ -53,7 +46,7 @@
           "id": "decorative",
           "label": "Decorative",
           "defaults": {
-            "base": false
+            "xs": false
           }
         },
         {
@@ -61,7 +54,7 @@
           "id": "loading",
           "label": "Loading",
           "defaults": {
-            "base": "lazy"
+            "xs": "lazy"
           },
           "options": [
             {
@@ -79,7 +72,7 @@
           "id": "appearance",
           "label": "Style",
           "defaults": {
-            "base": "img-fluid"
+            "xs": "img-fluid"
           },
           "options": [
             {
@@ -167,15 +160,7 @@
       "controls": [
         {
           "type": "borders",
-          "id": "borders",
-          "excludeControls": [
-            "borderTop",
-            "borderEnd",
-            "borderBottom",
-            "borderStart",
-            "borderX",
-            "borderY"
-          ]
+          "id": "borders"
         }
       ]
     },

@@ -36,6 +36,34 @@ struct TypedCustomColourTests {
         }
     }
 
+    @Test func pickerLabelsMatchCustomColourClasses() throws {
+        for (kind, expected) in [
+            (BootstrapColourKind.theme, "theme-new"),
+            (.surface, "bg-new-body"),
+            (.foreground, "fg-new-body"),
+            (.border, "border-new-body"),
+            (.link, "link-new")
+        ] {
+            let model = ThemeColourPreviewModel()
+            model.addTheme(named: "new", kind: kind)
+            let palette = try #require(model.storedPalettes.first { $0.origin == .custom })
+            if kind == .theme {
+                #expect(palette.pickerLabel == expected)
+            } else {
+                let token = try #require(palette.colourTokens.first)
+                #expect(PartColourToken.label(token, palettes: [palette]) == expected)
+                #expect(PartColourToken.label(token, palettes: [palette], linksOnly: true) == expected)
+            }
+        }
+        let model = ThemeColourPreviewModel()
+        model.addTheme(named: "new", kind: .surface)
+        let surface = try #require(model.storedPalettes.first { $0.origin == .custom })
+        #expect(PartColourToken.label(surface.colourToken("bg-3"), palettes: [surface]) == "bg-new-3")
+        model.addTheme(named: "links", kind: .link)
+        let links = try #require(model.storedPalettes.first { $0.colourKind == .link })
+        #expect(PartColourToken.label(links.colourToken("link-hover-color"), palettes: [links]) == "link-links-hover")
+    }
+
     @Test func resetKeepsCustomColours() throws {
         let model = ThemeColourPreviewModel()
         model.addTheme(named: "paper", kind: .surface)
@@ -75,7 +103,7 @@ struct TypedCustomColourTests {
         let border = try #require(model.storedPalettes.first { $0.name == "outline" })
         var theme = Theme.standard
         theme.colourPalettes = model.storedPalettes
-        var node = PartNode.make(.container)
+        var node = PartNode.make(.flex)
         node.anchor = "paint"
         node.setProperty(.init(rawValue: "foreground.theme"), value: .choice("token:" + foreground.colourTokens[1]))
         node.setProperty(.init(rawValue: "borders.theme"), value: .choice("token:" + border.colourTokens[2]))

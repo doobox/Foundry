@@ -1,1 +1,4 @@
-<div class="{{ part.class }} {{ control.theme }} {{ control.width }} {{ control.display.classes }} {{ control.spacing.classes }} {{ control.borders.classes }} {{ control.background.classes }} {{ control.links.classes }} {{ control.foreground.classes }} {{ control.prose.classes }} {{ control.typography.classes }} {{ control.sizing.classes }}" {{ part.attributes }}>{{ control.background.video }}{{ dropZone("content") }}</div>
+<div class="{{ part.class }} w-100 {{ control.background.classes }}" {{ part.attributes }}>
+  {{ control.background.video }}
+  <div class="{{ control.width }} {{ control.contentSpacing }}">{{ dropZone("content") }}</div>
+</div>

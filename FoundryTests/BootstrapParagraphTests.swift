@@ -39,7 +39,7 @@ struct BootstrapParagraphTests {
           if (!root || !root.classList.contains('theme-danger')) return ['missing advanced class'];
           if (root.classList.contains('prose')) errors.push('unexpected prose');
           const sw = document.getElementById('inherited-switch');
-          if (\(environment != .canvas) && sw.parentElement.parentElement !== root)
+          if (\(environment != .canvas) && sw.parentElement.parentElement !== root.firstElementChild)
             errors.push('unexpected HTML wrapper');
           const probe = document.createElement('div');
           probe.style.backgroundColor = 'var(--bs-danger-bg)';
@@ -67,7 +67,7 @@ struct BootstrapParagraphTests {
         #expect(BootstrapControlGroupClasses.resolve(node: paragraph, key: .init(rawValue: "typography.textWrap"), theme: .standard) == "text-truncate")
         var container = PartNode.make(.container)
         container.anchor = "prose-container"
-        container.setProperty(.init(rawValue: "prose.style"), value: .choice("prose"))
+        container.customClasses = "prose"
         container.children = [PartNode.make(.paragraph)]
         let page = Page(title: "Text helpers", slug: "index", parts: [paragraph, container])
         let html: String

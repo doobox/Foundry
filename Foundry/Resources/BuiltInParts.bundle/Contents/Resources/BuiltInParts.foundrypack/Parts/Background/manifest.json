@@ -7,8 +7,7 @@
   "description": "Background group.",
   "group": "Layout",
   "icon": {
-    "symbol": "rectangle",
-    "background": { "light": "#34C759", "dark": "#30D158" }
+    "symbol": "rectangle"
   },
   "tags": [
     "Bootstrap",
@@ -16,12 +15,6 @@
     "background"
   ],
   "assets": [],
-  "libraries": [
-    {
-      "id": "bootstrap",
-      "majorVersion": 6
-    }
-  ],
   "templates": {
     "html": "part.html"
   },
@@ -31,7 +24,7 @@
       "id": "theme",
       "label": "Theme",
       "defaults": {
-        "base": "framework.primary"
+        "xs": "framework.primary"
       }
     },
     {

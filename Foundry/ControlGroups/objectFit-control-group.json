@@ -9,7 +9,7 @@
       "label": "Fit",
       "responsive": true,
       "defaults": {
-        "base": "none"
+        "xs": "none"
       },
       "options": [
         {

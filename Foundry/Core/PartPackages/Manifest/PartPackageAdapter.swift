@@ -76,7 +76,7 @@ nonisolated enum PartPackageAdapter {
             definitions[index].outputWhenHidden = property.outputWhenHidden
         }
         for (name, value) in property.breakpointDefaults {
-            guard let breakpoint = ResponsiveBreakpoint(rawValue: name), breakpoint != .mobile else { continue }
+            guard let breakpoint = ResponsiveBreakpoint(manifestKey: name), breakpoint != .mobile else { continue }
             var variant = property
             variant.defaultValue = value
             variant.breakpointDefaults = [:]
@@ -411,6 +411,7 @@ nonisolated enum PartPackageAdapter {
         case .icon: .icon
         case .select:
             .choice((control.options ?? []).map { .init(value: $0.value, label: $0.title, systemImage: $0.systemImage) })
+        case .space: .space(axis: control.axis == "x" ? "x" : "y")
         case .link: .link(absoluteURL: control.absoluteURL ?? false)
         case .toggle: .toggle
         case .textAlignment: .textAlignment

@@ -6,6 +6,7 @@ nonisolated enum PartTemplateLoop {
 
     enum PrimitiveKind: Sendable {
         case text
+        case markdown
         case html
         case image
         case svg
@@ -102,6 +103,10 @@ nonisolated enum PartTemplateLoop {
                 var result = replacePrimitives(in: source, expression: textExpression) { name, defaultValue in
                     state.declarations.append(.init(kind: .text, key: name, defaultValue: defaultValue, isRepeated: depth > 0))
                     return token(name: "__foundry_text", key: name, value: defaultValue, isRepeated: depth > 0)
+                }
+                result = replacePrimitives(in: result, expression: markdownExpression) { name, defaultValue in
+                    state.declarations.append(.init(kind: .markdown, key: name, defaultValue: defaultValue, isRepeated: depth > 0))
+                    return token(name: "__foundry_markdown", key: name, value: defaultValue, isRepeated: depth > 0)
                 }
                 result = replacePrimitives(in: result, expression: htmlExpression) { name, defaultValue in
                     state.declarations.append(.init(kind: .html, key: name, defaultValue: defaultValue, isRepeated: depth > 0))
@@ -484,6 +489,7 @@ nonisolated enum PartTemplateLoop {
     private static let videoExpression = try! NSRegularExpression(pattern: #"\{\{\s*video\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*\)\s*\}\}"#)
     private static let textExpression = try! NSRegularExpression(pattern: #"\{\{\s*text\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*(?:,\s*default\s*:\s*\"((?:\\.|[^\"\\])*)\"\s*)?\)\s*\}\}"#)
     private static let htmlExpression = try! NSRegularExpression(pattern: #"\{\{\s*html\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*(?:,\s*default\s*:\s*\"((?:\\.|[^\"\\])*)\"\s*)?\)\s*\}\}"#)
+    private static let markdownExpression = try! NSRegularExpression(pattern: #"\{\{\s*markdown\(\s*\"([A-Za-z][A-Za-z0-9_-]*)\"\s*(?:,\s*default\s*:\s*\"((?:\\.|[^\"\\])*)\"\s*)?\)\s*\}\}"#)
 
     private struct Parser {
         let source: String

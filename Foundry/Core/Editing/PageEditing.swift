@@ -357,6 +357,32 @@ extension ProjectEditor {
         }
     }
 
+    func setPageTheme(id: UUID, value: String?) {
+        let selection = value == "inherit" ? nil : value
+        guard let page = document.site.pages.first(where: { $0.id == id }), page.themeOverride != selection else { return }
+        mutate(actionName: selection == nil ? "Reset Page Theme" : "Change Page Theme", impact: .page) { site in
+            guard let index = site.pages.firstIndex(where: { $0.id == id }) else { return }
+            site.pages[index].themeOverride = selection
+        }
+    }
+
+    func setPageAppearance(id: UUID, value: SiteAppearance?) {
+        guard document.site.pages.first(where: { $0.id == id })?.appearanceOverride != value else { return }
+        mutate(actionName: "Change Page Appearance", impact: .page) { site in
+            guard let index = site.pages.firstIndex(where: { $0.id == id }) else { return }
+            site.pages[index].appearanceOverride = value
+        }
+    }
+
+    func setPageColour(id: UUID, key: WritableKeyPath<Page, String?>, value: String, label: String) {
+        let selection: String? = value == "inherit" ? nil : value
+        guard document.site.pages.first(where: { $0.id == id })?[keyPath: key] != selection else { return }
+        mutate(actionName: "Change Page \(label)", impact: .page) { site in
+            guard let index = site.pages.firstIndex(where: { $0.id == id }) else { return }
+            site.pages[index][keyPath: key] = selection
+        }
+    }
+
     func movePage(id: UUID, offset: Int) {
         let item = PageTreeItem.page(id)
         guard document.site.pages.first(where: { $0.id == id })?.slug != "index" else {

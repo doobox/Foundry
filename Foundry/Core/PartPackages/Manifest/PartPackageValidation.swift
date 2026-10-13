@@ -88,6 +88,12 @@ nonisolated enum PartPackageValidator {
                     location: location,
                     message: "A library majorVersion must be greater than zero."
                 ))
+            } else if library == FoundryWebLibraryRegistry.bootstrapRequirement || library == FoundryWebLibraryRegistry.iconRequirement {
+                diagnostics.append(.init(
+                    severity: .warning,
+                    location: location,
+                    message: "\(library.identifier) is included automatically on every page. Remove this unnecessary library request."
+                ))
             } else if !FoundryWebLibraryRegistry.supports(library) {
                 diagnostics.append(.init(
                     severity: .error,
@@ -162,10 +168,8 @@ nonisolated enum PartPackageValidator {
                     location: iconFile,
                     message: "Icon glyphs must be SVG files."
                 ))
-            } else if manifest.icon?.resolvedRendering != .original,
-                      let source = try? String(contentsOf: iconURL, encoding: .utf8),
+            } else if let source = try? String(contentsOf: iconURL, encoding: .utf8),
                       Self.iconArtworkAltersShape(source) {
-                // Original artwork draws as-is, so its colours and shading are intended.
                 diagnostics.append(.init(
                     severity: .warning,
                     location: iconFile,
@@ -298,7 +302,7 @@ nonisolated enum PartPackageValidator {
                 continue
             }
             if template.matches(#"\{\{\s*(?:id|instance\.|part\.|control\.|slot\.)"#) ||
-                template.matches(#"\{\{\s*(?:text|html|image|svg|video|dropZone|childArea)\s*\("#) ||
+                template.matches(#"\{\{\s*(?:text|html|markdown|image|svg|video|dropZone|childArea)\s*\("#) ||
                 template.matches(#"\{\{\s*(?:slot\s+id|text(?:\s*=|\s*\}\})|html(?:\s*=|\s*\}\})|image(?:\s+[^}]+)?\s*\}\})"#) {
                 diagnostics.append(.init(
                     severity: .error,
@@ -460,7 +464,7 @@ nonisolated enum PartPackageValidator {
         }
         let primitiveDeclarations = (try? PartTemplateLoop.declarations(in: template)) ?? []
         let primitiveNames = primitiveDeclarations.map(\.key)
-        let primitiveCandidateCount = template.matchCount(#"\{\{\s*(?:text|html|image|svg|video)\b[^}]*\}\}"#)
+        let primitiveCandidateCount = template.matchCount(#"\{\{\s*(?:text|html|markdown|image|svg|video)\b[^}]*\}\}"#)
         if primitiveCandidateCount != primitiveNames.count {
             diagnostics.append(.init(
                 severity: .error,
@@ -722,9 +726,9 @@ nonisolated enum PartPackageValidator {
             let source = String(template[sourceRange]).trimmingCharacters(in: .whitespacesAndNewlines)
             if source.hasPrefix("if ") || source.hasPrefix("elseif ") || source == "else" || source == "endif" ||
                 source.hasPrefix("loop ") || source == "endloop" || source.hasPrefix("loop.") ||
-                source.hasPrefix("slot ") || source.hasPrefix("text(") || source.hasPrefix("html(") ||
+                source.hasPrefix("slot ") || source.hasPrefix("text(") || source.hasPrefix("html(") || source.hasPrefix("markdown(") ||
                 source.hasPrefix("image(") || source.hasPrefix("svg(") || source.hasPrefix("video(") || source.hasPrefix("dropZone(") || source.hasPrefix("childArea(") || source.hasPrefix("asset(") ||
-                ["text", "html", "image", "svg", "video", "instance.id", "package.id", "site.baseURL", "page.url", "path.siteRoot", "path.siteAssets", "part.class", "part.attributes", "dropZone", "childArea", "asset"].contains(source) {
+                ["text", "html", "markdown", "image", "svg", "video", "instance.id", "package.id", "site.baseURL", "page.url", "path.siteRoot", "path.siteAssets", "part.class", "part.attributes", "dropZone", "childArea", "asset"].contains(source) {
                 continue
             }
             if loopAliases.contains(where: { source == $0 || source.hasPrefix($0 + ".") }) { continue }
@@ -753,7 +757,7 @@ nonisolated enum PartPackageValidator {
 
         let supportedMacroNames: Set<String> = [
             "id", "instance", "package", "site", "page", "path", "part", "control", "asset", "slot", "dropZone", "childArea",
-            "if", "elseif", "else", "endif", "loop", "endloop", "text", "html", "image", "svg", "video", "canvas", "preview", "published", "navigation", "pages", "assets"
+            "if", "elseif", "else", "endif", "loop", "endloop", "text", "html", "markdown", "image", "svg", "video", "canvas", "preview", "published", "navigation", "pages", "assets"
         ]
         for reference in template.references(matching: #"\{\{\s*([A-Za-z]+)(?:\.|\s|\}\})"#)
             where !supportedMacroNames.contains(reference.value) && !loopAliases.contains(reference.value) {
@@ -965,7 +969,7 @@ nonisolated enum PartPackageValidator {
                 return
             }
             let fieldIDs = Set(property.collectionFields.map(\.id))
-            let unsupported: Set<PartPackageControl.Kind> = [.collection, .childPicker, .math]
+            let unsupported: Set<PartPackageControl.Kind> = [.collection, .childPicker, .math, .space]
             for field in property.collectionFields where unsupported.contains(field.control.type) {
                 diagnostics.append(.init(
                     severity: .error,
@@ -1104,6 +1108,13 @@ nonisolated enum PartPackageValidator {
         case .themeSpacing:
             if PartPackageSingleSpacingControl.defaultValue(defaultValue) == nil {
                 diagnostics.append(.init(severity: .error, location: location, message: "A themeSpacing default requires a spacing token, none, or a nonnegative {value, unit} length (px/rem/em/%)."))
+            }
+        case .space:
+            if !PartSpaceControl.validDefault(defaultValue) {
+                diagnostics.append(.init(severity: .error, location: location, message: "Space requires inherit, a step from 0 to 12, or a nonnegative {value, unit} length (px/rem/em/vw/vh)."))
+            }
+            if !["x", "y"].contains(property.control.axis ?? "y") {
+                diagnostics.append(.init(severity: .error, location: location, message: "Space requires axis x or y."))
             }
         case .themeRadius:
             if PartPackageThemeRadiusControl.defaultValue(defaultValue) == nil {

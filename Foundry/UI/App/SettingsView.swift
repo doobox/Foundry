@@ -18,7 +18,7 @@ struct SettingsView: View {
 
             DeveloperSettingsView()
                 .tabItem {
-                    Label("Developer", systemImage: "apple.terminal")
+                    Label("Developer", systemImage: "ant")
                 }
         }
         .task {
@@ -174,8 +174,6 @@ private struct DeveloperSettingsView: View {
     private var enablesDeveloperTools = false
     @AppStorage(AppPreferenceKey.enablesCanvasWebInspector)
     private var enablesCanvasWebInspector = false
-    @AppStorage(AppPreferenceKey.partValidationMode)
-    private var partValidationMode = PartValidationPreference.mode
     @AppStorage(AppPreferenceKey.showsHiddenParts)
     private var showsHiddenParts = false
 
@@ -192,16 +190,6 @@ private struct DeveloperSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Picker("Part Validation", selection: $partValidationMode) {
-                    ForEach(PartValidationMode.allCases) { mode in
-                        Text(mode.title)
-                            .tag(mode)
-                    }
-                }
-                .pickerStyle(.segmented)
-                Text("Dev Packs validates parts being actively developed. All Packs also validates built-in and installed release packs, which increases loading time.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
             }
 
             Section("Canvas") {
@@ -210,9 +198,6 @@ private struct DeveloperSettingsView: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
-        }
-        .onChange(of: partValidationMode) {
-            PartPackageCatalog.shared.reloadAllPacks()
         }
     }
 }

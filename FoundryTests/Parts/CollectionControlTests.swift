@@ -210,11 +210,11 @@ struct CollectionControlTests {
             "type": "collection", "id": "cards", "itemLabel": "Card",
             "controls": [
               {"type": "image", "id": "image"},
-              {"type": "text", "id": "title", "defaults": {"base": ""}},
-              {"type": "textArea", "id": "description", "defaults": {"base": ""}},
-              {"type": "link", "id": "link", "defaults": {"base": ""}}
+              {"type": "text", "id": "title", "defaults": {"xs": ""}},
+              {"type": "textArea", "id": "description", "defaults": {"xs": ""}},
+              {"type": "link", "id": "link", "defaults": {"xs": ""}}
             ],
-            "defaults": {"base": [{"title": "First card"}, {"title": "Second card"}]}
+            "defaults": {"xs": [{"title": "First card"}, {"title": "Second card"}]}
           }]}]
         }
         """
@@ -373,9 +373,9 @@ struct CollectionControlTests {
               "type": "collection",
               "id": "children",
               "controls": [],
-              "defaults": {"base": []}
+              "defaults": {"xs": []}
             }],
-            "defaults": {"base": []}
+            "defaults": {"xs": []}
           }],
           "templates": {"html": "part.html"}
         }
