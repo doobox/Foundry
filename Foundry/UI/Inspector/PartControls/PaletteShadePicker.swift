@@ -24,24 +24,14 @@ struct PaletteShadePicker: View {
                 ForEach(hues, id: \.self) { hue in
                     VStack(alignment: .leading, spacing: 4) {
                         Text(hue.capitalized).font(.caption)
-                        HStack(spacing: 0) {
+                        LazyVGrid(columns: ColourPickerSwatch.columns, alignment: .leading, spacing: 8) {
                             ForEach(ColourShade.allCases, id: \.self) { shade in
                                 let token = hue + "-" + shade.bootstrapLabel
                                 let selection = "token:" + token
                                 let hex = previews[token] ?? BootstrapColourCatalogue.previews.palettes[hue]?[shade.rawValue - 1] ?? "#808080"
                                 Button { select(selection) } label: {
-                                    Rectangle()
-                                        .fill(Color(hex: hex) ?? .gray)
-                                        .frame(maxWidth: .infinity, minHeight: 30, maxHeight: 30)
-                                        .overlay {
-                                            if selectedID == selection {
-                                                Image(systemName: "checkmark")
-                                                    .font(.caption.bold())
-                                                    .foregroundStyle(.white)
-                                                    .shadow(color: .black, radius: 1)
-                                            }
-                                        }
-                                        .contentShape(Rectangle())
+                                    ColourPickerSwatch(preview: AdaptiveColourPreview(solid: hex),
+                                        isSelected: selectedID == selection)
                                 }
                                 .buttonStyle(.plain)
                                 .help(hue.capitalized + " " + shade.bootstrapLabel)
@@ -49,7 +39,6 @@ struct PaletteShadePicker: View {
                                 .accessibilityAddTraits(selectedID == selection ? .isSelected : [])
                             }
                         }
-                        .clipShape(RoundedRectangle(cornerRadius: 4))
                     }
                 }
             }

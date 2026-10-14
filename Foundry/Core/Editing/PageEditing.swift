@@ -383,6 +383,27 @@ extension ProjectEditor {
         }
     }
 
+    func setPageColourAdjustment(id: UUID, purpose: PartColourPurpose, value: PageColourAdjustment) {
+        guard document.site.pages.first(where: { $0.id == id })?.colourAdjustments[purpose.rawValue] != value else { return }
+        mutate(actionName: "Change Page \(purpose.rawValue.capitalized)", impact: .page) { site in
+            guard let index = site.pages.firstIndex(where: { $0.id == id }) else { return }
+            if value == PageColourAdjustment() {
+                site.pages[index].colourAdjustments.removeValue(forKey: purpose.rawValue)
+            } else {
+                site.pages[index].colourAdjustments[purpose.rawValue] = value
+            }
+        }
+    }
+
+    func setPageColour(id: UUID, purpose: PartColourPurpose, value: String) {
+        switch purpose {
+        case .background: setPageBackground(id: id, value: value == "inherit" ? nil : value)
+        case .foreground: setPageColour(id: id, key: \.foregroundOverride, value: value, label: "Foreground")
+        case .border: setPageColour(id: id, key: \.borderOverride, value: value, label: "Border")
+        case .link: setPageColour(id: id, key: \.linksOverride, value: value, label: "Links")
+        }
+    }
+
     func movePage(id: UUID, offset: Int) {
         let item = PageTreeItem.page(id)
         guard document.site.pages.first(where: { $0.id == id })?.slug != "index" else {

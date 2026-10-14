@@ -25,12 +25,13 @@ struct PaletteShadePickerTests {
     @Test(.timeLimit(.minutes(1)), arguments: [PartTemplateEnvironment.canvas, .preview, .published])
     func paletteSelectionsRenderThroughControls(environment: PartTemplateEnvironment) async throws {
         await PartPackageCatalog.shared.waitUntilLoaded()
-        let controls = #"[{"type":"backgroundColor","id":"paint","colourSections":["palettes"],"defaults":{"xs":"token:blue-500"}},{"type":"foreground","id":"ink","colourSections":["palettes"]}]"#
-        let html = #"<p class="{{ part.class }} {{ control.ink.classes }}" {{ part.attributes }} data-selection="{{ control.paint }}">Palette</p>"#
+        let controls = #"[{"type":"colourControls","id":"paint","include":["backgroundColor"]},{"type":"foreground","id":"ink","colourSections":["palettes"]}]"#
+        let html = #"<p class="{{ part.class }} {{ control.ink.classes }}" {{ part.attributes }} data-selection="{{ control.paint.background }}">Palette</p>"#
         let compiled = HTMLPartPrototype.compile(html: html, css: "", javaScript: "", controls: controls)
         try #require(compiled.definition != nil, "\(compiled.diagnostics)")
         var part = PartNode.make(.html)
         part.applyHTMLPrototype(.init(html: html, css: "", javaScript: "", controls: controls))
+        part.setProperty(.init(rawValue: "paint.background"), value: .choice("token:blue-500"))
         part.setProperty(.init(rawValue: "ink.theme"), value: .string("token:blue-500"))
         part = try JSONDecoder().decode(PartNode.self, from: JSONEncoder().encode(part))
         let page = Page(title: "Palette", slug: "index", parts: [part])

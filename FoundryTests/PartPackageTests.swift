@@ -78,7 +78,7 @@ struct PartPackageTests {
     @MainActor
     func unsupportedControlSettingsWarnAndAreIgnored(key: String) throws {
         // Deliberately malformed values must not reach typed decoding either.
-        let control: [String: Any] = ["type": "themeColors", "id": "paint", "defaults": ["xs": "inherit"], key: ["unexpected": true]]
+        let control: [String: Any] = ["type": "colourControls", "id": "paint", "include": ["themeColors"], key: ["unexpected": true]]
         let source = manifest(withInspectorEntries: String(decoding: try JSONSerialization.data(withJSONObject: control), as: UTF8.self))
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(source.utf8))
         #expect(diagnostics.contains { $0.severity == .error } == false)
@@ -86,7 +86,7 @@ struct PartPackageTests {
         let url = try makePackage(manifest: source, template: #"<div class="{{ part.class }}" {{ part.attributes }}>{{ childArea("content") }}</div>"#)
         defer { try? FileManager.default.removeItem(at: url) }
         let result = try PartPackageLoader.loadWithDiagnostics(from: url)
-        let property = try #require(result.package.manifest.resolvedProperties.first { $0.id == "paint" })
+        let property = try #require(result.package.manifest.resolvedProperties.first { $0.id == "paint.theme" })
         #expect(property.responsive == false)
         #expect(property.control.count == nil)
         #expect(result.diagnostics.contains { $0.severity == .warning && $0.message.contains("was ignored") })
@@ -269,65 +269,53 @@ struct PartPackageTests {
         #expect(try PartPackageManifestSchema.diagnostics(for: Data(nonresponsive.utf8)).contains { $0.severity == .error })
     }
 
-    @Test(arguments: [nil, [], ["themes"], ["palettes"], ["foregrounds", "themes", "palettes"], ["foregrounds", "themes", "blackWhite"], ["foregrounds", "blackWhite"], ["surfaces", "links", "foregrounds", "surfaces"], ["borders", "shadow"]] as [[String]?])
-    func standaloneColourSectionsRoundTrip(sections: [String]?) throws {
-        var control: [String: Any] = ["type": "foregroundColor", "id": "paint", "defaults": ["xs": "inherit"]]
-        if let sections { control["colourSections"] = sections }
-        let controlData = try JSONSerialization.data(withJSONObject: control)
-        let source = manifest(withInspectorEntries: String(decoding: controlData, as: UTF8.self))
+    @Test(arguments: ["themeColors", "foregroundColor", "backgroundColor", "borderColor", "linkColor"])
+    func individualColourPickersAreDeclaredThroughColourControls(type: String) throws {
+        let source = manifest(withInspectorEntries: #"{"type":"\#(type)","id":"paint"}"#)
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(source.utf8))
-        #expect(diagnostics.filter { $0.severity == .error }.isEmpty)
-        let url = try makePackage(manifest: source, template: "<div {{ part.attributes }}>{{ childArea(\"content\") }}</div>")
+        #expect(diagnostics.contains { $0.severity == .error && $0.message.contains("colourControls") })
+    }
+
+    @Test
+    func colourControlsExpandsIncludedPickersInDeclaredOrder() throws {
+        let source = manifest(withInspectorEntries: #"{"type":"colourControls","id":"paint","include":["foregroundColor","themeColors","backgroundColor"],"defaults":{"foreground":"token:fg-body","theme":"theme-primary"}}"#)
+        let data = Data(source.utf8)
+        #expect(try PartPackageManifestSchema.diagnostics(for: data).filter { $0.severity == .error }.isEmpty)
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: data)
+        #expect(Array(manifest.resolvedProperties.prefix(7)).map(\.id) == ["paint.foreground", "paint.foreground_variant", "paint.foreground_opacity", "paint.theme", "paint.background", "paint.background_variant", "paint.background_opacity"])
+        #expect(manifest.resolvedProperties.first { $0.id == "paint.foreground" }?.defaultValue == .string("token:fg-body"))
+        #expect(manifest.resolvedProperties.first { $0.id == "paint.theme" }?.defaultValue == .string("theme-primary"))
+        #expect(manifest.resolvedProperties.first { $0.id == "paint.background" }?.defaultValue == .string("inherit"))
+        let url = try makePackage(manifest: source, template: #"<div class="{{ part.class }} {{ control.paint.theme }} {{ control.paint.foreground }} {{ control.paint.background }}" style="--ink:{{ control.paint.foreground.color }}" {{ part.attributes }}>{{ childArea("content") }}</div>"#)
         defer { try? FileManager.default.removeItem(at: url) }
         let package = try PartPackageLoader.load(from: url)
-        let property = try #require(package.manifest.resolvedProperties.first { $0.id == "paint" })
-        #expect(property.control.colourSections == sections)
-        let saved = try JSONEncoder().encode(property.control)
-        #expect(try JSONDecoder().decode(PartPackageControl.self, from: saved).colourSections == sections)
-        let definition = try #require(PartPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "paint" })
-        #expect(definition.colourSections == sections ?? ["foregrounds", "themes"])
-        #expect(PartColourToken.groups(for: definition.colourSections).map(\.0) == PartColourToken.groups(for: sections ?? ["foregrounds", "themes"]).map(\.0))
+        let definition = PartPackageAdapter.definition(from: package)
+        #expect(definition.properties.first { $0.key.rawValue == "paint.foreground" }?.colourSections == ["foregrounds", "themes", "blackWhite"])
     }
 
     @Test(arguments: [
-        #"{"type":"themeColors","id":"paint","defaults":{"xs":"inherit"},"colourSections":["unknown"]}"#,
-        #"{"type":"themeColors","id":"paint","defaults":{"xs":"inherit"},"colourSections":"foregrounds"}"#,
-        #"{"type":"themeColors","id":"paint","defaults":{"xs":"inherit"},"colourSections":[1]}"#,
-        #"{"type":"text","id":"paint","defaults":{"xs":""},"colourSections":["foregrounds"]}"#
+        #"{"type":"colourControls","id":"paint"}"#,
+        #"{"type":"colourControls","id":"paint","include":[]}"#,
+        #"{"type":"colourControls","id":"paint","include":["foregroundColor","foregroundColor"]}"#,
+        #"{"type":"colourControls","id":"paint","include":["space"]}"#,
+        #"{"type":"colourControls","id":"paint","include":"foregroundColor"}"#
     ])
-    func invalidStandaloneColourSectionsAreRejected(control: String) throws {
+    func colourControlsRequiresDistinctKnownPickers(control: String) throws {
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: control).utf8))
-        let severity: PartPackageDiagnostic.Severity = control.contains("\"type\":\"text\"") ? .warning : .error
-        #expect(diagnostics.contains { $0.severity == severity && $0.location.contains("colourSections") })
+        #expect(diagnostics.contains { $0.severity == .error && $0.location.contains("include") })
     }
 
     @Test(arguments: [nil, "inherit", "theme-primary", "token:fg-body"] as [String?])
-    func colourPickerOptionalDefaults(value: String?) throws {
-        var control: [String: Any] = ["type": "foregroundColor", "id": "paint", "colourSections": ["themes", "foregrounds"]]
-        if let value { control["defaults"] = ["xs": value] }
-        let data = try JSONSerialization.data(withJSONObject: control)
+    func colourControlsOptionalDefaults(value: String?) throws {
+        var group: [String: Any] = ["type": "colourControls", "id": "paint", "include": ["foregroundColor"]]
+        if let value { group["defaults"] = ["foreground": value] }
+        let data = try JSONSerialization.data(withJSONObject: group)
         let source = manifest(withInspectorEntries: String(decoding: data, as: UTF8.self))
         let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(source.utf8))
         #expect(diagnostics.filter { $0.severity == .error }.isEmpty)
-        let url = try makePackage(manifest: source, template: "<div {{ part.attributes }}>{{ childArea(\"content\") }}</div>")
-        defer { try? FileManager.default.removeItem(at: url) }
-        let package = try PartPackageLoader.load(from: url)
-        let property = try #require(package.manifest.resolvedProperties.first { $0.id == "paint" })
-        #expect(property.defaultValue == .string(value ?? "inherit"))
-        let definition = try #require(PartPackageAdapter.definition(from: package).properties.first { $0.key.rawValue == "paint" })
-        #expect(definition.defaultValue == .choice(value ?? "inherit"))
+        let manifest = try JSONDecoder().decode(PartPackageManifest.self, from: Data(source.utf8))
+        #expect(manifest.resolvedProperties.first { $0.id == "paint.foreground" }?.defaultValue == .string(value ?? "inherit"))
     }
-
-    @Test(arguments: [
-        #"{"type":"themeColors","id":"paint","defaults":{}}"#,
-        #"{"type":"themeColors","id":"paint","defaults":{"xs":"inherit","desktop":"theme-primary"}}"#,
-        #"{"type":"text","id":"paint"}"#
-    ])
-    func optionalThemeDefaultsDoNotRelaxOtherRequirements(control: String) throws {
-        let diagnostics = try PartPackageManifestSchema.diagnostics(for: Data(manifest(withInspectorEntries: control).utf8))
-        #expect(diagnostics.contains { $0.severity == .error })
-    }
-
     @Test(arguments: ["themeColor", "bootstrapColors"])
     func obsoleteColourControlNamesAreRejected(type: String) throws {
         let json = #"{"type":"\#(type)","id":"paint","defaults":{"xs":"inherit"}}"#
@@ -4099,10 +4087,10 @@ struct PartPackageTests {
             return PartTemplateRenderer.render(#"<p>{{ text("body") }}</p>"#, context: context)
         }
 
-        #expect(rendered(mode: .light).contains("<span style=\"color:\(light)\">"))
-        #expect(rendered(mode: .dark).contains("<span style=\"color:\(dark)\">"))
+        for mode in SiteAppearanceMode.allCases {
+            #expect(rendered(mode: mode).contains("<span style=\"color:light-dark(\(light), \(dark))\">"))
+        }
         let both = rendered(mode: .both)
-        #expect(both.contains("<span style=\"color:light-dark(\(light), \(dark))\">"))
         #expect(!both.contains("data-foundry-color"))
 
         // A deleted palette inherits the surrounding colour but keeps rendering,

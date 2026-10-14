@@ -34,7 +34,7 @@ nonisolated enum PartPackageManifestSchema {
     private static let propertyKeys: Set<String> = [
         "id", "label", "title", "body", "systemImage", "defaults", "responsive", "subtitle", "buttonText", "units", "noneValue", "tooltip", "linked", "axis",
         "type", "font", "showsFamily", "showsWeight", "showsStyle", "showsSize", "minimum", "maximum", "step", "options", "themeValues", "allowsCustom", "opacity", "outputFormat",
-        "count", "ticks", "editableValue", "tickLabels", "valueLabels", "minimumLabel", "maximumLabel", "neutralValue", "trueValue", "falseValue", "colourSections",
+        "count", "ticks", "editableValue", "tickLabels", "valueLabels", "minimumLabel", "maximumLabel", "neutralValue", "trueValue", "falseValue", "colourSections", "omitColourSections",
         "buttonIcon", "activeButtonText", "activeButtonIcon", "selectionMode", "fontSize", "argument1", "argument2", "operation", "round", "absoluteURL", "presentation", "visibleWhen", "outputWhenHidden", "alt", "focalPoint", "renditions", "accepts", "pickerItems", "initial", "containment", "height", "controls", "itemLabel"
     ]
     private static let visibleWhenKeys: Set<String> = ["id", "operation", "value", "all", "any"]
@@ -46,7 +46,7 @@ nonisolated enum PartPackageManifestSchema {
     private static let assetKeys: Set<String> = ["path", "scope"]
     private static let renditionKeys: Set<String> = ["id", "maximumDimension"]
     private static let controlGroupKeys: Set<String> = [
-        "type", "id", "targetSelector", "backgroundTypes", "supportsHover", "colourSections", "defaults", "visibleWhen", "excludeControls", "allowedOptions"
+        "type", "id", "targetSelector", "backgroundTypes", "supportsHover", "colourSections", "include", "defaults", "visibleWhen", "outputWhenHidden", "excludeControls", "allowedOptions"
     ]
     private static let sectionKeys: Set<String> = ["section", "systemImage", "visibleWhen", "controls"]
 
@@ -75,10 +75,13 @@ nonisolated enum PartPackageManifestSchema {
                 for key in entry.keys.sorted() where !propertyKeys.contains(key) || !supports(key, for: kind) {
                     // Explicitly false is equivalent to omitting a non-responsive flag.
                     if !(key == "responsive" && (entry[key].map(isBoolean) == true) && entry[key] as? Bool == false) {
-                        warnings.append(.init(severity: .warning, location: "\(location):\(key)",
-                            message: propertyKeys.contains(key)
-                                ? "\(name) does not support '\(key)'; this setting was ignored."
-                                : "Unknown key '\(key)'; this setting was ignored. Check the spelling."))
+                        let removedColourSections = kind == .foregroundColor && key == "colourSections"
+                        warnings.append(.init(severity: removedColourSections ? .error : .warning, location: "\(location):\(key)",
+                            message: removedColourSections
+                                ? "foregroundColor selects foreground colours automatically. Use omitColourSections to hide a picker group."
+                                : propertyKeys.contains(key)
+                                    ? "\(name) does not support '\(key)'; this setting was ignored."
+                                    : "Unknown key '\(key)'; this setting was ignored. Check the spelling."))
                     }
                     entry.removeValue(forKey: key)
                 }
@@ -88,6 +91,8 @@ nonisolated enum PartPackageManifestSchema {
                     let supported = controlGroupKeys.contains(key)
                         && (!["backgroundTypes", "supportsHover"].contains(key) || name == "background")
                         && (key != "colourSections" || ["background", "foreground"].contains(name))
+                        && (key != "include" || name == "colourControls")
+                        && (key != "outputWhenHidden" || name == "colourControls")
                     guard !supported else { continue }
                     warnings.append(.init(severity: .warning, location: "\(location):\(key)",
                         message: knownKeys.contains(key)
@@ -133,7 +138,8 @@ nonisolated enum PartPackageManifestSchema {
            [.themeColors, .themeFont, .themeFontSize, .themeStackingOrder, .pageFolder].contains(type) { return false }
         if ["themeValues", "allowsCustom"].contains(key), type == .select { return false }
         switch key {
-        case "colourSections": return type.isColourPicker
+        case "colourSections": return type.isColourPicker && type != .foregroundColor
+        case "omitColourSections": return type == .foregroundColor
         case "presentation": return type == .select || type == .toggle
         case "opacity", "outputFormat": return type == .color
         case "font": return type == .fontWeight || type == .fontStyle
@@ -544,6 +550,18 @@ nonisolated enum PartPackageManifestSchema {
         optionalStringArray("backgroundTypes", in: controlGroup, location: location, into: &diagnostics)
         optionalBoolean("supportsHover", in: controlGroup, location: location, into: &diagnostics)
         optionalStringArray("colourSections", in: controlGroup, location: location, into: &diagnostics)
+        if type == "colourControls" {
+            optionalBoolean("outputWhenHidden", in: controlGroup, location: location, into: &diagnostics)
+        }
+        if type == "colourControls" {
+            requireStringArray("include", in: controlGroup, location: location, into: &diagnostics)
+            if let included = controlGroup["include"] as? [String] {
+                let allowed: Set<String> = ["themeColors", "foregroundColor", "backgroundColor", "borderColor", "linkColor"]
+                if included.isEmpty || included.contains(where: { !allowed.contains($0) }) || Set(included).count != included.count {
+                    diagnostics.append(.init(severity: .error, location: location + ".include", message: "include must name one or more distinct controls: themeColors, foregroundColor, backgroundColor, borderColor or linkColor."))
+                }
+            }
+        }
         if controlGroup["colourSections"] != nil, !["background", "foreground"].contains(controlGroup["type"] as? String ?? "") {
             diagnostics.append(.init(severity: .error, location: location + ".colourSections", message: "colourSections applies to background and foreground control groups. Links always use link colours."))
         }
@@ -596,7 +614,8 @@ nonisolated enum PartPackageManifestSchema {
             type: kind,
             id: kind.rawValue,
             backgroundTypes: backgroundTypes.isEmpty ? PartPackageControlGroup.BackgroundStyle.defaultStyles : backgroundTypes,
-            supportsHover: controlGroup["supportsHover"] as? Bool ?? true
+            supportsHover: controlGroup["supportsHover"] as? Bool ?? true,
+            include: (controlGroup["include"] as? [String] ?? []).compactMap(PartPackageControl.Kind.init(rawValue:))
         ).properties.map { original in
             var property = original
             property.id = original.controlGroupSource?.localID ?? original.id
@@ -837,6 +856,11 @@ nonisolated enum PartPackageManifestSchema {
             diagnostics.append(.init(severity: .error, location: "\(location):type", message: "Unknown control type '\(typeName)'."))
             return
         }
+        if type.isColourPicker {
+            diagnostics.append(.init(severity: .error, location: "\(location):type",
+                message: "Use colourControls with include to select one or more colour pickers."))
+            return
+        }
         if type == .collection {
             let allowed: Set<String> = [
                 "type", "id", "label", "subtitle", "default", "tooltip", "visibleWhen", "outputWhenHidden",
@@ -859,6 +883,22 @@ nonisolated enum PartPackageManifestSchema {
             var fieldIDs = Set<String>()
             for (index, field) in fields.enumerated() {
                 let fieldLocation = "\(location):controls[\(index)]"
+                if field["type"] as? String == PartPackageControlGroup.Kind.colourControls.rawValue {
+                    var seenGroups = Set<String>()
+                    validateGroupedControlReference(field, type: "colourControls", location: fieldLocation,
+                        seenKinds: &seenGroups, into: &diagnostics)
+                    if let namespace = field["id"] as? String,
+                       let included = field["include"] as? [String] {
+                        for kind in included.compactMap(PartPackageControl.Kind.init(rawValue:)) {
+                            guard let localID = kind.colourControlsLocalID else { continue }
+                            if !fieldIDs.insert(namespace + "." + localID).inserted {
+                                diagnostics.append(.init(severity: .error, location: "\(fieldLocation):id",
+                                    message: "Collection field IDs must be unique."))
+                            }
+                        }
+                    }
+                    continue
+                }
                 if field["type"] as? String == PartPackageControl.Kind.collection.rawValue {
                     diagnostics.append(.init(
                         severity: .error,
@@ -955,6 +995,15 @@ nonisolated enum PartPackageManifestSchema {
             if let sections = property["colourSections"] as? [String],
                sections.contains(where: { !PartColourToken.pickerSectionIDs.contains($0) }) {
                 diagnostics.append(.init(severity: .error, location: "\(location).colourSections", message: "Unknown colour section. Use themes, blackWhite, surfaces, foregrounds, borders, links, shadow or palettes."))
+            }
+        }
+        if property["omitColourSections"] != nil {
+            optionalStringArray("omitColourSections", in: property, location: location, into: &diagnostics)
+            if let sections = property["omitColourSections"] as? [String] {
+                let allowed = Set(PartColourPurpose.foreground.defaultSections)
+                if sections.contains(where: { !allowed.contains($0) }) || Set(sections).count != sections.count {
+                    diagnostics.append(.init(severity: .error, location: "\(location).omitColourSections", message: "Use distinct sections from foregrounds, themes and blackWhite."))
+                }
             }
         }
         if type.isColourPicker {

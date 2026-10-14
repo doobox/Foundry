@@ -126,9 +126,9 @@ struct ProjectEditor {
         mutate(actionName: "Edit Site Logo Alt Text") { $0.logoAlt = alt }
     }
 
-    func setSiteAllowsDarkMode(_ isEnabled: Bool) {
+    func setSiteAppearanceMode(_ mode: SiteAppearanceMode) {
         mutate(actionName: "Change Site Appearance", impact: .theme) {
-            $0.appearanceMode = isEnabled ? .both : .light
+            $0.appearanceMode = mode
         }
     }
 

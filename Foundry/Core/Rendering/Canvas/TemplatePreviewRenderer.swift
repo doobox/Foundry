@@ -27,6 +27,7 @@ final class TemplatePreviewRenderer {
         pageForeground: String? = nil,
         pageBorder: String? = nil,
         pageLinks: String? = nil,
+        pageColourAdjustments: [String: PageColourAdjustment] = [:],
         pageAppearance: SiteAppearance? = nil,
         completion: @escaping @MainActor (Data?) -> Void
     ) {
@@ -39,6 +40,7 @@ final class TemplatePreviewRenderer {
             foregroundOverride: pageForeground,
             borderOverride: pageBorder,
             linksOverride: pageLinks,
+            colourAdjustments: pageColourAdjustments,
             appearanceOverride: pageAppearance
         )
         // Baked previews use light unless the source page explicitly fixes its mode.

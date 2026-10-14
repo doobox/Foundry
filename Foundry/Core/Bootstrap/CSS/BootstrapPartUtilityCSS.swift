@@ -42,7 +42,11 @@ nonisolated enum BootstrapPartUtilityCSS {
                 paints.append(PartSpaceControl.css(node: node, key: definition.key, axis: axis, screens: theme.screens))
             }
             if let purpose = definition.colourPurpose {
-                paints.append(purpose.resolve(node.property(definition.key), theme: theme).css)
+                let property = node.definition.package?.manifest.resolvedProperties.first { $0.id == definition.key.rawValue }
+                let settings = property.map { PartColourPurpose.pickerSettings(node: node, property: $0) }
+                    ?? (variant: "normal", opacity: 100.0)
+                paints.append(purpose.resolve(node.property(definition.key), theme: theme,
+                    variant: settings.variant, opacity: settings.opacity).css)
             }
             if case .collection(_, let fields) = definition.control,
                case .array(let records) = node.propertyValue(definition.key) {
@@ -50,7 +54,10 @@ nonisolated enum BootstrapPartUtilityCSS {
                     for field in fields {
                         guard let purpose = field.colourPurpose else { continue }
                         let value = record.objectValue?[field.key.rawValue] ?? field.defaultValue
-                        paints.append(purpose.resolve(value.stringValue, theme: theme).css)
+                        let variant = record.objectValue?[field.key.rawValue + "_variant"]?.stringValue ?? "normal"
+                        let opacity = record.objectValue?[field.key.rawValue + "_opacity"]?.numberValue ?? 100
+                        paints.append(purpose.resolve(value.stringValue, theme: theme,
+                            variant: variant, opacity: opacity).css)
                     }
                 }
             }

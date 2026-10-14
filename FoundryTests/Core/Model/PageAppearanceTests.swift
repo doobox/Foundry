@@ -5,6 +5,40 @@ import WebKit
 
 @MainActor
 struct PageAppearanceTests {
+    @Test func siteBrowserDefaultDoesNotDisableEitherAppearance() throws {
+        let document = FoundryDocument()
+        let undo = UndoManager()
+        undo.groupsByEvent = false
+        let editor = ProjectEditor(document: document, undoManager: undo)
+        #expect(document.site.appearanceMode == .both)
+        #expect(document.site.appearanceMode.cssColorScheme == "light dark")
+        for mode in SiteAppearanceMode.allCases {
+            undo.beginUndoGrouping()
+            editor.setSiteAppearanceMode(mode)
+            undo.endUndoGrouping()
+            #expect(document.site.appearanceMode == mode)
+            #expect(mode.cssColorScheme == "light dark")
+            #expect(mode.colour(light: "red", dark: "blue") == "light-dark(red, blue)")
+            #expect(mode.bootstrap(siteID: document.site.id).contains("let current = '\(mode.defaultMode)'"))
+        }
+        undo.undo()
+        #expect(document.site.appearanceMode == .dark)
+        let restored = try JSONDecoder().decode(Site.self, from: JSONEncoder().encode(document.site))
+        #expect(restored.appearanceMode == .dark)
+    }
+
+    @Test func publishedPageKeepsBrowserDefaultWithoutSwitcher() throws {
+        var site = Site.starter()
+        site.pages[0].parts = []
+        for mode in SiteAppearanceMode.allCases {
+            site.appearanceMode = mode
+            let html = try #require(StaticSiteRenderer().render(site: site).file(at: "index.html")?.contents)
+            #expect(html.contains("<meta name=\"color-scheme\" content=\"light dark\">"))
+            #expect(html.contains("let current = '\(mode.defaultMode)'"))
+            #expect(html.contains("window.foundryAppearance ="))
+        }
+    }
+
     @Test func persistsDuplicatesAndUndoes() throws {
         let document = FoundryDocument()
         let undo = UndoManager()
@@ -63,6 +97,6 @@ struct PageAppearanceTests {
         #expect(script.contains("localStorage.getItem"))
         #expect(script.contains("localStorage.setItem"))
         #expect(script.contains("locked:true") == false)
-        #expect(SiteAppearanceMode.light.bootstrap(siteID: UUID()).isEmpty)
+        #expect(SiteAppearanceMode.light.bootstrap(siteID: UUID()).contains("let current = 'light'"))
     }
 }

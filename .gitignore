@@ -22,3 +22,9 @@ Foundry/PHPRuntime/
 .env
 .env.*
 !.env.example
+
+# Local signing credentials and private configuration
+*.p12
+*.pfx
+*.mobileprovision
+/LocalSecrets/

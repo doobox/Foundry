@@ -20,14 +20,6 @@
   },
   "inspector": [
     {
-      "type": "themeColors",
-      "id": "theme",
-      "label": "Theme",
-      "defaults": {
-        "xs": "framework.primary"
-      }
-    },
-    {
       "section": "Background",
       "systemImage": "paintpalette",
       "controls": [

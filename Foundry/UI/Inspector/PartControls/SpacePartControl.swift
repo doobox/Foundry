@@ -22,7 +22,7 @@ struct SpacePartControl: View {
                     }, accessibilityLabel: label, help: label)
             }
             Button(action: toggleMode) {
-                Image(systemName: "theatermask.and.paintbrush")
+                Image(systemName: "b.square")
                     .foregroundStyle(value.isCustom ? Color.secondary : Color.accentColor)
                     .frame(width: 24, height: 24)
                     .contentShape(Rectangle())

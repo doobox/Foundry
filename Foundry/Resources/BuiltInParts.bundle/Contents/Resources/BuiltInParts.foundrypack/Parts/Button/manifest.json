@@ -75,11 +75,11 @@
     {
       "controls": [
         {
-          "type": "themeColors",
+          "type": "colourControls",
           "id": "theme",
-          "label": "Theme",
+          "include": ["themeColors"],
           "defaults": {
-            "xs": "inherit"
+            "theme": "inherit"
           }
         },
         {

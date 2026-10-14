@@ -6,11 +6,13 @@ struct ThemeColorsPartControl: View {
     let theme: Theme
     var indicator: InspectorRowIndicator? = nil
     var tokenSections: [String] = ["themes"]
+    var themePreviewRole = "bg"
     var linksOnly = false
     var allowsInherit = false
     @Binding var selection: String
     @State private var showsColours = false
     @State private var tokenPreviews: [String: String] = [:]
+    @State private var adaptiveTokenPreviews: [String: AdaptiveColourPreview] = [:]
     private var selectionTitle: String {
         if selection == "inherit" { return "Inherit" }
         if let token = PartColourToken.parse(selection) { return PartColourToken.label(token.id, palettes: palettes, linksOnly: linksOnly) }
@@ -30,16 +32,19 @@ struct ThemeColorsPartControl: View {
         let shade = palette.defaultShade(for: appearance)
         return palette.colour(at: .shade(shade))
     }
+    private var selectedAdaptivePreview: AdaptiveColourPreview {
+        let id = PartColourToken.parse(selection)?.id ?? palette?.id
+        return id.flatMap { adaptiveTokenPreviews[$0] } ?? AdaptiveColourPreview(solid: preview)
+    }
 
     var body: some View {
         InspectorRow(title: label, indicator: indicator) {
             Button { showsColours = true } label: {
                 HStack {
                     if selection == "inherit" {
-                        InheritColourSwatch().frame(width: 24)
+                        InheritColourSwatch(width: 24, height: 20)
                     } else {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(Color(hex: preview) ?? .gray)
+                        AdaptiveColourSwatch(preview: selectedAdaptivePreview, cornerRadius: 4)
                             .frame(width: 24, height: 20)
                     }
                     Text(selectionTitle)
@@ -52,7 +57,7 @@ struct ThemeColorsPartControl: View {
             .accessibilityLabel("Choose \(label)")
             .accessibilityValue(selectionTitle)
             .popover(isPresented: $showsColours) {
-                InspectorPaletteMenu(palettes: palettes, selectedID: selectedID, tokenPreviews: tokenPreviews,
+                InspectorPaletteMenu(palettes: palettes, selectedID: selectedID, tokenPreviews: tokenPreviews, adaptiveTokenPreviews: adaptiveTokenPreviews,
                     allowsInherit: allowsInherit, tokenSections: tokenSections, linksOnly: linksOnly) { id in
                     selection = id
                     showsColours = false
@@ -60,23 +65,26 @@ struct ThemeColorsPartControl: View {
                 .padding(12).frame(width: tokenSections.contains("palettes") ? 400 : 320)
             }
         }
-        .task(id: previewCSS + tokenSections.joined(separator: ",")) {
+        .task(id: previewCSS + tokenSections.joined(separator: ",") + themePreviewRole + String(linksOnly)) {
             await resolvePreviews()
         }
     }
 
     private func resolvePreviews() async {
         let values = tokenSections.contains("themes") ? BootstrapPaletteTheme.selectablePalettes(in: theme) : []
-        let css = BootstrapColourCatalogue.sourceCSS + previewCSS
+        let css = BootstrapColourCatalogue.sourceCSS + BootstrapColorCSS.export(theme: theme, mode: .both) + BootstrapThemeCSS.render(theme: theme)
         let scaleTokens = PartColourToken.groups(for: tokenSections, palettes: palettes, linksOnly: linksOnly).flatMap { $0.1 }
+        let ids = values.map(\.id) + scaleTokens
+        let expressions = values.map { "var(--bs-\(BootstrapPaletteTheme.nativeRole($0)!)-\(themePreviewRole))" } + scaleTokens.map { "var(--bs-\($0))" }
         do {
-            let colours = try await BootstrapScalePreviewResolver().resolve(
-                expressions: values.map { "var(--bs-\(BootstrapPaletteTheme.nativeRole($0)!)-bg)" } + scaleTokens.map { "var(--bs-\($0))" },
-                css: css, mode: appearance.rawValue)
+            let resolver = BootstrapScalePreviewResolver()
+            let light = try await resolver.resolve(expressions: expressions, css: css, mode: "light")
+            let dark = try await resolver.resolve(expressions: expressions, css: css, mode: "dark")
             try Task.checkCancellation()
-            tokenPreviews = Dictionary(uniqueKeysWithValues: zip(values.map(\.id) + scaleTokens, colours))
+            tokenPreviews = Dictionary(uniqueKeysWithValues: zip(ids, appearance == .light ? light : dark))
+            adaptiveTokenPreviews = Dictionary(uniqueKeysWithValues: zip(ids, zip(light, dark).map { AdaptiveColourPreview(light: $0.0, dark: $0.1) }))
         } catch {
-            if !Task.isCancelled { tokenPreviews = [:] }
+            if !Task.isCancelled { tokenPreviews = [:]; adaptiveTokenPreviews = [:] }
         }
     }
 

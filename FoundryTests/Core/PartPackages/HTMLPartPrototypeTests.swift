@@ -106,7 +106,7 @@ struct HTMLPartPrototypeTests {
     @Test(.timeLimit(.minutes(1)))
     func unsupportedOptionsWarnWithoutBlocking() async {
         await PartPackageCatalog.shared.waitUntilLoaded()
-        let result = HTMLPartPrototype.compile(html: "<p>Test</p>", css: "", javaScript: "", controls: #"[{"type":"themeColors","id":"paint","defaults":{"xs":"inherit"},"responsive":true}]"#)
+        let result = HTMLPartPrototype.compile(html: "<p>Test</p>", css: "", javaScript: "", controls: #"[{"type":"colourControls","id":"paint","include":["themeColors"],"responsive":true}]"#)
         #expect(result.definition != nil, "\(result.diagnostics)")
         #expect(result.diagnostics.contains { $0.severity == .warning })
         #expect(result.definition?.package?.manifest.resolvedProperties.first?.responsive == false)

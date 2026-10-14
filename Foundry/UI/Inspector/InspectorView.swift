@@ -820,64 +820,49 @@ private struct PageInspector: View {
 
 
         Section {
-            InspectorGrid(contentInsets: EdgeInsets()) {
-                Text("Bootstrap Page Overrides")
-                    .font(.headline)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .gridCellColumns(2)
-                    .accessibilityAddTraits(.isHeader)
+            VStack(spacing: InspectorMetrics.rowSpacing) {
+                InspectorGrid(contentInsets: EdgeInsets()) {
+                    Text("Bootstrap Page Overrides")
+                        .font(.headline)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .gridCellColumns(2)
+                        .accessibilityAddTraits(.isHeader)
 
-                InspectorRow(title: "Appearance") {
-                    Picker("Appearance", selection: Binding(
-                        get: { page.appearanceOverride?.rawValue ?? "inherit" },
-                        set: { editor.setPageAppearance(id: page.id, value: SiteAppearance(rawValue: $0)) }
-                    )) {
-                        Text("Inherit").tag("inherit")
-                        Text("Light").tag("light")
-                        Text("Dark").tag("dark")
+                    InspectorRow(title: "Appearance") {
+                        Picker("Appearance", selection: Binding(
+                            get: { page.appearanceOverride?.rawValue ?? "inherit" },
+                            set: { editor.setPageAppearance(id: page.id, value: SiteAppearance(rawValue: $0)) }
+                        )) {
+                            Text("Inherit").tag("inherit")
+                            Text("Light").tag("light")
+                            Text("Dark").tag("dark")
+                        }
+                        .labelsHidden()
                     }
-                    .labelsHidden()
+                    ThemeColorsPartControl(
+                        label: "Theme", theme: theme,
+                        tokenSections: ["themes"], allowsInherit: true,
+                        selection: Binding(
+                            get: { page.themeOverride ?? "inherit" },
+                            set: { editor.setPageTheme(id: page.id, value: $0) }
+                        )
+                    )
                 }
-                ThemeColorsPartControl(
-                    label: "Theme", theme: theme,
-                    tokenSections: ["themes"], allowsInherit: true,
-                    selection: Binding(
-                        get: { page.themeOverride ?? "inherit" },
-                        set: { editor.setPageTheme(id: page.id, value: $0) }
+                ForEach([PartColourPurpose.background, .foreground, .border, .link], id: \.rawValue) { purpose in
+                    Divider()
+                    PageColourOverrideControl(
+                        purpose: purpose,
+                        theme: theme,
+                        selection: Binding(
+                            get: { page.colourSelection(for: purpose) ?? "inherit" },
+                            set: { value in editor.setPageColour(id: page.id, purpose: purpose, value: value) }
+                        ),
+                        adjustment: Binding(
+                            get: { page.colourAdjustments[purpose.rawValue] ?? PageColourAdjustment() },
+                            set: { value in editor.setPageColourAdjustment(id: page.id, purpose: purpose, value: value) }
+                        )
                     )
-                )
-                ThemeColorsPartControl(
-                    label: "Background", theme: theme,
-                    tokenSections: ["surfaces", "blackWhite"], allowsInherit: true,
-                    selection: Binding(
-                        get: { page.backgroundOverride ?? "inherit" },
-                        set: { editor.setPageBackground(id: page.id, value: $0 == "inherit" ? nil : $0) }
-                    )
-                )
-                ThemeColorsPartControl(
-                    label: "Foreground", theme: theme,
-                    tokenSections: ["foregrounds", "blackWhite"], allowsInherit: true,
-                    selection: Binding(
-                        get: { page.foregroundOverride ?? "inherit" },
-                        set: { editor.setPageColour(id: page.id, key: \.foregroundOverride, value: $0, label: "Foreground") }
-                    )
-                )
-                ThemeColorsPartControl(
-                    label: "Border", theme: theme,
-                    tokenSections: ["borders", "blackWhite"], allowsInherit: true,
-                    selection: Binding(
-                        get: { page.borderOverride ?? "inherit" },
-                        set: { editor.setPageColour(id: page.id, key: \.borderOverride, value: $0, label: "Border") }
-                    )
-                )
-                ThemeColorsPartControl(
-                    label: "Links", theme: theme,
-                    tokenSections: ["links"], linksOnly: true, allowsInherit: true,
-                    selection: Binding(
-                        get: { page.linksOverride ?? "inherit" },
-                        set: { editor.setPageColour(id: page.id, key: \.linksOverride, value: $0, label: "Links") }
-                    )
-                )
+                }
             }
             .listRowSeparator(.hidden)
         }
@@ -1565,9 +1550,7 @@ private struct PartIdentityFields: View {
             }
 
             InspectorRow(title: "Classes", alignment: .top) {
-                // Starts three lines tall and grows with its content.
-                TextField("Classes", text: $classes, axis: .vertical)
-                    .lineLimit(3...12)
+                PartClassTokenField(classes: $classes)
                     .frame(maxWidth: .infinity)
             }
 
@@ -1902,12 +1885,35 @@ private struct PartInspectorGroup: View {
         )
     }
 
+    private func colourPickerModule(for row: PartInspectorRow) -> (namespace: String, name: String)? {
+        guard case .controls(let controls) = row,
+              let first = controls.properties.first,
+              let source = part.definition.package?.renderDefinition.propertiesByID[first.key.rawValue]?.controlGroupSource,
+              source.type == .colourControls,
+              let name = ["theme", "foreground", "background", "border", "link"].first(where: {
+                  source.localID == $0 || source.localID.hasPrefix($0 + "_")
+              }) else { return nil }
+        return (source.namespace, name)
+    }
+
+    private func colourPickerDividerIDs() -> Set<String> {
+        var result: Set<String> = []
+        for index in rows.indices.dropFirst() {
+            guard let previous = colourPickerModule(for: rows[index - 1]),
+                  let current = colourPickerModule(for: rows[index]),
+                  previous.namespace == current.namespace,
+                  previous.name != current.name else { continue }
+            result.insert(rows[index].id)
+        }
+        return result
+    }
+
     var body: some View {
         let status = sectionStatus
+        let colourDividers = colourPickerDividerIDs()
         DisclosureGroup(isExpanded: $isExpanded) {
-            // Separate controls sit exactly as far apart as the rows of one
-            // multi-part control. Developers who want more separation declare
-            // a spacer or divider where they want it.
+            // Keep each colour picker's settings together; separate only
+            // different pickers included by the same colourControls group.
             VStack(spacing: InspectorMetrics.rowSpacing) {
                 if let identityFields {
                     PartIdentityFields(
@@ -1920,6 +1926,10 @@ private struct PartInspectorGroup: View {
                     .padding(.horizontal, InspectorMetrics.horizontalSectionPadding)
                 }
                 ForEach(rows) { row in
+                    if colourDividers.contains(row.id) {
+                        Divider()
+                            .padding(.horizontal, InspectorMetrics.horizontalSectionPadding)
+                    }
                     InspectorGrid(
                         contentInsets: EdgeInsets(
                             top: 0,

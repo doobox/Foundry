@@ -294,7 +294,7 @@ nonisolated struct Site: Codable, Equatable, Identifiable, Sendable {
     var pageFolders: [PageFolder]
     var theme: Theme
     var themeSourceID: UUID
-    var appearanceMode: SiteAppearanceMode = .light
+    var appearanceMode: SiteAppearanceMode = .both
     var projectThemeValues: ProjectThemeValues
     var themeStates: [ProjectThemeState]
     /// The Global Parts panel's ordered tree: folders and live-linked

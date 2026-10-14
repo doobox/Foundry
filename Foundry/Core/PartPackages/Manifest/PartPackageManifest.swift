@@ -347,6 +347,7 @@ extension PartPackageManifest {
 nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
     enum Kind: String, Codable, CaseIterable, Hashable, Sendable {
         case background
+        case colourControls
         case spacing
         case gap
         case sizing
@@ -401,6 +402,8 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
     let backgroundTypes: [BackgroundStyle]
     let supportsHover: Bool
     let colourSections: [String]
+    /// The complete colour pickers to stack, in their declared order.
+    let include: [PartPackageControl.Kind]
     /// Lets a part adjust a shared group's injected defaults (e.g. a
     /// different starting padding) without hand-declaring the whole group.
     let defaults: [String: PartPackageValue]
@@ -408,6 +411,8 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
     /// flexbox group shown only while a layout select reads "flex". Folded
     /// into every expanded control's own condition.
     let visibleWhen: PartPackageVisibilityCondition?
+    /// Whether included picker outputs remain available while the group is hidden.
+    let outputWhenHidden: Bool
     /// Generated controls this part does not want at all — a choice its own
     /// markup could not honour, or a capability it deliberately withholds.
     /// Controls that exist only to configure an omitted one go too.
@@ -424,8 +429,10 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         backgroundTypes: [BackgroundStyle] = BackgroundStyle.defaultStyles,
         supportsHover: Bool = true,
         colourSections: [String] = ["themes"],
+        include: [PartPackageControl.Kind] = [],
         defaults: [String: PartPackageValue] = [:],
         visibleWhen: PartPackageVisibilityCondition? = nil,
+        outputWhenHidden: Bool = true,
         excludeControls: [String] = [],
         allowedOptions: [String: [String]] = [:]
     ) {
@@ -435,8 +442,10 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         self.backgroundTypes = backgroundTypes
         self.supportsHover = supportsHover
         self.colourSections = colourSections
+        self.include = include
         self.defaults = defaults
         self.visibleWhen = visibleWhen
+        self.outputWhenHidden = outputWhenHidden
         self.excludeControls = excludeControls
         self.allowedOptions = allowedOptions
     }
@@ -448,8 +457,10 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         case backgroundTypes
         case supportsHover
         case colourSections
+        case include
         case defaults
         case visibleWhen
+        case outputWhenHidden
         case excludeControls
         case allowedOptions
     }
@@ -466,8 +477,10 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
             ?? BackgroundStyle.defaultStyles
         supportsHover = try container.decodeIfPresent(Bool.self, forKey: .supportsHover) ?? true
         colourSections = try container.decodeIfPresent([String].self, forKey: .colourSections) ?? ["themes"]
+        include = try container.decodeIfPresent([PartPackageControl.Kind].self, forKey: .include) ?? []
         defaults = try container.decodeIfPresent([String: PartPackageValue].self, forKey: .defaults) ?? [:]
         visibleWhen = try container.decodeIfPresent(PartPackageVisibilityCondition.self, forKey: .visibleWhen)
+        outputWhenHidden = try container.decodeIfPresent(Bool.self, forKey: .outputWhenHidden) ?? true
         excludeControls = try container.decodeIfPresent([String].self, forKey: .excludeControls) ?? []
         allowedOptions = try container.decodeIfPresent([String: [String]].self, forKey: .allowedOptions) ?? [:]
     }
@@ -484,7 +497,9 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
         }
         if !defaults.isEmpty { try container.encode(defaults, forKey: .defaults) }
         if colourSections != ["themes"] { try container.encode(colourSections, forKey: .colourSections) }
+        if type == .colourControls { try container.encode(include, forKey: .include) }
         try container.encodeIfPresent(visibleWhen, forKey: .visibleWhen)
+        if type == .colourControls, !outputWhenHidden { try container.encode(false, forKey: .outputWhenHidden) }
         if !excludeControls.isEmpty { try container.encode(excludeControls, forKey: .excludeControls) }
         if !allowedOptions.isEmpty { try container.encode(allowedOptions, forKey: .allowedOptions) }
     }
@@ -492,9 +507,19 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
     var properties: [PartPackageProperty] {
         guard type != .advanced, let id else { return [] }
         let definition = BuiltInControlGroupRegistry.definition(for: type)
-        let base = type == .background
-            ? configuredBackgroundProperties(definition.controls)
-            : definition.controls
+        let base: [PartPackageProperty]
+        if type == .colourControls {
+            base = include.flatMap { kind -> [PartPackageProperty] in
+                guard let localID = kind.colourControlsLocalID else { return [] }
+                // Keep the whole picker module together. Supplementary rows use
+                // its local ID followed by an underscore (e.g. foreground_opacity).
+                return definition.controls.filter { $0.id == localID || $0.id.hasPrefix(localID + "_") }
+            }
+        } else if type == .background {
+            base = configuredBackgroundProperties(definition.controls)
+        } else {
+            base = definition.controls
+        }
         return omitting(narrowedOptions(base)).map { property in
             var property = property
             let localID = property.id
@@ -504,6 +529,7 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
             property.id = id + "." + localID
             property.visibleWhen = property.visibleWhen?.prefixed(with: id)
             property.controlGroupSource = .init(type: type, namespace: namespace, localID: localID)
+            if type == .colourControls { property.outputWhenHidden = property.outputWhenHidden && outputWhenHidden }
             if let visibleWhen {
                 property.visibleWhen = property.visibleWhen.map { .init(all: [visibleWhen, $0]) } ?? visibleWhen
             }
@@ -767,6 +793,19 @@ nonisolated struct PartPackageControlGroup: Codable, Equatable, Sendable {
 
 }
 
+extension PartPackageControl.Kind {
+    nonisolated var colourControlsLocalID: String? {
+        switch self {
+        case .themeColors: "theme"
+        case .foregroundColor: "foreground"
+        case .backgroundColor: "background"
+        case .borderColor: "border"
+        case .linkColor: "link"
+        default: nil
+        }
+    }
+}
+
 nonisolated enum PartPackageHTMLContributionRenderer {
     static func decorate(
         _ html: String,
@@ -953,7 +992,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
     /// `var`: a grouped-control reference's own `visibleWhen` folds into each
     /// expanded control during manifest expansion.
     var visibleWhen: PartPackageVisibilityCondition?
-    let outputWhenHidden: Bool
+    var outputWhenHidden: Bool
     let alt: String
     let focalPoint: Bool
     let renditions: [PartPackageImageRendition]
@@ -961,9 +1000,17 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
     let pickerItems: [String]
     let initial: [String]
     let containment: PartPackageSlot.Containment
-    /// Fields repeated by a collection control. Collections deliberately use
-    /// ordinary controls so the same declaration vocabulary works at both levels.
-    let collectionFields: [PartPackageProperty]
+    /// Declarations repeated by a collection control, including colour groups.
+    let collectionEntries: [PartPackageControlsEntry]
+    var collectionFields: [PartPackageProperty] {
+        collectionEntries.flatMap { entry -> [PartPackageProperty] in
+            switch entry {
+            case .property(let property): return [property]
+            case .group(let group): return group.properties
+            case .section: return []
+            }
+        }
+    }
     let itemLabel: String
 
     enum CodingKeys: String, CodingKey {
@@ -991,7 +1038,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         case pickerItems
         case initial
         case containment
-        case collectionFields = "controls"
+        case collectionEntries = "controls"
         case itemLabel
     }
 
@@ -1035,7 +1082,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         pickerItems = []
         initial = []
         containment = .open
-        collectionFields = []
+        collectionEntries = []
         itemLabel = "Item"
     }
 
@@ -1080,7 +1127,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
         accepts = declaredAccepts ?? pickerItems
         initial = try container.decodeIfPresent([String].self, forKey: .initial) ?? []
         containment = try container.decodeIfPresent(PartPackageSlot.Containment.self, forKey: .containment) ?? .open
-        collectionFields = try container.decodeIfPresent([PartPackageProperty].self, forKey: .collectionFields) ?? []
+        collectionEntries = try container.decodeIfPresent([PartPackageControlsEntry].self, forKey: .collectionEntries) ?? []
         itemLabel = try container.decodeIfPresent(String.self, forKey: .itemLabel) ?? "Item"
 
         if control.count != nil {
@@ -1209,7 +1256,7 @@ nonisolated struct PartPackageProperty: Codable, Equatable, Identifiable, Sendab
             if containment != .open { try container.encode(containment, forKey: .containment) }
         }
         if control.type == .collection {
-            try container.encode(collectionFields, forKey: .collectionFields)
+            try container.encode(collectionEntries, forKey: .collectionEntries)
             if itemLabel != "Item" { try container.encode(itemLabel, forKey: .itemLabel) }
         }
     }
@@ -1408,6 +1455,14 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
     let outputFormat: ColorOutputFormat?
     /// Complete ordered picker sections; nil uses themes only.
     let colourSections: [String]?
+    /// Foreground colour picker sections hidden from its fixed set of choices.
+    let omitColourSections: [String]?
+    var effectiveColourSections: [String] {
+        if type == .foregroundColor {
+            return PartColourPurpose.foreground.defaultSections.filter { !(omitColourSections ?? []).contains($0) }
+        }
+        return colourSections ?? type.colourPurpose?.defaultSections ?? ["themes"]
+    }
     let count: Int?
     let ticks: Int?
     let editableValue: Bool?
@@ -1443,7 +1498,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         case type, font, minimum, maximum, step, options, themeValues = "themeValues", allowsCustom
         case legacyThemeValues = "frameworkValues"
         case showsFamily, showsWeight, showsStyle, showsSize
-        case opacity, outputFormat, colourSections, count, ticks, editableValue
+        case opacity, outputFormat, colourSections, omitColourSections, count, ticks, editableValue
         case trueValue, falseValue, selectionMode, argument1, argument2, operation, round, absoluteURL, presentation, linked
         case height, axis
         case tickLabels, valueLabels, minimumLabel, maximumLabel, neutralValue
@@ -1480,6 +1535,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         self.opacity = opacity
         outputFormat = nil
         colourSections = nil
+        omitColourSections = nil
         count = nil
         ticks = nil
         self.editableValue = editableValue
@@ -1533,6 +1589,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         opacity = try container.decodeIfPresent(Bool.self, forKey: .opacity)
         outputFormat = try container.decodeIfPresent(ColorOutputFormat.self, forKey: .outputFormat)
         colourSections = try container.decodeIfPresent([String].self, forKey: .colourSections)
+        omitColourSections = try container.decodeIfPresent([String].self, forKey: .omitColourSections)
         count = try container.decodeIfPresent(Int.self, forKey: .count)
         ticks = try container.decodeIfPresent(Int.self, forKey: .ticks)
         editableValue = try container.decodeIfPresent(Bool.self, forKey: .editableValue)
@@ -1577,6 +1634,7 @@ nonisolated struct PartPackageControl: Codable, Equatable, Sendable {
         try container.encodeIfPresent(opacity, forKey: .opacity)
         try container.encodeIfPresent(outputFormat, forKey: .outputFormat)
         try container.encodeIfPresent(colourSections, forKey: .colourSections)
+        try container.encodeIfPresent(omitColourSections, forKey: .omitColourSections)
         try container.encodeIfPresent(count, forKey: .count)
         try container.encodeIfPresent(ticks, forKey: .ticks)
         try container.encodeIfPresent(editableValue, forKey: .editableValue)

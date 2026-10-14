@@ -1197,7 +1197,9 @@ nonisolated enum PartPackageValidator {
                 return
             }
         case .themeColors, .backgroundColor, .foregroundColor, .borderColor, .linkColor:
-            if property.control.type == .themeColors, property.controlGroupSource == nil,
+            let completeTheme = property.control.type == .themeColors &&
+                (property.controlGroupSource == nil || property.controlGroupSource?.type == .colourControls)
+            if completeTheme,
                (property.control.colourSections ?? ["themes"]).contains(where: { $0 != "themes" }) {
                 diagnostics.append(.init(severity: .error, location: location, message: "themeColors selects complete themes only. Use backgroundColor, foregroundColor, borderColor or linkColor for individual colours."))
             }
@@ -1206,11 +1208,11 @@ nonisolated enum PartPackageValidator {
                 diagnostics.append(.init(severity: .error, location: location, message: "A themeColors default must identify a Bootstrap theme, a supported colour token, or inherit."))
                 return
             }
-            if property.control.type == .themeColors, property.controlGroupSource == nil, PartColourToken.parse(value) != nil {
+            if completeTheme, PartColourToken.parse(value) != nil {
                 diagnostics.append(.init(severity: .error, location: location, message: "A complete theme default must be inherit or a theme name, not a colour token."))
             }
-            if property.controlGroupSource == nil, value != "inherit" {
-                let sections = property.control.colourSections ?? property.control.type.colourPurpose?.defaultSections ?? ["themes"]
+            if (property.controlGroupSource == nil || property.controlGroupSource?.type == .colourControls), value != "inherit" {
+                let sections = property.control.effectiveColourSections
                 let allowed = PartColourToken.parse(value).map { token in
                     PartColourToken.groups(for: sections).contains { $0.1.contains(token.id) }
                 } ?? sections.contains("themes")

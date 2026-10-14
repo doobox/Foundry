@@ -9,11 +9,10 @@ struct AppearanceSwitcherPartTests {
         await PartPackageCatalog.shared.waitUntilLoaded()
         let package = try #require(PartType.appearanceSwitcher.definition.package)
         try package.preparePayload()
-        var first = PartNode.make(.appearanceSwitcher)
-        first.setProperty(.init(rawValue: "defaultAppearance"), value: .choice("dark"))
+        let first = PartNode.make(.appearanceSwitcher)
         let page = Page(title: "Modes", slug: "index", parts: [first, PartNode.make(.appearanceSwitcher)])
         var site = Site(name: "Modes", pages: [page])
-        site.appearanceMode = .both
+        site.appearanceMode = .dark
         let bundle = StaticSiteRenderer().render(site: site)
         #expect(bundle.errors.isEmpty)
         var html = try #require(bundle.file(at: "index.html")?.contents)
@@ -61,7 +60,7 @@ struct AppearanceSwitcherPartTests {
     }
 
     @Test func savedChoiceWinsAndDefaultsAreNotPersisted() async throws {
-        let bootstrap = SiteAppearanceMode.both.bootstrap(siteID: UUID(), defaultMode: "light")
+        let bootstrap = SiteAppearanceMode.light.bootstrap(siteID: UUID())
         let browser = BootstrapTokenBrowser()
         try await browser.load("""
         <script>
@@ -76,6 +75,6 @@ struct AppearanceSwitcherPartTests {
         #expect(try await browser.web.evaluateJavaScript("window.writes") as? Int == 0)
         _ = try await browser.web.evaluateJavaScript("window.foundryAppearance.set('dark')")
         #expect(try await browser.web.evaluateJavaScript("window.savedMode") as? String == "dark")
-        #expect(SiteAppearanceMode.light.bootstrap(siteID: UUID()).isEmpty)
+        #expect(SiteAppearanceMode.light.bootstrap(siteID: UUID()).contains("let current = 'light'"))
     }
 }

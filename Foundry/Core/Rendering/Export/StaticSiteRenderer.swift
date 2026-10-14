@@ -323,8 +323,7 @@ nonisolated struct StaticSiteRenderer: SiteRendering {
             "  <meta name=\"color-scheme\" content=\"\(site.appearanceMode.cssColorScheme)\">",
             "  <title>\(escape(browserTitle))</title>",
             metadata,
-            site.appearanceMode.bootstrap(siteID: site.id, defaultMode: page.parts.flatMap(\.flattened)
-                .first(where: { $0.type == .appearanceSwitcher })?.property(.init(rawValue: "defaultAppearance")) ?? "system"),
+            site.appearanceMode.bootstrap(siteID: site.id),
             stylesheetPaths.map { "  <link rel=\"stylesheet\" href=\"\($0)\">" }.joined(separator: "\n"),
             hasMarkdownCode ? "  <link rel=\"stylesheet\" href=\"\(rootPrefix)\(FoundryWebLibraryRegistry.markdownCodeStylesheetPath)\">" : "",
             headEnd,

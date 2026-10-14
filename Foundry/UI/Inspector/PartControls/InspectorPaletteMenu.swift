@@ -12,6 +12,7 @@ struct InspectorPaletteMenu: View {
     let palettes: [ColourPalette]
     let selectedID: String
     var tokenPreviews: [String: String] = [:]
+    var adaptiveTokenPreviews: [String: AdaptiveColourPreview] = [:]
     var allowsInherit = false
     var tokenSections: [String] = ["themes"]
     var linksOnly = false
@@ -20,7 +21,11 @@ struct InspectorPaletteMenu: View {
 
     private var orderedSections: [String] {
         var seen = Set<String>()
-        return tokenSections.filter { seen.insert($0).inserted }
+        let unique = tokenSections.filter { seen.insert($0).inserted }
+        guard unique.contains("foregrounds") else { return unique }
+        let foregroundOrder = ["foregrounds", "themes", "blackWhite"]
+        let ordered = foregroundOrder.filter { unique.contains($0) }
+        return ordered + unique.filter { !ordered.contains($0) }
     }
 
     private var filtered: [ColourPalette] {
@@ -42,25 +47,23 @@ struct InspectorPaletteMenu: View {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 4) {
                     if allowsInherit {
+                        Text("Inherit")
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .accessibilityAddTraits(.isHeader)
                         Button { select("inherit") } label: {
-                            HStack(spacing: 8) {
-                                InheritColourSwatch()
-                                Text("Inherit")
-                                Spacer(minLength: 4)
-                                if selectedID == "inherit" { Image(systemName: "checkmark") }
-                            }
-                            .padding(6)
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .contentShape(Rectangle())
+                            ColourPickerSwatch(isInherit: true, isSelected: selectedID == "inherit")
                         }
                         .buttonStyle(.plain)
+                        .help("Inherit")
+                        .accessibilityLabel("Inherit")
                         .accessibilityAddTraits(selectedID == "inherit" ? .isSelected : [])
                     }
                     ForEach(orderedSections, id: \.self) { section in
                         if section == "palettes" {
                             PaletteShadePicker(previews: tokenPreviews, selectedID: selectedID, search: search, select: select)
                         } else if section != "themes" {
-                            PartColourTokenPicker(previews: tokenPreviews, sections: [section], selectedID: selectedID, palettes: palettes, linksOnly: linksOnly, search: search, select: select)
+                            PartColourTokenPicker(previews: tokenPreviews, adaptivePreviews: adaptiveTokenPreviews, sections: [section], selectedID: selectedID, palettes: palettes, linksOnly: linksOnly, search: search, select: select)
                         }
                         let matches = section == "themes" && !linksOnly ? filtered.filter { BootstrapPaletteTheme.nativeRole($0) != nil } : []
                         if !matches.isEmpty {
@@ -68,26 +71,28 @@ struct InspectorPaletteMenu: View {
                                 .font(.caption).foregroundStyle(.secondary)
                                 .padding(.top, 6)
                                 .accessibilityAddTraits(.isHeader)
-                            ForEach(matches) { palette in
-                                Button { select(palette.id) } label: {
-                                    HStack(spacing: 8) {
-                                        RoundedRectangle(cornerRadius: 4)
-                                            .fill(Color(hex: menuColour(palette)) ?? .clear)
-                                            .overlay { RoundedRectangle(cornerRadius: 4).strokeBorder(.secondary.opacity(0.3)) }
-                                            .frame(width: 20, height: 20)
-                                        Text(palette.pickerLabel).lineLimit(1)
-                                        Spacer(minLength: 4)
-                                        if selectedID == palette.id { Image(systemName: "checkmark") }
+                            LazyVGrid(columns: ColourPickerSwatch.columns, alignment: .leading, spacing: 8) {
+                                ForEach(matches) { palette in
+                                    let preview = adaptiveTokenPreviews[palette.id]
+                                        ?? AdaptiveColourPreview(solid: menuColour(palette))
+                                    Button { select(palette.id) } label: {
+                                        ColourPickerSwatch(preview: preview, isSelected: selectedID == palette.id)
                                     }
-                                    .padding(6)
-                                    .frame(maxWidth: .infinity, alignment: .leading)
-                                    .contentShape(Rectangle())
+                                    .buttonStyle(.plain)
+                                    .help(palette.pickerLabel)
+                                    .accessibilityLabel(palette.pickerLabel)
+                                    .accessibilityValue("Light \(preview.light), dark \(preview.dark)")
+                                    .accessibilityAddTraits(selectedID == palette.id ? .isSelected : [])
                                 }
-                                .buttonStyle(.plain)
-                                .help(palette.pickerLabel)
-                                .accessibilityAddTraits(selectedID == palette.id ? .isSelected : [])
                             }
                         }
+                    }
+                    if orderedSections.contains("foregrounds") {
+                        ColourTokenSwatchGrid(title: "Background as Foreground", tokens: ["fg-bg"],
+                            previews: tokenPreviews, adaptivePreviews: adaptiveTokenPreviews,
+                            selectedID: selectedID, palettes: palettes, linksOnly: linksOnly,
+                            search: search, select: select)
+                            .padding(4)
                     }
                     if filtered.isEmpty && tokenSections.isEmpty { Text("No matching colours").foregroundStyle(.secondary).padding(6) }
                 }

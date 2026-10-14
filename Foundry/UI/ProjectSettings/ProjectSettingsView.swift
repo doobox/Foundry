@@ -121,6 +121,7 @@ private struct ProjectSettingsWindowContent: View {
             titleSuffix: document.site.titleSuffix,
             defaultDescription: document.site.defaultDescription,
             favicon: document.site.favicon,
+            webIconAssets: document.site.webIconAssets,
             defaultSocialImage: document.site.defaultSocialImage,
             socialImageAlt: document.site.socialImageAlt,
             socialAccount: document.site.socialAccount,
@@ -150,6 +151,7 @@ struct ProjectSettingsView: View {
     let titleSuffix: String
     let defaultDescription: String
     let favicon: String
+    let webIconAssets: [ProjectAsset]
     let defaultSocialImage: String
     let socialImageAlt: String
     let socialAccount: String
@@ -207,7 +209,6 @@ struct ProjectSettingsView: View {
                     publicURL: publicURL,
                     logo: logo,
                     logoAlt: logoAlt,
-                    allowsDarkMode: site.appearanceMode != .light,
                     assets: assets,
                     assetContents: assetContents,
                     editor: editor
@@ -215,6 +216,7 @@ struct ProjectSettingsView: View {
             case .webIcons:
                 WebIconsProjectSettingsView(
                     favicon: favicon,
+                    generatedAssets: webIconAssets,
                     assets: assets,
                     assetContents: assetContents,
                     editor: editor
@@ -996,7 +998,6 @@ private struct GeneralProjectSettingsView: View {
     let publicURL: String
     let logo: String
     let logoAlt: String
-    let allowsDarkMode: Bool
     let assets: [ProjectAsset]
     let assetContents: ProjectAssetContents
     let editor: ProjectEditor
@@ -1010,7 +1011,6 @@ private struct GeneralProjectSettingsView: View {
         publicURL: String,
         logo: String,
         logoAlt: String,
-        allowsDarkMode: Bool,
         assets: [ProjectAsset],
         assetContents: ProjectAssetContents,
         editor: ProjectEditor
@@ -1020,7 +1020,6 @@ private struct GeneralProjectSettingsView: View {
         self.publicURL = publicURL
         self.logo = logo
         self.logoAlt = logoAlt
-        self.allowsDarkMode = allowsDarkMode
         self.assets = assets
         self.assetContents = assetContents
         self.editor = editor
@@ -1113,15 +1112,6 @@ private struct GeneralProjectSettingsView: View {
                     )
                     .labelsHidden()
                 }
-
-                ProjectSettingsGridRow("Allow Dark Mode") {
-                    Toggle(
-                        "Allow Dark Mode",
-                        isOn: Binding(get: { allowsDarkMode }, set: editor.setSiteAllowsDarkMode)
-                    )
-                    .labelsHidden()
-                    .toggleStyle(.switch)
-                }
             }
             .frame(maxWidth: 680)
             .padding(28)
@@ -1186,6 +1176,7 @@ private struct ProjectSettingsGridRow<Content: View>: View {
 
 private struct WebIconsProjectSettingsView: View {
     let favicon: String
+    let generatedAssets: [ProjectAsset]
     let assets: [ProjectAsset]
     let assetContents: ProjectAssetContents
     let editor: ProjectEditor
@@ -1194,18 +1185,22 @@ private struct WebIconsProjectSettingsView: View {
         ScrollView {
             Grid(alignment: .topLeading, horizontalSpacing: 16, verticalSpacing: 18) {
                 ProjectSettingsGridRow("Favicon", alignment: .top) {
-                    VStack(alignment: .leading, spacing: 8) {
-                        WebIconImageWell(
-                            selection: Binding(get: { favicon }, set: editor.setSiteFavicon),
-                            assets: assets,
-                            assetContents: assetContents,
-                            importImage: editor.importSiteFavicon
+                    WebIconImageWell(
+                        selection: Binding(get: { favicon }, set: editor.setSiteFavicon),
+                        assets: assets,
+                        assetContents: assetContents,
+                        importImage: editor.importSiteFavicon
+                    )
+                    .frame(width: 128, height: 128)
+                }
+
+                if hasGeneratedIcons {
+                    ProjectSettingsGridRow("Generated Icons", alignment: .top) {
+                        WebIconGeneratedPreview(
+                            assets: generatedAssets,
+                            assetContents: assetContents
                         )
-                        .frame(width: 128, height: 128)
-                        Text("Foundry generates favicon.ico, PNG favicons and Apple touch icons from a square image of at least 256 × 256 pixels.")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                        .frame(maxWidth: 500, alignment: .leading)
                     }
                 }
 
@@ -1217,6 +1212,12 @@ private struct WebIconsProjectSettingsView: View {
         .navigationTitle("Web Icons")
     }
 
+    private var hasGeneratedIcons: Bool {
+        generatedAssets.contains { asset in
+            WebIconGenerator.generatedFilenames.contains(asset.filename)
+                && assetContents.hasContent(asset.id)
+        }
+    }
 }
 
 private struct WebIconImageWell: View {

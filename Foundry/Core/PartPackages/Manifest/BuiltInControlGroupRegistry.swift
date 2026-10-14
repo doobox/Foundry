@@ -90,7 +90,12 @@ nonisolated enum BuiltInControlGroupRegistry {
             "templates": ["html": "part.html"]
         ]
         let manifestData = try JSONSerialization.data(withJSONObject: manifest)
-        let diagnostics = try PartPackageManifestSchema.diagnostics(for: manifestData)
+        // Bundled definitions are the implementation of colourControls, so
+        // their picker primitives are valid here. Part manifests still must
+        // declare colourControls rather than those primitives directly.
+        let diagnostics = try PartPackageManifestSchema.diagnostics(for: manifestData).filter {
+            $0.message != "Use colourControls with include to select one or more colour pickers."
+        }
         guard diagnostics.isEmpty else {
             throw DefinitionError.controlDiagnostics(
                 diagnostics.map { "\($0.location): \($0.message)" }.joined(separator: "; ")

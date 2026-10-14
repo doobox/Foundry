@@ -39,7 +39,7 @@ struct ThemeWindowSceneContent: View {
                     .navigationTitle("\(context.session.document.site.name) – Theme Editor")
             } else {
                 ContentUnavailableView {
-                    Label("Theme Unavailable", systemImage: "theatermask.and.paintbrush")
+                    Label("Theme Unavailable", systemImage: "b.square")
                 } description: {
                     Text("Open the theme editor from a project window.")
                 }
@@ -171,7 +171,7 @@ enum ThemeWindowSection: String, CaseIterable, Identifiable, Hashable {
 
     var systemImage: String {
         switch self {
-        case .themes: "theatermask.and.paintbrush"
+        case .themes: "b.square"
         case .screens: "ruler"
         case .colors, .foreground, .background, .borders, .links: "swatchpalette"
         case .fontFamily: "text.alignleft"
@@ -296,7 +296,7 @@ private struct ThemeLibraryBrowser: View {
                         deleteTheme: { themePendingDeletion = $0 }
                     )
                 } label: {
-                    Label("Theme Actions", systemImage: "theatermask.and.paintbrush")
+                    Label("Theme Actions", systemImage: "b.square")
                 }
                 .menuIndicator(.hidden)
                 .help("Theme Actions")

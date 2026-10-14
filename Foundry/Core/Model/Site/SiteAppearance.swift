@@ -8,28 +8,25 @@ nonisolated enum SiteAppearance: String, Codable, CaseIterable, Sendable {
 nonisolated enum SiteAppearanceMode: String, Codable, CaseIterable, Sendable {
     case light, dark, both
     var title: String {
-        switch self { case .light: "Light only"; case .dark: "Dark only"; case .both: "Light and Dark" }
+        switch self { case .light: "Light"; case .dark: "Dark"; case .both: "Auto" }
     }
-    func permits(_ appearance: SiteAppearance) -> Bool { self == .both || rawValue == appearance.rawValue }
-    var cssColorScheme: String { self == .both ? "light dark" : rawValue }
+    var defaultMode: String { self == .both ? "system" : rawValue }
+    var symbol: String {
+        switch self { case .light: "sun.max"; case .dark: "moon"; case .both: "circle.lefthalf.filled" }
+    }
+    var cssColorScheme: String { "light dark" }
 
     func colour(light: String, dark: String) -> String {
-        switch self {
-        case .light: light
-        case .dark: dark
-        case .both: light == dark ? light : "light-dark(\(light), \(dark))"
-        }
+        light == dark ? light : "light-dark(\(light), \(dark))"
     }
 
     /// Runs before styles load so a saved visitor choice does not flash the other appearance.
-    func bootstrap(siteID: UUID, defaultMode: String = "system") -> String {
-        guard self == .both else { return "" }
-        let initialMode = ["system", "light", "dark"].contains(defaultMode) ? defaultMode : "system"
+    func bootstrap(siteID: UUID) -> String {
         return """
         <script>
         (() => {
           const key = 'foundry.appearance.\(siteID.uuidString.lowercased())';
-          let current = '\(initialMode)';
+          let current = '\(defaultMode)';
           const apply = (value, persist = true) => {
             if (!['system', 'light', 'dark'].includes(value)) return;
             if (value === 'system') delete document.documentElement.dataset.bsTheme;

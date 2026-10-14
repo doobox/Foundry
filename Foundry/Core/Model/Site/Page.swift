@@ -78,6 +78,7 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
     var foregroundOverride: String?
     var borderOverride: String?
     var linksOverride: String?
+    var colourAdjustments: [String: PageColourAdjustment]
     var appearanceOverride: SiteAppearance?
 
     init(
@@ -101,6 +102,7 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         foregroundOverride: String? = nil,
         borderOverride: String? = nil,
         linksOverride: String? = nil,
+        colourAdjustments: [String: PageColourAdjustment] = [:],
         appearanceOverride: SiteAppearance? = nil
     ) {
         self.id = id
@@ -123,13 +125,14 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         self.foregroundOverride = foregroundOverride
         self.borderOverride = borderOverride
         self.linksOverride = linksOverride
+        self.colourAdjustments = colourAdjustments
         self.appearanceOverride = appearanceOverride
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, title, slug, metadata, parts, folderID, parentPageID, order, includeInNavigation, preferredExtension,
              folderOverride, filenameOverride, language, includeInSearch, includeInSitemap, backgroundOverride, themeOverride,
-             foregroundOverride, borderOverride, linksOverride, appearanceOverride
+             foregroundOverride, borderOverride, linksOverride, colourAdjustments, appearanceOverride
     }
 
     init(from decoder: Decoder) throws {
@@ -154,6 +157,7 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         foregroundOverride = try container.decodeIfPresent(String.self, forKey: .foregroundOverride)
         borderOverride = try container.decodeIfPresent(String.self, forKey: .borderOverride)
         linksOverride = try container.decodeIfPresent(String.self, forKey: .linksOverride)
+        colourAdjustments = try container.decodeIfPresent([String: PageColourAdjustment].self, forKey: .colourAdjustments) ?? [:]
         appearanceOverride = try container.decodeIfPresent(SiteAppearance.self, forKey: .appearanceOverride)
     }
 
@@ -164,9 +168,21 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
         return "theme-" + role
     }
 
+    func colourSelection(for purpose: PartColourPurpose) -> String? {
+        switch purpose {
+        case .background: backgroundOverride
+        case .foreground: foregroundOverride
+        case .border: borderOverride
+        case .link: linksOverride
+        }
+    }
+
     func backgroundColour(theme: Theme, appearance: SiteAppearance) -> String {
         guard let backgroundOverride else { return "var(--bs-bg-body)" }
-        return BootstrapBackgroundColour.paint(BootstrapPaletteTheme.resolve(backgroundOverride, theme: theme))
+        let adjustment = colourAdjustments[PartColourPurpose.background.rawValue] ?? PageColourAdjustment()
+        let colour = PartColourPurpose.background.resolve(backgroundOverride, theme: theme,
+            variant: adjustment.variant, opacity: adjustment.opacity).color
+        return colour.isEmpty ? "var(--bs-bg-body)" : colour
     }
 
     static func slugify(_ value: String) -> String {
@@ -200,6 +216,7 @@ nonisolated struct Page: Codable, Equatable, Identifiable, Sendable {
             foregroundOverride: foregroundOverride,
             borderOverride: borderOverride,
             linksOverride: linksOverride,
+            colourAdjustments: colourAdjustments,
             appearanceOverride: appearanceOverride
         )
     }

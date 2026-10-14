@@ -5,6 +5,32 @@ import WebKit
 
 @MainActor
 struct PageColourOverrideTests {
+    @Test func pickerVariantsAndOpacityPersistAndRender() throws {
+        var page = Page(title: "Colour page", slug: "colour-page")
+        let theme = Site.starter().theme
+        page.foregroundOverride = "theme-primary"
+        page.backgroundOverride = "theme-primary"
+        page.borderOverride = "theme-primary"
+        page.linksOverride = "theme-primary"
+        page.colourAdjustments = [
+            "foreground": .init(variant: "emphasis", opacity: 50),
+            "background": .init(variant: "subtle", opacity: 70),
+            "border": .init(variant: "subtle", opacity: 60),
+            "link": .init(opacity: 80)
+        ]
+
+        let css = BootstrapPageColours.css(page: page, theme: theme)
+        #expect(css.contains("var(--bs-primary-fg-emphasis) 50%"))
+        #expect(css.contains("var(--bs-primary-border) 60%"))
+        #expect(css.contains("var(--bs-primary-fg) 80%"))
+        #expect(css.contains("var(--bs-primary-fg-emphasis) 80%"))
+        #expect(page.backgroundColour(theme: theme, appearance: .light).contains("var(--bs-primary-bg-subtle) 70%"))
+
+        let restored = try JSONDecoder().decode(Page.self, from: JSONEncoder().encode(page))
+        #expect(restored.colourAdjustments == page.colourAdjustments)
+        #expect(page.duplicated(title: "Copy", slug: "copy").colourAdjustments == page.colourAdjustments)
+    }
+
     @Test func persistenceDuplicationUndoAndReset() throws {
         let document = FoundryDocument()
         let undo = UndoManager()

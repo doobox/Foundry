@@ -1,0 +1,120 @@
+{
+  "type": "colourControls",
+  "name": "Colours",
+  "systemImage": "paintpalette",
+  "controls": [
+    {
+      "type": "themeColors",
+      "id": "theme",
+      "label": "Theme"
+    },
+    {
+      "type": "foregroundColor",
+      "id": "foreground",
+      "label": "Foreground"
+    },
+    {
+      "type": "select",
+      "id": "foreground_variant",
+      "label": "Variant",
+      "defaults": { "xs": "normal" },
+      "options": [
+        { "title": "Normal", "value": "normal" },
+        { "title": "Emphasis", "value": "emphasis" },
+        { "title": "Contrast", "value": "contrast" }
+      ],
+      "visibleWhen": { "all": [
+        { "id": "foreground", "operation": "!=", "value": "inherit" },
+        { "id": "foreground", "operation": "notContains", "value": "token:" }
+      ] }
+    },
+    {
+      "type": "slider",
+      "id": "foreground_opacity",
+      "label": "Opacity",
+      "minimum": 0,
+      "maximum": 100,
+      "step": 10,
+      "editableValue": true,
+      "defaults": { "xs": 100 },
+      "visibleWhen": { "id": "foreground", "operation": "!=", "value": "inherit" }
+    },
+    {
+      "type": "backgroundColor",
+      "id": "background",
+      "label": "Background"
+    },
+    {
+      "type": "select",
+      "id": "background_variant",
+      "label": "Surface",
+      "defaults": { "xs": "solid" },
+      "options": [
+        { "title": "Solid", "value": "solid" },
+        { "title": "Subtle", "value": "subtle" },
+        { "title": "Muted", "value": "muted" }
+      ],
+      "visibleWhen": { "all": [
+        { "id": "background", "operation": "!=", "value": "inherit" },
+        { "id": "background", "operation": "notContains", "value": "token:" }
+      ] }
+    },
+    {
+      "type": "slider",
+      "id": "background_opacity",
+      "label": "Opacity",
+      "minimum": 0,
+      "maximum": 100,
+      "step": 10,
+      "editableValue": true,
+      "defaults": { "xs": 100 },
+      "visibleWhen": { "id": "background", "operation": "!=", "value": "inherit" }
+    },
+    {
+      "type": "borderColor",
+      "id": "border",
+      "label": "Border"
+    },
+    {
+      "type": "select",
+      "id": "border_variant",
+      "label": "Variant",
+      "defaults": { "xs": "normal" },
+      "options": [
+        { "title": "Normal", "value": "normal" },
+        { "title": "Subtle", "value": "subtle" }
+      ],
+      "visibleWhen": { "all": [
+        { "id": "border", "operation": "!=", "value": "inherit" },
+        { "id": "border", "operation": "notContains", "value": "token:" }
+      ] }
+    },
+    {
+      "type": "slider",
+      "id": "border_opacity",
+      "label": "Opacity",
+      "minimum": 0,
+      "maximum": 100,
+      "step": 10,
+      "editableValue": true,
+      "defaults": { "xs": 100 },
+      "visibleWhen": { "id": "border", "operation": "!=", "value": "inherit" }
+    },
+    {
+      "type": "linkColor",
+      "id": "link",
+      "label": "Link"
+    },
+    {
+      "type": "slider",
+      "id": "link_opacity",
+      "label": "Opacity",
+      "minimum": 0,
+      "maximum": 100,
+      "step": 10,
+      "editableValue": true,
+      "defaults": { "xs": 100 },
+      "visibleWhen": { "id": "link", "operation": "!=", "value": "inherit" }
+    }
+  ]
+}

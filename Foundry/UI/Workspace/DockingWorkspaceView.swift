@@ -8,6 +8,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
     let canvasScreens: ScreenTokens
     @Binding var canvasAppearance: SiteAppearance
     let appearanceMode: SiteAppearanceMode
+    let setAppearanceMode: (SiteAppearanceMode) -> Void
     let openProjectSettings: () -> Void
     let openThemeEditor: () -> Void
     let openSiteCode: () -> Void
@@ -98,7 +99,6 @@ struct DockingWorkspaceView<PanelContent: View>: View {
                     viewportWidth: $canvasViewportWidth,
                     screens: canvasScreens,
                     appearance: $canvasAppearance,
-                    appearanceMode: appearanceMode,
                     dockBeside: dockBeside,
                     content: { panelContent(.canvas) }
                 )
@@ -241,7 +241,7 @@ struct DockingWorkspaceView<PanelContent: View>: View {
 
     private var themeEditorButton: some View {
         Button(action: openThemeEditor) {
-            Label("Theme Editor", systemImage: "theatermask.and.paintbrush")
+            Label("Theme Editor", systemImage: "b.square")
         }
         .labelStyle(.iconOnly)
         .help("Open Theme Editor")
@@ -249,6 +249,30 @@ struct DockingWorkspaceView<PanelContent: View>: View {
 
     private var projectSettingsButton: some View {
         ControlGroup {
+            Menu {
+                ForEach([SiteAppearanceMode.both, .light, .dark], id: \.self) { mode in
+                    Button {
+                        setAppearanceMode(mode)
+                    } label: {
+                        if appearanceMode == mode {
+                            Label(mode.title, systemImage: "checkmark")
+                        } else {
+                            Text(mode.title)
+                        }
+                    }
+                }
+            } label: {
+                Label("Browser Default: \(appearanceMode.title)", systemImage: appearanceMode.symbol)
+            }
+            .labelStyle(.iconOnly)
+            .menuIndicator(.hidden)
+            .help("Browser default: \(appearanceMode.title)")
+            .overlay(alignment: .trailing) {
+                Rectangle()
+                    .fill(Color(nsColor: .separatorColor))
+                    .frame(width: 1, height: 24)
+                    .allowsHitTesting(false)
+            }
             Button("Site Settings", systemImage: "gearshape", action: openProjectSettings)
                 .labelStyle(.iconOnly)
                 .help("Open site settings")
@@ -2146,7 +2170,6 @@ private struct FixedCanvasColumn<Content: View>: View {
     @Binding var viewportWidth: Double
     let screens: ScreenTokens
     @Binding var appearance: SiteAppearance
-    let appearanceMode: SiteAppearanceMode
     let dockBeside: (WorkspacePanel, UUID, Bool) -> Void
     @ViewBuilder let content: () -> Content
     @State private var leadingTargeted = false
@@ -2172,22 +2195,9 @@ private struct FixedCanvasColumn<Content: View>: View {
                         .accessibilityLabel(screen.id.shortTitle)
                         .help("\(screen.id.shortTitle) · \(Int(screens.canvasWidth(for: screen))) px")
                     }
-                    if appearanceMode == .both {
-                        Divider().frame(height: 18)
-                        ForEach(SiteAppearance.allCases, id: \.self) { mode in
-                            Button { appearance = mode } label: {
-                                Image(systemName: mode.symbol)
-                                    .font(.system(size: 15, weight: .medium))
-                                    .frame(width: 34, height: 34)
-                                    .contentShape(Rectangle())
-                            }
-                            .buttonStyle(.plain)
-                            .foregroundStyle(appearance == mode ? Color.accentColor : .secondary)
-                            .help("Preview \(mode.rawValue) appearance")
-                            .accessibilityLabel("\(mode.rawValue.capitalized) appearance")
-                            .controlSize(.small)
-                        }
-                    }
+                    Divider().frame(height: 18)
+                    appearancePreviewButton(.light)
+                    appearancePreviewButton(.dark)
                 }
             }
             .padding(.horizontal, 10)
@@ -2221,6 +2231,19 @@ private struct FixedCanvasColumn<Content: View>: View {
                     trailingTargeted = $0
                 }
         }
+    }
+
+    private func appearancePreviewButton(_ mode: SiteAppearance) -> some View {
+        Button { appearance = mode } label: {
+            Image(systemName: mode.symbol)
+                .font(.system(size: 15, weight: .medium))
+                .frame(width: 34, height: 34)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .foregroundStyle(appearance == mode ? Color.accentColor : .secondary)
+        .help("Preview \(mode.rawValue) appearance on the canvas")
+        .accessibilityLabel("Preview \(mode.rawValue) appearance")
     }
 
     private func selectBreakpoint(_ screen: ThemeScreen) {

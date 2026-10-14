@@ -25,7 +25,9 @@ nonisolated enum PartCollectionRenderResolver {
             let id = definition.key.rawValue
             guard let value = raw[id] else { continue }
             if let purpose = definition.colourPurpose {
-                let output = purpose.resolve(value.stringValue, theme: theme)
+                let output = purpose.resolve(value.stringValue, theme: theme,
+                    variant: raw[id + "_variant"]?.stringValue ?? "normal",
+                    opacity: raw[id + "_opacity"]?.numberValue ?? 100)
                 values[id] = .string(output.className)
                 values[id + ".color"] = .string(output.color)
                 continue

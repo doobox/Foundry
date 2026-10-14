@@ -2,6 +2,7 @@ import SwiftUI
 
 struct PartColourTokenPicker: View {
     let previews: [String: String]
+    var adaptivePreviews: [String: AdaptiveColourPreview] = [:]
     let sections: [String]
     let selectedID: String
     var palettes: [ColourPalette] = []
@@ -12,27 +13,22 @@ struct PartColourTokenPicker: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             ForEach(PartColourToken.groups(for: sections, palettes: palettes, linksOnly: linksOnly), id: \.0) { title, tokens in
-                let matches = tokens.filter { search.isEmpty || PartColourToken.label($0, palettes: palettes, linksOnly: linksOnly).localizedCaseInsensitiveContains(search) || title.localizedCaseInsensitiveContains(search) }
-                if !matches.isEmpty {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Text(title).font(.caption).foregroundStyle(.secondary).accessibilityAddTraits(.isHeader)
-                        ForEach(matches, id: \.self) { token in
-                            Button { select("token:" + token) } label: {
-                                HStack {
-                                    RoundedRectangle(cornerRadius: 4)
-                                        .fill(Color(hex: previews[token] ?? "#808080") ?? .gray)
-                                        .frame(width: 24, height: 20)
-                                    Text(PartColourToken.label(token, palettes: palettes, linksOnly: linksOnly))
-                                    Spacer()
-                                    if selectedID == "token:" + token {
-                                        Image(systemName: "checkmark")
-                                    }
-                                }.contentShape(Rectangle())
-                            }.buttonStyle(.plain)
-                        }
+                if title == "Foregrounds" {
+                    grid(title: title, tokens: BootstrapColourCatalogue.tokens(for: "foreground"))
+                    ForEach(palettes.filter { $0.origin == .custom && $0.colourKind == .foreground }) { palette in
+                        grid(title: palette.name, tokens: palette.colourTokens, showsTitle: false)
                     }
+                } else {
+                    grid(title: title, tokens: tokens)
                 }
             }
-        }.padding(4)
+        }
+        .padding(4)
+    }
+
+    private func grid(title: String, tokens: [String], showsTitle: Bool = true) -> some View {
+        ColourTokenSwatchGrid(title: title, tokens: tokens, previews: previews,
+            adaptivePreviews: adaptivePreviews, selectedID: selectedID, palettes: palettes,
+            linksOnly: linksOnly, search: search, select: select, showsTitle: showsTitle)
     }
 }

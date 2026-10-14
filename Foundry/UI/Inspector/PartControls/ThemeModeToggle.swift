@@ -9,7 +9,7 @@ struct ThemeModeToggle: View {
 
     var body: some View {
         Button(action: action) {
-            Image(systemName: "theatermask.and.paintbrush")
+            Image(systemName: "b.square")
                 .imageScale(.large)
                 .foregroundStyle(usesThemeTokens ? Color.accentColor : Color.secondary)
                 .contentShape(Rectangle())

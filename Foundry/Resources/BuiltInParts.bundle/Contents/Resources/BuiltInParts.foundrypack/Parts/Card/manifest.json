@@ -112,11 +112,11 @@
           }
         },
         {
-          "type": "themeColors",
+          "type": "colourControls",
           "id": "buttonTheme",
-          "label": "Theme",
+          "include": ["themeColors"],
           "defaults": {
-            "xs": "framework.primary"
+            "theme": "framework.primary"
           }
         },
         {
@@ -184,11 +184,11 @@
           }
         },
         {
-          "type": "themeColors",
+          "type": "colourControls",
           "id": "theme",
-          "label": "Theme",
+          "include": ["themeColors"],
           "defaults": {
-            "xs": "framework.primary"
+            "theme": "framework.primary"
           },
           "visibleWhen": {
             "id": "useTheme",

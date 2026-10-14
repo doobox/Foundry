@@ -228,8 +228,9 @@ struct PartPropertyEditor: View {
             ThemeColorsPartControl(label: definition.label, theme: theme,
                 indicator: responsiveIndicator,
                 tokenSections: colourTokenSections,
+                themePreviewRole: colourPreviewRole,
                 linksOnly: isLinkColour,
-                allowsInherit: part.definition.package?.manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource.map { [.foreground, .linkStyling].contains($0.type) } ?? true,
+                allowsInherit: part.definition.package?.manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource.map { [.foreground, .linkStyling, .colourControls].contains($0.type) } ?? true,
                 selection: stringBinding(as: .choice))
         case .choice(let choices):
             let availableChoices = choicesForCurrentContext(choices)
@@ -1437,6 +1438,7 @@ struct PartPropertyEditor: View {
         }
         guard let manifest = part.definition.package?.manifest,
               let source = manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })?.controlGroupSource else { return definition.colourSections }
+        if source.type == .colourControls { return definition.colourSections }
         if source.type == .borders { return ["borders", "blackWhite", "themes"] }
         if source.type == .linkStyling { return ["links"] }
         return manifest.controlGroups.first(where: { $0.namespace == source.namespace })?.colourSections ?? ["themes"]
@@ -1445,6 +1447,21 @@ struct PartPropertyEditor: View {
     private var isLinkColour: Bool {
         let property = part.definition.package?.manifest.resolvedProperties.first(where: { $0.id == definition.key.rawValue })
         return property?.controlGroupSource?.type == .linkStyling || definition.colourPurpose == .link
+    }
+
+    private var colourPreviewRole: String {
+        let source = part.definition.package?.manifest.resolvedProperties
+            .first(where: { $0.id == definition.key.rawValue })?.controlGroupSource
+        let variant: String?
+        if source?.type == .foreground {
+            variant = part.propertyValue(.init(rawValue: (source?.namespace ?? "") + ".variant")).stringValue
+        } else if source?.type == .colourControls,
+                  PartColourToken.parse(part.propertyValue(definition.key).stringValue) == nil {
+            variant = part.propertyValue(.init(rawValue: definition.key.rawValue + "_variant")).stringValue
+        } else {
+            variant = nil
+        }
+        return PartColourPurpose.previewRole(purpose: definition.colourPurpose, group: source?.type, variant: variant)
     }
 
     private var bootstrapGapPrefix: String? {

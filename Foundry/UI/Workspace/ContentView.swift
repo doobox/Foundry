@@ -77,8 +77,7 @@ struct ContentView: View {
     @State private var selectedAppearance = SiteAppearance.light
     private var canvasAppearance: SiteAppearance {
         if let override = selectedPage?.appearanceOverride { return override }
-        return document.site.appearanceMode.permits(selectedAppearance) ? selectedAppearance :
-            (document.site.appearanceMode == .dark ? .dark : .light)
+        return selectedAppearance
     }
     @State private var htmlSourceEditRequest: HTMLSourceEditRequest?
     @State private var pageTextEditRequest: PageTextEditRequest?
@@ -119,6 +118,7 @@ struct ContentView: View {
             canvasScreens: document.site.theme.screens,
             canvasAppearance: $selectedAppearance,
             appearanceMode: document.site.appearanceMode,
+            setAppearanceMode: { editor.setSiteAppearanceMode($0) },
             openProjectSettings: {
                 openSiteSettings(section: .general)
             },
@@ -2092,6 +2092,7 @@ struct ContentView: View {
             pageForeground: selectedPage?.foregroundOverride,
             pageBorder: selectedPage?.borderOverride,
             pageLinks: selectedPage?.linksOverride,
+            pageColourAdjustments: selectedPage?.colourAdjustments ?? [:],
             pageAppearance: selectedPage?.appearanceOverride
         ) { data in
             if let data {

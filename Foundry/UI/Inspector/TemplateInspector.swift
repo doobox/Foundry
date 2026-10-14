@@ -229,6 +229,7 @@ struct TemplateInspector: View {
                 pageForeground: currentPage?.foregroundOverride,
                 pageBorder: currentPage?.borderOverride,
                 pageLinks: currentPage?.linksOverride,
+                pageColourAdjustments: currentPage?.colourAdjustments ?? [:],
                 pageAppearance: currentPage?.appearanceOverride
             ) { data in
                 continuation.resume(returning: data)

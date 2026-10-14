@@ -299,7 +299,7 @@ nonisolated enum PartPackageAdapter {
             dateMinimum: property.control.minimumDate.flatMap(PartDateValue.init).map(\.date),
             dateMaximum: property.control.maximumDate.flatMap(PartDateValue.init).map(\.date),
             presentation: property.control.presentation,
-            colourSections: property.control.colourSections ?? property.control.type.colourPurpose?.defaultSections ?? ["themes"],
+            colourSections: property.control.effectiveColourSections,
             colourPurpose: property.control.type.colourPurpose
         )]
     }

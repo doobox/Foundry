@@ -11,6 +11,8 @@ canvas, preview, publishing or the Xcode build.
 - `bootstrap-<version>.min.css`: the official stylesheet used by all renderers.
 - `bootstrap.min.css.map`: the upstream reference source map.
 - `bootstrap-<version>.bundle.min.js`: the official JavaScript bundle.
+- `bootstrap-class-catalog.json`: generated class names and CSS layers for the inspector picker.
+- `bootstrap-utilities.metadata.json`: upstream utility-family names for the picker.
 
 `BootstrapBundledLibraryTests` pins checksums. Export removes unavailable source-map
 references without rewriting the vendor CSS. Never edit vendor files by hand.
@@ -27,8 +29,14 @@ the vendor stylesheet. Sass, Node and npm never run during preview or publishing
 ## Updating Bootstrap
 
 Run `tools/bootstrap/update.sh <version>`, then update the registry version and
-the pinned test checksums. Run the Bootstrap browser tests and review Foundry's
-separate utility overrides against the new release.
+the pinned test checksums. Rebuild the matching sibling Bootstrap checkout,
+copy its generated `dist/css/bootstrap-utilities.metadata.json` into the
+libraries bundle, and run `node tools/bootstrap/generate-class-catalog.mjs`.
+The generator reads the exact bundled CSS and needs the sibling checkout's
+`postcss` and `postcss-selector-parser` dependencies installed. Run the
+Bootstrap browser tests and review Foundry's separate utility overrides
+against the new release. The picker tests check that its catalog names the
+same stylesheet as the registry.
 
 ## Retained experimental checkout
 
