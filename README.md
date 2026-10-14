@@ -1,5 +1,7 @@
 # Foundry
 
+![Foundry's visual website editor](.github/images/foundry.webp)
+
 Foundry is a native macOS visual website builder. Arrange reusable parts on a
 canvas, edit their content and responsive styling, and preview or publish the
 resulting website. Generated sites use Bootstrap 6.
